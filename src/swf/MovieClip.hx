@@ -2,7 +2,7 @@ package swf;
 
 /**
 	Émulation minimale d'un MovieClip AS2 : timeline, liste d'affichage par
-	profondeur, enfants nommés accessibles comme des champs (mc.sub), et les
+	profondeur, enfants nommés accessibles comme des champs (__mc.sub), et les
 	méthodes utilisées par le code de Hammerfest.
 **/
 class MovieClip extends DisplayObject {
@@ -18,106 +18,194 @@ class MovieClip extends DisplayObject {
 	/** Appelé pour les sons déclenchés par la timeline. */
 	public static var onTimelineSound:Int->Void = null;
 
-	public var children:Array<DisplayObject> = [];
+	public var __children:Array<DisplayObject> = [];
 	public var _currentframe(default, null):Int = 0;
 	public var _totalframes(default, null):Int = 1;
-	public var playing:Bool = true;
+	public var __playing:Bool = true;
 	public var onEnterFrame:Void->Void = null;
 
-	var def:Dynamic;
-	var placeKeys:Map<Int, String> = new Map();
-	var justCreated:Bool = true;
+	var __def:Dynamic;
+	var __placeKeys:Map<Int, String> = new Map();
+	var __justCreated:Bool = true;
 
-	public function new(charId:Int) {
-		super(charId);
-		if (charId >= 0) {
-			def = Library.inst.char(charId);
-			_totalframes = def != null && def.frames != null ? def.frames.length : 1;
+	/** Classes associées aux symboles (Std.registerClass / Object.registerClass). */
+	static var registry:Map<String, Class<MovieClip>> = new Map();
+
+	static var pending:Dynamic = null;
+	static var classByChar:Map<Int, Class<MovieClip>> = new Map();
+
+	public static function registerClass(linkage:String, cls:Dynamic) {
+		registry.set(linkage, cls);
+		var id = Library.inst.exportId(linkage);
+		if (id != null)
+			classByChar.set(id, cls);
+	}
+
+	// propriétés et événements AS2 utilisés par le jeu
+	public var onRelease:Dynamic = null;
+	public var onPress:Dynamic = null;
+	public var onRollOver:Dynamic = null;
+	public var onRollOut:Dynamic = null;
+	public var onReleaseOutside:Dynamic = null;
+	public var useHandCursor:Bool = true;
+	public var enabled:Bool = true;
+	public var cacheAsBitmap:Bool = false;
+	public var _lockroot:Bool = false;
+	public var _xmouse:Float = 0;
+	public var _ymouse:Float = 0;
+	public var _quality:String = "HIGH";
+	public var _droptarget:String = "";
+
+	public function new(?__charId:Int) {
+		var p:Dynamic = null;
+		if (__charId == null) {
+			p = pending;
+			pending = null;
+			__charId = p != null ? p.id : -1;
+		}
+		super(__charId);
+		if (__charId >= 0) {
+			__def = Library.inst.char(__charId);
+			_totalframes = __def != null && __def.frames != null ? __def.frames.length : 1;
 			if (_totalframes < 1)
 				_totalframes = 1;
+		} else
+			_currentframe = 1;
+		if (p != null) {
+			// Comme Flash : le clip est nommé, placé, initialisé (objet init) et sa frame 1
+			// construite AVANT le corps du constructeur de la classe associée.
+			_name = p.name;
+			if (p.parent != null)
+				(p.parent : MovieClip).__addChildAt(this, p.depth);
+			if (p.init != null)
+				for (f in Reflect.fields(p.init))
+					Reflect.setProperty(this, f, Reflect.field(p.init, f));
+			if (p.timeline != true)
+				__init();
 		}
+	}
+
+	/** Crée une instance (avec sa classe associée si elle existe). */
+	static function instantiate(id:Int, name:String, parent:MovieClip, depth:Int, init:Dynamic, timeline:Bool = false):MovieClip {
+		var cls = classByChar.get(id);
+		pending = {id: id, name: name, parent: parent, depth: depth, init: init, timeline: timeline};
+		var mc:MovieClip = cls != null ? Type.createInstance(cls, []) : new MovieClip();
+		pending = null;
+		return mc;
 	}
 
 	// --- création ---------------------------------------------------------
 
-	public static function create(charId:Int):DisplayObject {
-		var c:Dynamic = Library.inst.char(charId);
+	public static function create(__charId:Int):DisplayObject {
+		var c:Dynamic = Library.inst.char(__charId);
 		if (c == null)
-			return new DisplayObject(charId);
+			return new DisplayObject(__charId);
 		return switch (c.k) {
-			case "sprite": new MovieClip(charId);
-			case "etext": new TextField(charId);
-			default: new DisplayObject(charId);
+			case "sprite": new MovieClip(__charId);
+			case "etext": new TextField(__charId);
+			default: new DisplayObject(__charId);
 		}
 	}
 
 	/** Premier affichage : frame 1 et ses actions. */
-	public function init() {
-		if (def == null || _currentframe > 0)
+	public function __init() {
+		if (__def == null || _currentframe > 0)
 			return;
-		enterFrame(1);
+		__enterFrame(1);
 	}
 
 	// --- liste d'affichage ------------------------------------------------
 
-	public function addChildAt(o:DisplayObject, depth:Int) {
-		var old = getChildAtDepth(depth);
+	public function __addChildAt(o:DisplayObject, __depth:Int) {
+		var old = __getChildAtDepth(__depth);
 		if (old != null)
-			removeChild(old);
-		o.depth = depth;
+			__removeChild(old);
+		o.__depth = __depth;
 		o._parent = this;
 		var i = 0;
-		while (i < children.length && children[i].depth < depth)
+		while (i < __children.length && __children[i].__depth < __depth)
 			i++;
-		children.insert(i, o);
+		__children.insert(i, o);
 		if (o._name != null && o._name != "")
 			Reflect.setField(this, o._name, o);
 		return o;
 	}
 
-	public function removeChild(o:DisplayObject) {
-		children.remove(o);
+	public function __removeChild(o:DisplayObject) {
+		__children.remove(o);
 		if (o._name != null && o._name != "" && Reflect.field(this, o._name) == o)
 			Reflect.deleteField(this, o._name);
 		o._parent = null;
 	}
 
-	public function getChildAtDepth(depth:Int):Null<DisplayObject> {
-		for (c in children)
-			if (c.depth == depth)
+	public function __getChildAtDepth(__depth:Int):Null<DisplayObject> {
+		for (c in __children)
+			if (c.__depth == __depth)
 				return c;
 		return null;
 	}
 
-	public function attachMovie(linkage:String, name:String, depth:Int, ?init:Dynamic):MovieClip {
+	public function attachMovie(linkage:String, name:String, __depth:Int, ?init:Dynamic):MovieClip {
 		var id = Library.inst.exportId(linkage);
 		if (id == null)
 			return null;
-		var mc = new MovieClip(id);
-		mc._name = name;
-		if (init != null)
-			for (f in Reflect.fields(init))
-				Reflect.setProperty(mc, f, Reflect.field(init, f));
-		addChildAt(mc, depth);
-		mc.init();
+		return instantiate(id, name, this, __depth, init);
+	}
+
+	public function createEmptyMovieClip(name:String, __depth:Int):MovieClip {
+		return instantiate(-1, name, this, __depth, null);
+	}
+
+	public function duplicateMovieClip(name:String, depth:Int, ?init:Dynamic):MovieClip {
+		if (_parent == null)
+			return null;
+		var mc = instantiate(__charId, name, _parent, depth, init);
+		mc.__setMatrix([__ma(), __mb(), __mc(), __md(), __mtx(), __mty()]);
+		mc.__cx = __cx;
 		return mc;
 	}
 
-	public function createEmptyMovieClip(name:String, depth:Int):MovieClip {
-		var mc = new MovieClip(-1);
-		mc._name = name;
-		mc._currentframe = 1;
-		addChildAt(mc, depth);
-		return mc;
+	public function createTextField(name:String, depth:Int, x:Float, y:Float, w:Float, h:Float):TextField {
+		var t = new TextField(-1);
+		t._name = name;
+		t.__w = w;
+		t.__h = h;
+		t._x = x;
+		t._y = y;
+		__addChildAt(t, depth);
+		return t;
 	}
 
-	public function getDepth() return depth;
+	public function attachBitmap(bmp:Dynamic, depth:Int, ?snap:String, ?smooth:Bool) {
+		var b = new BitmapObject(bmp);
+		__addChildAt(b, depth);
+	}
+
+	public function setMask(m:Dynamic) {}
+
+	public function getInstanceAtDepth(d:Int):DisplayObject return __getChildAtDepth(d);
+
+	/** Boîte englobante dans l'espace de `target` (ou local). */
+	public function hitTest(a:Dynamic, ?b:Float, ?shape:Bool):Bool {
+		if (Std.isOfType(a, DisplayObject)) {
+			var r1 = getBounds(null);
+			var r2 = (a : DisplayObject).getBounds(null);
+			if (r1 == null || r2 == null)
+				return false;
+			return r1.xMin < r2.xMax && r1.xMax > r2.xMin && r1.yMin < r2.yMax && r1.yMax > r2.yMin;
+		}
+		var r = getBounds(null);
+		var x:Float = a;
+		return r != null && x >= r.xMin && x <= r.xMax && b >= r.yMin && b <= r.yMax;
+	}
+
+	public function getDepth() return __depth;
 
 	public function getNextHighestDepth():Int {
 		var d = 0;
-		for (c in children)
-			if (c.depth >= d)
-				d = c.depth + 1;
+		for (c in __children)
+			if (c.__depth >= d)
+				d = c.__depth + 1;
 		return d;
 	}
 
@@ -125,62 +213,62 @@ class MovieClip extends DisplayObject {
 		if (_parent == null)
 			return;
 		var p = _parent;
-		var newDepth:Int = Std.isOfType(target, DisplayObject) ? (cast target : DisplayObject).depth : Std.int(target);
-		var other = p.getChildAtDepth(newDepth);
-		var myDepth = depth;
-		p.children.remove(this);
+		var newDepth:Int = Std.isOfType(target, DisplayObject) ? (cast target : DisplayObject).__depth : Std.int(target);
+		var other = p.__getChildAtDepth(newDepth);
+		var myDepth = __depth;
+		p.__children.remove(this);
 		if (other != null) {
-			p.children.remove(other);
-			other.depth = myDepth;
-			p.insertSorted(other);
+			p.__children.remove(other);
+			other.__depth = myDepth;
+			p.__insertSorted(other);
 		}
-		depth = newDepth;
-		p.insertSorted(this);
+		__depth = newDepth;
+		p.__insertSorted(this);
 	}
 
-	function insertSorted(o:DisplayObject) {
+	function __insertSorted(o:DisplayObject) {
 		var i = 0;
-		while (i < children.length && children[i].depth < o.depth)
+		while (i < __children.length && __children[i].__depth < o.__depth)
 			i++;
-		children.insert(i, o);
+		__children.insert(i, o);
 	}
 
 	// --- timeline ---------------------------------------------------------
 
-	public function play() playing = true;
+	public function play() __playing = true;
 
-	public function stop() playing = false;
+	public function stop() __playing = false;
 
 	public function gotoAndStop(f:Dynamic) {
-		playing = false;
-		gotoFrame(f);
+		__playing = false;
+		__gotoFrame(f);
 	}
 
 	public function gotoAndPlay(f:Dynamic) {
-		playing = true;
-		gotoFrame(f);
+		__playing = true;
+		__gotoFrame(f);
 	}
 
 	public function nextFrame() {
-		playing = false;
+		__playing = false;
 		if (_currentframe < _totalframes)
-			gotoFrame(_currentframe + 1);
+			__gotoFrame(_currentframe + 1);
 	}
 
 	public function prevFrame() {
-		playing = false;
+		__playing = false;
 		if (_currentframe > 1)
-			gotoFrame(_currentframe - 1);
+			__gotoFrame(_currentframe - 1);
 	}
 
-	function resolveFrame(f:Dynamic):Int {
+	function __resolveFrame(f:Dynamic):Int {
 		if (Std.isOfType(f, String)) {
 			var s:String = f;
 			var n = Std.parseInt(s);
 			if (n != null && Std.string(n) == s)
 				return n;
-			if (def != null && def.labels != null) {
-				var l = Reflect.field(def.labels, s);
+			if (__def != null && __def.labels != null) {
+				var l = Reflect.field(__def.labels, s);
 				if (l != null)
 					return l;
 			}
@@ -189,29 +277,29 @@ class MovieClip extends DisplayObject {
 		return Std.int(f);
 	}
 
-	public function gotoFrame(f:Dynamic) {
-		if (def == null || def.frames == null)
+	public function __gotoFrame(f:Dynamic) {
+		if (__def == null || __def.frames == null)
 			return;
-		var n = resolveFrame(f);
+		var n = __resolveFrame(f);
 		if (n < 1)
 			return;
 		if (n > _totalframes)
 			n = _totalframes;
 		if (n == _currentframe)
 			return;
-		enterFrame(n);
+		__enterFrame(n);
 	}
 
 	/** État de la liste d'affichage à une frame donnée (mis en cache dans la définition). */
-	function stateAt(n:Int):Map<Int, Dynamic> {
-		var cache:Array<Map<Int, Dynamic>> = def.__states;
+	function __stateAt(n:Int):Map<Int, Dynamic> {
+		var cache:Array<Map<Int, Dynamic>> = __def.__states;
 		if (cache == null) {
 			cache = [];
-			def.__states = cache;
+			__def.__states = cache;
 		}
 		if (cache[n] != null)
 			return cache[n];
-		var frames:Array<Array<Dynamic>> = def.frames;
+		var frames:Array<Array<Dynamic>> = __def.frames;
 		var start = n - 1;
 		while (start > 0 && cache[start] == null)
 			start--;
@@ -254,62 +342,67 @@ class MovieClip extends DisplayObject {
 		return st;
 	}
 
-	function enterFrame(n:Int) {
-		var st = stateAt(n);
+	function __enterFrame(n:Int) {
+		var st = __stateAt(n);
 		// retire les objets de timeline absents ou remplacés
-		for (c in children.copy()) {
-			if (!c.fromTimeline)
+		for (c in __children.copy()) {
+			if (!c.__fromTimeline)
 				continue;
-			var d = c.depth - TIMELINE_DEPTH;
+			var d = c.__depth - TIMELINE_DEPTH;
 			var e:Dynamic = st.get(d);
-			if (e == null || e.key != placeKeys.get(d)) {
-				removeChild(c);
-				placeKeys.remove(d);
+			if (e == null || e.key != __placeKeys.get(d)) {
+				__removeChild(c);
+				__placeKeys.remove(d);
 			}
 		}
 		// crée ou met à jour
 		for (d => e in st) {
-			var c = getChildAtDepth(d + TIMELINE_DEPTH);
+			var c = __getChildAtDepth(d + TIMELINE_DEPTH);
 			if (c == null) {
-				c = create(e.c);
-				c.fromTimeline = true;
-				if (e.name != null)
-					c._name = e.name;
-				addChildAt(c, d + TIMELINE_DEPTH);
-				placeKeys.set(d, e.key);
-				applyPlacement(c, e, true);
+				var ch:Dynamic = Library.inst.char(e.c);
+				if (ch != null && ch.k == "sprite") {
+					c = instantiate(e.c, e.name != null ? e.name : "instance" + d, this, d + TIMELINE_DEPTH, null, true);
+				} else {
+					c = create(e.c);
+					if (e.name != null)
+						c._name = e.name;
+					__addChildAt(c, d + TIMELINE_DEPTH);
+				}
+				c.__fromTimeline = true;
+				__placeKeys.set(d, e.key);
+				__applyPlacement(c, e, true);
 				if (Std.isOfType(c, MovieClip))
-					(cast c : MovieClip).init();
+					(cast c : MovieClip).__init();
 			} else {
-				applyPlacement(c, e, false);
+				__applyPlacement(c, e, false);
 			}
 		}
 		_currentframe = n;
-		var acts:Array<Dynamic> = def.actions != null ? Reflect.field(def.actions, Std.string(n)) : null;
+		var acts:Array<Dynamic> = __def.actions != null ? Reflect.field(__def.actions, Std.string(n)) : null;
 		if (acts != null)
-			queue.push(() -> runActions(n, acts));
-		if (def.sounds != null && onTimelineSound != null) {
-			var s:Array<Int> = Reflect.field(def.sounds, Std.string(n));
+			queue.push(() -> __runActions(n, acts));
+		if (__def.sounds != null && onTimelineSound != null) {
+			var s:Array<Int> = Reflect.field(__def.sounds, Std.string(n));
 			if (s != null)
 				for (id in s)
 					onTimelineSound(id);
 		}
 	}
 
-	function applyPlacement(c:DisplayObject, e:Dynamic, fresh:Bool) {
-		if (!c.scripted || fresh) {
+	function __applyPlacement(c:DisplayObject, e:Dynamic, fresh:Bool) {
+		if (!c.__scripted || fresh) {
 			if (e.m != null)
-				c.setMatrix(e.m);
-			c.cx = e.cx;
+				c.__setMatrix(e.m);
+			c.__cx = e.cx;
 		}
-		c.ratio = e.r != null ? e.r : 0;
-		c.clipDepth = e.clip != null ? e.clip + TIMELINE_DEPTH : 0;
-		c.blend = e.blend;
-		c.filters = e.filters;
+		c.__ratio = e.r != null ? e.r : 0;
+		c.__clipDepth = e.clip != null ? e.clip + TIMELINE_DEPTH : 0;
+		c.__blend = e.blend;
+		c.__filters = e.filters;
 	}
 
-	function runActions(frame:Int, acts:Array<Dynamic>) {
-		if (_parent == null && !isRoot)
+	function __runActions(frame:Int, acts:Array<Dynamic>) {
+		if (_parent == null && !__isRoot)
 			return; // retiré entre temps
 		for (a in acts) {
 			var op:Array<Dynamic> = a;
@@ -328,31 +421,44 @@ class MovieClip extends DisplayObject {
 					else
 						gotoAndStop(op[1]);
 				case "todo":
-					var h = frameScripts.get(charId + ":" + frame);
+					var h = frameScripts.get(__charId + ":" + frame);
 					if (h != null)
 						h(this);
 			}
 		}
 	}
 
-	public var isRoot:Bool = false;
+	public var __isRoot:Bool = false;
 
-	override public function advance(q:Array<Void->Void>) {
-		if (justCreated) {
-			justCreated = false;
-		} else if (playing && def != null && _totalframes > 1) {
-			enterFrame(_currentframe >= _totalframes ? 1 : _currentframe + 1);
+	override public function __localBounds():Null<Rect> {
+		var r:Null<Rect> = null;
+		for (c in __children) {
+			if (!c._visible || c.__clipDepth != 0)
+				continue;
+			var b = c.__boundsInParent();
+			if (b == null)
+				continue;
+			r = r == null ? b : Rect.union(r, b);
+		}
+		return r;
+	}
+
+	override public function __advance(q:Array<Void->Void>) {
+		if (__justCreated) {
+			__justCreated = false;
+		} else if (__playing && __def != null && _totalframes > 1) {
+			__enterFrame(_currentframe >= _totalframes ? 1 : _currentframe + 1);
 		}
 		if (onEnterFrame != null)
 			queue.push(onEnterFrame);
-		for (c in children.copy())
+		for (c in __children.copy())
 			if (c._parent == this)
-				c.advance(q);
+				c.__advance(q);
 	}
 
 	/** Un tick complet : avance toutes les timelines puis exécute les actions. */
 	public static function tick(root:MovieClip) {
-		root.advance(queue);
+		root.__advance(queue);
 		var guard = 0;
 		while (queue.length > 0 && guard++ < 10000) {
 			var f = queue.shift();

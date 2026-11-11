@@ -28,28 +28,54 @@ class Library {
 		this.frameRate = data.frameRate;
 	}
 
-	public static function load(base:String, onReady:Library->Void, ?onError:String->Void) {
-		var lib:Dynamic = null;
-		var shapes:Dynamic = null;
-		function done() {
-			if (lib != null && shapes != null) {
-				inst = new Library(base, lib, shapes);
-				onReady(inst);
-			}
-		}
+	/** Planches pré-pixellisées (tools/extract/rasterize.cjs) : id -> [page, x, y, w, h, échelle]. */
+	var atlasMap:haxe.DynamicAccess<Array<Float>> = null;
+	var atlasPages:Array<ImageElement> = [];
+
+	public static function load(base:String, onReady:Library->Void, ?onError:String->Void, ?onProgress:Float->Void) {
 		function fail(e:Dynamic) {
 			if (onError != null)
 				onError(Std.string(e));
 		}
-		Browser.window.fetch(base + "/gfx/library.json").then(r -> r.json()).then(j -> {
-			lib = j;
-			done();
-		}).catchError(fail);
-		Browser.window.fetch(base + "/gfx/shapes.json").then(r -> r.json()).then(j -> {
-			shapes = j;
-			done();
+		Browser.window.fetch(base + "/gfx/library.json").then(r -> r.json()).then(lib -> {
+			Browser.window.fetch(base + "/gfx/atlas.json").then(r -> r.ok ? r.json() : null).then(atlas -> {
+				if (atlas == null) {
+					// pas d'atlas : SVG décodés à la demande
+					Browser.window.fetch(base + "/gfx/shapes.json").then(r -> r.json()).then(shapes -> {
+						inst = new Library(base, lib, shapes);
+						onReady(inst);
+					}).catchError(fail);
+					return;
+				}
+				var l = new Library(base, lib, {});
+				l.atlasMap = atlas.map;
+				var n:Int = atlas.pages;
+				var loaded = 0;
+				for (i in 0...n) {
+					var img = Browser.document.createImageElement();
+					img.onload = () -> {
+						loaded++;
+						if (onProgress != null)
+							onProgress(loaded / n);
+						if (loaded == n) {
+							inst = l;
+							onReady(l);
+						}
+					};
+					img.onerror = () -> fail("planche " + i);
+					img.src = base + "/gfx/atlas/atlas-" + i + ".webp";
+					l.atlasPages.push(img);
+				}
+			}).catchError(fail);
 		}).catchError(fail);
 	}
+
+	/** Région de l'atlas pour un caractère : [image, x, y, w, h] ou null. */
+	public inline function atlasRegion(id:Int):Null<Array<Float>> {
+		return atlasMap == null ? null : atlasMap.get(Std.string(id));
+	}
+
+	public inline function atlasPage(i:Int):ImageElement return atlasPages[i];
 
 	public inline function char(id:Int):Dynamic {
 		return Reflect.field(data.chars, Std.string(id));
@@ -65,6 +91,29 @@ class Library {
 		return a;
 	}
 
+	/** Précharge toutes les formes (nécessaire pour les caches bitmap du décor). */
+	public function preloadAll(onProgress:Float->Void, onDone:Void->Void) {
+		if (atlasMap != null) {
+			onDone();
+			return;
+		}
+		var ids = [for (k in svgs.keys()) Std.parseInt(k)];
+		var total = ids.length;
+		var next = 0;
+		function check() {
+			// création par lots pour ne pas bloquer la page
+			var end = Std.int(Math.min(next + 150, total));
+			while (next < end)
+				image(ids[next++]);
+			onProgress((next - pending) / total);
+			if (next >= total && pending <= 0)
+				onDone();
+			else
+				js.Browser.window.setTimeout(check, 16);
+		}
+		check();
+	}
+
 	/** Image source (SVG ou bitmap) d'un caractère, chargée à la demande. */
 	public function image(id:Int):Null<ImageElement> {
 		var img = images.get(id);
@@ -73,7 +122,7 @@ class Library {
 		var src:String = null;
 		var svg = svgs.get(Std.string(id));
 		if (svg != null) {
-			src = "data:image/svg+xml;charset=utf-8," + StringTools.urlEncode(svg);
+			src = js.html.URL.createObjectURL(new js.html.Blob([svg], {type: "image/svg+xml"}));
 		} else {
 			var c = char(id);
 			if (c != null && c.file != null)

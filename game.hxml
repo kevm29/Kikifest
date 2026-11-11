@@ -1,0 +1,9 @@
+-cp src
+-cp src/game
+-cp src/stubs
+-main Boot
+-js web/js/game.js
+-D js-es=6
+-D analyzer-optimize
+-D no-traces
+--cmd node tools/postbuild.mjs web/js/game.js

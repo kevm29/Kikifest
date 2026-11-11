@@ -90,6 +90,13 @@ class StringTools {
 	}
 }
 StringTools.__name__ = true;
+class Type {
+	static createInstance(cl,args) {
+		let ctor = Function.prototype.bind.apply(cl,[null].concat(args));
+		return new (ctor);
+	}
+}
+Type.__name__ = true;
 class haxe_ds_IntMap {
 	constructor() {
 		this.h = { };
@@ -219,70 +226,79 @@ class js_Boot {
 }
 js_Boot.__name__ = true;
 class swf_DisplayObject {
-	constructor(charId) {
+	constructor(__charId) {
 		if(swf_DisplayObject._hx_skip_constructor) {
 			return;
 		}
-		this._hx_constructor(charId);
+		this._hx_constructor(__charId);
 	}
-	_hx_constructor(charId) {
+	_hx_constructor(__charId) {
 		this._visible = true;
-		this.fromTimeline = false;
-		this.scripted = false;
-		this.ratio = 0;
-		this.clipDepth = 0;
-		this.filters = null;
-		this.blend = null;
-		this.cx = null;
-		this.rotY = 0;
-		this.rotX = 0;
-		this.sy = 1;
-		this.sx = 1;
-		this.ty = 0;
-		this.tx = 0;
+		this.__fromTimeline = false;
+		this.__scripted = false;
+		this.__ratio = 0;
+		this.__clipDepth = 0;
+		this.__filters = null;
+		this.__blend = null;
+		this.__cx = null;
+		this.__rotY = 0;
+		this.__rotX = 0;
+		this.__sy = 1;
+		this.__sx = 1;
+		this.__ty = 0;
+		this.__tx = 0;
 		this._name = "";
-		this.charId = charId;
+		this.__charId = __charId;
 	}
-	setMatrix(m) {
+	__setMatrix(m) {
 		let a = m[0];
 		let b = m[1];
 		let c = m[2];
 		let d = m[3];
-		this.tx = m[4];
-		this.ty = m[5];
-		this.sx = Math.sqrt(a * a + b * b);
-		this.sy = Math.sqrt(c * c + d * d);
+		this.__tx = m[4];
+		this.__ty = m[5];
+		this.__sx = Math.sqrt(a * a + b * b);
+		this.__sy = Math.sqrt(c * c + d * d);
 		if(a * d - b * c < 0) {
-			this.sy = -this.sy;
+			this.__sy = -this.__sy;
 		}
-		this.rotX = Math.atan2(b,a);
-		this.rotY = Math.atan2(-c,d);
-		if(this.sy < 0) {
-			this.rotY = Math.atan2(c,-d);
+		this.__rotX = Math.atan2(b,a);
+		this.__rotY = Math.atan2(-c,d);
+		if(this.__sy < 0) {
+			this.__rotY = Math.atan2(c,-d);
 		}
 	}
 	set__x(v) {
-		this.scripted = true;
-		return this.tx = v;
+		this.__scripted = true;
+		return this.__tx = v;
 	}
 	set__y(v) {
-		this.scripted = true;
-		return this.ty = v;
+		this.__scripted = true;
+		return this.__ty = v;
 	}
 	removeMovieClip() {
 		if(this._parent != null) {
-			this._parent.removeChild(this);
+			this._parent.__removeChild(this);
 		}
 	}
-	advance(queue) {
+	__advance(queue) {
 	}
 }
 swf_DisplayObject.__name__ = true;
 Object.assign(swf_DisplayObject.prototype, {
 	__properties__: {set__y: "set__y",set__x: "set__x"}
 });
+class swf_BitmapObject extends swf_DisplayObject {
+	constructor(b) {
+		super(-2);
+		this.bitmap = b;
+	}
+}
+swf_BitmapObject.__name__ = true;
 class swf_Library {
 	constructor(base,data,svgs) {
+		this.atlasPages = [];
+		this.atlasMap = null;
 		this.pending = 0;
 		this.raster = new haxe_ds_StringMap();
 		this.images = new haxe_ds_IntMap();
@@ -319,7 +335,7 @@ class swf_Library {
 		let src = null;
 		let svg = this.svgs[id == null ? "null" : "" + id];
 		if(svg != null) {
-			src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+			src = URL.createObjectURL(new Blob([svg],{ type : "image/svg+xml"}));
 		} else {
 			let c = Reflect.field(this.data.chars,id == null ? "null" : "" + id);
 			if(c != null && c.file != null) {
@@ -371,15 +387,7 @@ class swf_Library {
 		this.raster.h[key] = c;
 		return c;
 	}
-	static load(base,onReady,onError) {
-		let lib = null;
-		let shapes = null;
-		let done = function() {
-			if(lib != null && shapes != null) {
-				swf_Library.inst = new swf_Library(base,lib,shapes);
-				onReady(swf_Library.inst);
-			}
-		};
+	static load(base,onReady,onError,onProgress) {
 		let fail = function(e) {
 			if(onError != null) {
 				onError(Std.string(e));
@@ -387,139 +395,186 @@ class swf_Library {
 		};
 		window.fetch(base + "/gfx/library.json").then(function(r) {
 			return r.json();
-		}).then(function(j) {
-			lib = j;
-			done();
-		}).catch(fail);
-		window.fetch(base + "/gfx/shapes.json").then(function(r) {
-			return r.json();
-		}).then(function(j) {
-			shapes = j;
-			done();
+		}).then(function(lib) {
+			return window.fetch(base + "/gfx/atlas.json").then(function(r) {
+				if(r.ok) {
+					return r.json();
+				} else {
+					return null;
+				}
+			}).then(function(atlas) {
+				if(atlas == null) {
+					window.fetch(base + "/gfx/shapes.json").then(function(r) {
+						return r.json();
+					}).then(function(shapes) {
+						swf_Library.inst = new swf_Library(base,lib,shapes);
+						onReady(swf_Library.inst);
+					}).catch(fail);
+					return;
+				}
+				let l = new swf_Library(base,lib,{ });
+				l.atlasMap = atlas.map;
+				let n = atlas.pages;
+				let loaded = 0;
+				let _g = 0;
+				let _g1 = n;
+				while(_g < _g1) {
+					let i = _g++;
+					let img = window.document.createElement("img");
+					img.onload = function() {
+						loaded += 1;
+						if(onProgress != null) {
+							onProgress(loaded / n);
+						}
+						if(loaded == n) {
+							swf_Library.inst = l;
+							onReady(l);
+						}
+					};
+					img.onerror = function() {
+						fail("planche " + i);
+					};
+					img.src = base + "/gfx/atlas/atlas-" + i + ".webp";
+					l.atlasPages.push(img);
+				}
+			}).catch(fail);
 		}).catch(fail);
 	}
 }
 swf_Library.__name__ = true;
 class swf_MovieClip extends swf_DisplayObject {
-	constructor(charId) {
+	constructor(__charId) {
 		swf_DisplayObject._hx_skip_constructor = true;
 		super();
 		swf_DisplayObject._hx_skip_constructor = false;
-		this._hx_constructor(charId);
+		this._hx_constructor(__charId);
 	}
-	_hx_constructor(charId) {
-		this.isRoot = false;
-		this.justCreated = true;
-		this.placeKeys = new haxe_ds_IntMap();
+	_hx_constructor(__charId) {
+		this.__isRoot = false;
+		this.__justCreated = true;
+		this.__placeKeys = new haxe_ds_IntMap();
 		this.onEnterFrame = null;
-		this.playing = true;
+		this.__playing = true;
 		this._totalframes = 1;
 		this._currentframe = 0;
-		this.children = [];
-		super._hx_constructor(charId);
-		if(charId >= 0) {
-			this.def = Reflect.field(swf_Library.inst.data.chars,charId == null ? "null" : "" + charId);
-			this._totalframes = this.def != null && this.def.frames != null ? this.def.frames.length : 1;
+		this.__children = [];
+		let p = null;
+		if(__charId == null) {
+			p = swf_MovieClip.pending;
+			swf_MovieClip.pending = null;
+			__charId = p != null ? p.id : -1;
+		}
+		super._hx_constructor(__charId);
+		if(__charId >= 0) {
+			this.__def = Reflect.field(swf_Library.inst.data.chars,__charId == null ? "null" : "" + __charId);
+			this._totalframes = this.__def != null && this.__def.frames != null ? this.__def.frames.length : 1;
 			if(this._totalframes < 1) {
 				this._totalframes = 1;
 			}
+		} else {
+			this._currentframe = 1;
+		}
+		if(p != null) {
+			this._name = p.name;
+			if(p.parent != null) {
+				p.parent.__addChildAt(this,p.depth);
+			}
+			if(p.init != null) {
+				let _g = 0;
+				let _g1 = Reflect.fields(p.init);
+				while(_g < _g1.length) {
+					let f = _g1[_g];
+					++_g;
+					Reflect.setProperty(this,f,Reflect.field(p.init,f));
+				}
+			}
+			if(p.timeline != true) {
+				this.__init();
+			}
 		}
 	}
-	init() {
-		if(this.def == null || this._currentframe > 0) {
+	__init() {
+		if(this.__def == null || this._currentframe > 0) {
 			return;
 		}
-		this.enterFrame(1);
+		this.__enterFrame(1);
 	}
-	addChildAt(o,depth) {
-		let old = this.getChildAtDepth(depth);
+	__addChildAt(o,__depth) {
+		let old = this.__getChildAtDepth(__depth);
 		if(old != null) {
-			this.removeChild(old);
+			this.__removeChild(old);
 		}
-		o.depth = depth;
+		o.__depth = __depth;
 		o._parent = this;
 		let i = 0;
-		while(i < this.children.length && this.children[i].depth < depth) ++i;
-		this.children.splice(i,0,o);
+		while(i < this.__children.length && this.__children[i].__depth < __depth) ++i;
+		this.__children.splice(i,0,o);
 		if(o._name != null && o._name != "") {
 			this[o._name] = o;
 		}
 		return o;
 	}
-	removeChild(o) {
-		HxOverrides.remove(this.children,o);
+	__removeChild(o) {
+		HxOverrides.remove(this.__children,o);
 		if(o._name != null && o._name != "" && Reflect.field(this,o._name) == o) {
 			Reflect.deleteField(this,o._name);
 		}
 		o._parent = null;
 	}
-	getChildAtDepth(depth) {
+	__getChildAtDepth(__depth) {
 		let _g = 0;
-		let _g1 = this.children;
+		let _g1 = this.__children;
 		while(_g < _g1.length) {
 			let c = _g1[_g];
 			++_g;
-			if(c.depth == depth) {
+			if(c.__depth == __depth) {
 				return c;
 			}
 		}
 		return null;
 	}
-	attachMovie(linkage,name,depth,init) {
+	attachMovie(linkage,name,__depth,init) {
 		let id = swf_Library.inst.exportId(linkage);
 		if(id == null) {
 			return null;
 		}
-		let mc = new swf_MovieClip(id);
-		mc._name = name;
-		if(init != null) {
-			let _g = 0;
-			let _g1 = Reflect.fields(init);
-			while(_g < _g1.length) {
-				let f = _g1[_g];
-				++_g;
-				Reflect.setProperty(mc,f,Reflect.field(init,f));
-			}
-		}
-		this.addChildAt(mc,depth);
-		mc.init();
-		return mc;
+		return swf_MovieClip.instantiate(id,name,this,__depth,init);
 	}
 	play() {
-		this.playing = true;
+		this.__playing = true;
 	}
 	stop() {
-		this.playing = false;
+		this.__playing = false;
 	}
 	gotoAndStop(f) {
-		this.playing = false;
-		this.gotoFrame(f);
+		this.__playing = false;
+		this.__gotoFrame(f);
 	}
 	gotoAndPlay(f) {
-		this.playing = true;
-		this.gotoFrame(f);
+		this.__playing = true;
+		this.__gotoFrame(f);
 	}
 	nextFrame() {
-		this.playing = false;
+		this.__playing = false;
 		if(this._currentframe < this._totalframes) {
-			this.gotoFrame(this._currentframe + 1);
+			this.__gotoFrame(this._currentframe + 1);
 		}
 	}
 	prevFrame() {
-		this.playing = false;
+		this.__playing = false;
 		if(this._currentframe > 1) {
-			this.gotoFrame(this._currentframe - 1);
+			this.__gotoFrame(this._currentframe - 1);
 		}
 	}
-	resolveFrame(f) {
+	__resolveFrame(f) {
 		if(typeof(f) == "string") {
 			let s = f;
 			let n = Std.parseInt(s);
 			if(n != null && (n == null ? "null" : "" + n) == s) {
 				return n;
 			}
-			if(this.def != null && this.def.labels != null) {
-				let l = Reflect.field(this.def.labels,s);
+			if(this.__def != null && this.__def.labels != null) {
+				let l = Reflect.field(this.__def.labels,s);
 				if(l != null) {
 					return l;
 				}
@@ -528,11 +583,11 @@ class swf_MovieClip extends swf_DisplayObject {
 		}
 		return f | 0;
 	}
-	gotoFrame(f) {
-		if(this.def == null || this.def.frames == null) {
+	__gotoFrame(f) {
+		if(this.__def == null || this.__def.frames == null) {
 			return;
 		}
-		let n = this.resolveFrame(f);
+		let n = this.__resolveFrame(f);
 		if(n < 1) {
 			return;
 		}
@@ -542,18 +597,18 @@ class swf_MovieClip extends swf_DisplayObject {
 		if(n == this._currentframe) {
 			return;
 		}
-		this.enterFrame(n);
+		this.__enterFrame(n);
 	}
-	stateAt(n) {
-		let cache = this.def.__states;
+	__stateAt(n) {
+		let cache = this.__def.__states;
 		if(cache == null) {
 			cache = [];
-			this.def.__states = cache;
+			this.__def.__states = cache;
 		}
 		if(cache[n] != null) {
 			return cache[n];
 		}
-		let frames = this.def.frames;
+		let frames = this.__def.frames;
 		let start = n - 1;
 		while(start > 0 && cache[start] == null) --start;
 		let st = new haxe_ds_IntMap();
@@ -632,21 +687,21 @@ class swf_MovieClip extends swf_DisplayObject {
 		}
 		return st;
 	}
-	enterFrame(n) {
-		let st = this.stateAt(n);
+	__enterFrame(n) {
+		let st = this.__stateAt(n);
 		let _g = 0;
-		let _g1 = this.children.slice();
+		let _g1 = this.__children.slice();
 		while(_g < _g1.length) {
 			let c = _g1[_g];
 			++_g;
-			if(!c.fromTimeline) {
+			if(!c.__fromTimeline) {
 				continue;
 			}
-			let d = c.depth - (-16384);
+			let d = c.__depth - (-16384);
 			let e = st.h[d];
-			if(e == null || e.key != this.placeKeys.h[d]) {
-				this.removeChild(c);
-				this.placeKeys.remove(d);
+			if(e == null || e.key != this.__placeKeys.h[d]) {
+				this.__removeChild(c);
+				this.__placeKeys.remove(d);
 			}
 		}
 		let map = st;
@@ -658,33 +713,38 @@ class swf_MovieClip extends swf_DisplayObject {
 			let _g_key = key;
 			let d = _g_key;
 			let e = _g_value;
-			let c = this.getChildAtDepth(d + (-16384));
+			let c = this.__getChildAtDepth(d + (-16384));
 			if(c == null) {
-				c = swf_MovieClip.create(e.c);
-				c.fromTimeline = true;
-				if(e.name != null) {
-					c._name = e.name;
+				let ch = Reflect.field(swf_Library.inst.data.chars,Std.string(e.c));
+				if(ch != null && ch.k == "sprite") {
+					c = swf_MovieClip.instantiate(e.c,e.name != null ? e.name : "instance" + d,this,d + (-16384),null,true);
+				} else {
+					c = swf_MovieClip.create(e.c);
+					if(e.name != null) {
+						c._name = e.name;
+					}
+					this.__addChildAt(c,d + (-16384));
 				}
-				this.addChildAt(c,d + (-16384));
-				this.placeKeys.h[d] = e.key;
-				this.applyPlacement(c,e,true);
+				c.__fromTimeline = true;
+				this.__placeKeys.h[d] = e.key;
+				this.__applyPlacement(c,e,true);
 				if(((c) instanceof swf_MovieClip)) {
-					c.init();
+					c.__init();
 				}
 			} else {
-				this.applyPlacement(c,e,false);
+				this.__applyPlacement(c,e,false);
 			}
 		}
 		this._currentframe = n;
-		let acts = this.def.actions != null ? Reflect.field(this.def.actions,n == null ? "null" : "" + n) : null;
+		let acts = this.__def.actions != null ? Reflect.field(this.__def.actions,n == null ? "null" : "" + n) : null;
 		let _gthis = this;
 		if(acts != null) {
 			swf_MovieClip.queue.push(function() {
-				_gthis.runActions(n,acts);
+				_gthis.__runActions(n,acts);
 			});
 		}
-		if(this.def.sounds != null && swf_MovieClip.onTimelineSound != null) {
-			let s = Reflect.field(this.def.sounds,n == null ? "null" : "" + n);
+		if(this.__def.sounds != null && swf_MovieClip.onTimelineSound != null) {
+			let s = Reflect.field(this.__def.sounds,n == null ? "null" : "" + n);
 			if(s != null) {
 				let _g = 0;
 				while(_g < s.length) {
@@ -695,20 +755,20 @@ class swf_MovieClip extends swf_DisplayObject {
 			}
 		}
 	}
-	applyPlacement(c,e,fresh) {
-		if(!c.scripted || fresh) {
+	__applyPlacement(c,e,fresh) {
+		if(!c.__scripted || fresh) {
 			if(e.m != null) {
-				c.setMatrix(e.m);
+				c.__setMatrix(e.m);
 			}
-			c.cx = e.cx;
+			c.__cx = e.cx;
 		}
-		c.ratio = e.r != null ? e.r : 0;
-		c.clipDepth = e.clip != null ? e.clip + (-16384) : 0;
-		c.blend = e.blend;
-		c.filters = e.filters;
+		c.__ratio = e.r != null ? e.r : 0;
+		c.__clipDepth = e.clip != null ? e.clip + (-16384) : 0;
+		c.__blend = e.blend;
+		c.__filters = e.filters;
 	}
-	runActions(frame,acts) {
-		if(this._parent == null && !this.isRoot) {
+	__runActions(frame,acts) {
+		if(this._parent == null && !this.__isRoot) {
 			return;
 		}
 		let _g = 0;
@@ -737,7 +797,7 @@ class swf_MovieClip extends swf_DisplayObject {
 				this.stop();
 				break;
 			case "todo":
-				let h = swf_MovieClip.frameScripts.h[this.charId + ":" + frame];
+				let h = swf_MovieClip.frameScripts.h[this.__charId + ":" + frame];
 				if(h != null) {
 					h(this);
 				}
@@ -745,41 +805,51 @@ class swf_MovieClip extends swf_DisplayObject {
 			}
 		}
 	}
-	advance(q) {
-		if(this.justCreated) {
-			this.justCreated = false;
-		} else if(this.playing && this.def != null && this._totalframes > 1) {
-			this.enterFrame(this._currentframe >= this._totalframes ? 1 : this._currentframe + 1);
+	__advance(q) {
+		if(this.__justCreated) {
+			this.__justCreated = false;
+		} else if(this.__playing && this.__def != null && this._totalframes > 1) {
+			this.__enterFrame(this._currentframe >= this._totalframes ? 1 : this._currentframe + 1);
 		}
 		if(this.onEnterFrame != null) {
 			swf_MovieClip.queue.push(this.onEnterFrame);
 		}
 		let _g = 0;
-		let _g1 = this.children.slice();
+		let _g1 = this.__children.slice();
 		while(_g < _g1.length) {
 			let c = _g1[_g];
 			++_g;
 			if(c._parent == this) {
-				c.advance(q);
+				c.__advance(q);
 			}
 		}
 	}
-	static create(charId) {
-		let c = Reflect.field(swf_Library.inst.data.chars,charId == null ? "null" : "" + charId);
+	static instantiate(id,name,parent,depth,init,timeline) {
+		if(timeline == null) {
+			timeline = false;
+		}
+		let cls = swf_MovieClip.classByChar.h[id];
+		swf_MovieClip.pending = { id : id, name : name, parent : parent, depth : depth, init : init, timeline : timeline};
+		let mc = cls != null ? Type.createInstance(cls,[]) : new swf_MovieClip();
+		swf_MovieClip.pending = null;
+		return mc;
+	}
+	static create(__charId) {
+		let c = Reflect.field(swf_Library.inst.data.chars,__charId == null ? "null" : "" + __charId);
 		if(c == null) {
-			return new swf_DisplayObject(charId);
+			return new swf_DisplayObject(__charId);
 		}
 		switch(c.k) {
 		case "etext":
-			return new swf_TextField(charId);
+			return new swf_TextField(__charId);
 		case "sprite":
-			return new swf_MovieClip(charId);
+			return new swf_MovieClip(__charId);
 		default:
-			return new swf_DisplayObject(charId);
+			return new swf_DisplayObject(__charId);
 		}
 	}
 	static tick(root) {
-		root.advance(swf_MovieClip.queue);
+		root.__advance(swf_MovieClip.queue);
 		let guard = 0;
 		while(swf_MovieClip.queue.length > 0 && guard++ < 10000) {
 			let f = swf_MovieClip.queue.shift();
@@ -788,6 +858,15 @@ class swf_MovieClip extends swf_DisplayObject {
 	}
 }
 swf_MovieClip.__name__ = true;
+class swf_Rect {
+	constructor(x0,y0,x1,y1) {
+		this.xMin = x0;
+		this.yMin = y0;
+		this.xMax = x1;
+		this.yMax = y1;
+	}
+}
+swf_Rect.__name__ = true;
 class swf_Renderer {
 	constructor(canvas) {
 		this.filterCount = 0;
@@ -820,52 +899,64 @@ class swf_Renderer {
 			return;
 		}
 		let m;
-		if(o._parent == null && ((o) instanceof swf_MovieClip) && o.isRoot) {
-			let a = o.sx * Math.cos(o.rotX);
-			let b = o.sx * Math.sin(o.rotX);
-			let c = -o.sy * Math.sin(o.rotY);
-			let d = o.sy * Math.cos(o.rotY);
-			let tx = o.tx;
-			let ty = o.ty;
-			m = [pm[0] * a + pm[2] * b,pm[1] * a + pm[3] * b,pm[0] * c + pm[2] * d,pm[1] * c + pm[3] * d,pm[0] * tx + pm[2] * ty + pm[4],pm[1] * tx + pm[3] * ty + pm[5]];
+		if(o._parent == null && ((o) instanceof swf_MovieClip) && o.__isRoot) {
+			let a = o.__sx * Math.cos(o.__rotX);
+			let b = o.__sx * Math.sin(o.__rotX);
+			let c = -o.__sy * Math.sin(o.__rotY);
+			let d = o.__sy * Math.cos(o.__rotY);
+			let __tx = o.__tx;
+			let __ty = o.__ty;
+			m = [pm[0] * a + pm[2] * b,pm[1] * a + pm[3] * b,pm[0] * c + pm[2] * d,pm[1] * c + pm[3] * d,pm[0] * __tx + pm[2] * __ty + pm[4],pm[1] * __tx + pm[3] * __ty + pm[5]];
 		} else {
-			let a = o.sx * Math.cos(o.rotX);
-			let b = o.sx * Math.sin(o.rotX);
-			let c = -o.sy * Math.sin(o.rotY);
-			let d = o.sy * Math.cos(o.rotY);
-			let tx = o.tx;
-			let ty = o.ty;
-			m = [pm[0] * a + pm[2] * b,pm[1] * a + pm[3] * b,pm[0] * c + pm[2] * d,pm[1] * c + pm[3] * d,pm[0] * tx + pm[2] * ty + pm[4],pm[1] * tx + pm[3] * ty + pm[5]];
+			let a = o.__sx * Math.cos(o.__rotX);
+			let b = o.__sx * Math.sin(o.__rotX);
+			let c = -o.__sy * Math.sin(o.__rotY);
+			let d = o.__sy * Math.cos(o.__rotY);
+			let __tx = o.__tx;
+			let __ty = o.__ty;
+			m = [pm[0] * a + pm[2] * b,pm[1] * a + pm[3] * b,pm[0] * c + pm[2] * d,pm[1] * c + pm[3] * d,pm[0] * __tx + pm[2] * __ty + pm[4],pm[1] * __tx + pm[3] * __ty + pm[5]];
 		}
-		let cx = swf_Renderer.concatCx(pcx,o.cx);
-		if(cx[3] <= 0 && cx[7] <= 0) {
+		let __cx = swf_Renderer.concatCx(pcx,o.__cx);
+		if(__cx[3] <= 0 && __cx[7] <= 0) {
 			return;
 		}
-		if(o.blend != null) {
-			let c = swf_Renderer.compositeOp(o.blend);
+		if(o.__blend != null) {
+			let c = swf_Renderer.compositeOp(o.__blend);
 			if(c != null) {
 				op = c;
 			}
 		}
 		if(((o) instanceof swf_MovieClip)) {
-			this.drawChildren(g,o,m,cx,op);
+			this.drawChildren(g,o,m,__cx,op);
+			return;
+		}
+		if(((o) instanceof swf_BitmapObject)) {
+			let bo = o;
+			if(bo.bitmap != null && bo.bitmap.canvas != null) {
+				g.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
+				g.globalCompositeOperation = op != null ? op : "source-over";
+				this.applyColor(g,__cx);
+				g.drawImage(bo.bitmap.canvas,0,0);
+				g.filter = "none";
+				g.globalAlpha = 1;
+			}
 			return;
 		}
 		if(((o) instanceof swf_TextField)) {
-			this.drawText(g,o,m,cx,op);
+			this.drawText(g,o,m,__cx,op);
 			return;
 		}
-		this.drawGraphic(g,o.charId,m,cx,op);
+		this.drawGraphic(g,o.__charId,m,__cx,op);
 	}
-	drawChildren(g,mc,m,cx,op) {
-		let ch = mc.children;
+	drawChildren(g,__mc,m,__cx,op) {
+		let ch = __mc.__children;
 		let i = 0;
 		while(i < ch.length) {
 			let c = ch[i];
-			if(c.clipDepth != 0) {
+			if(c.__clipDepth != 0) {
 				let masked = [];
 				let j = i + 1;
-				while(j < ch.length && ch[j].depth <= c.clipDepth) {
+				while(j < ch.length && ch[j].__depth <= c.__clipDepth) {
 					masked.push(ch[j]);
 					++j;
 				}
@@ -879,7 +970,7 @@ class swf_Renderer {
 				while(_g < masked.length) {
 					let mo = masked[_g];
 					++_g;
-					this.drawObject(lg,mo,m,cx,null);
+					this.drawObject(lg,mo,m,__cx,null);
 				}
 				lg.globalCompositeOperation = "destination-in";
 				this.drawObject(lg,c,m,[1,1,1,1,0,0,0,0],"destination-in");
@@ -891,7 +982,7 @@ class swf_Renderer {
 				i = j;
 				continue;
 			}
-			this.drawObject(g,c,m,cx,op);
+			this.drawObject(g,c,m,__cx,op);
 			++i;
 		}
 	}
@@ -908,9 +999,21 @@ class swf_Renderer {
 		this.layerIndex++;
 		return l;
 	}
-	drawGraphic(g,id,m,cx,op) {
+	drawGraphic(g,id,m,__cx,op) {
 		let ch = Reflect.field(swf_Library.inst.data.chars,id == null ? "null" : "" + id);
 		if(ch == null || ch.b == null) {
+			return;
+		}
+		let b = ch.b;
+		let _this = swf_Library.inst;
+		let reg = _this.atlasMap == null ? null : _this.atlasMap[id == null ? "null" : "" + id];
+		if(reg != null) {
+			g.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
+			g.globalCompositeOperation = op != null ? op : "source-over";
+			this.applyColor(g,__cx);
+			g.drawImage(swf_Library.inst.atlasPages[reg[0] | 0],reg[1],reg[2],reg[3],reg[4],b[0],b[1],b[2] - b[0],b[3] - b[1]);
+			g.filter = "none";
+			g.globalAlpha = 1;
 			return;
 		}
 		let s = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
@@ -918,46 +1021,46 @@ class swf_Renderer {
 		if(img == null) {
 			return;
 		}
-		let b = ch.b;
 		g.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
 		g.globalCompositeOperation = op != null ? op : "source-over";
-		this.applyColor(g,cx);
+		this.applyColor(g,__cx);
 		g.drawImage(img,b[0],b[1],b[2] - b[0],b[3] - b[1]);
 		g.filter = "none";
 		g.globalAlpha = 1;
 	}
-	drawText(g,t,m,cx,op) {
-		let d = t.def;
-		if(d == null) {
-			return;
-		}
-		let b = d.b;
-		let size = d.size != null ? d.size : 12;
-		let font = d.font != null ? Reflect.field(swf_Library.inst.data.chars,Std.string(d.font)) : null;
+	drawText(g,t,m,__cx,op) {
+		let d = t.__def != null ? t.__def : { };
+		let lb = t.__localBounds();
+		let b_0 = lb.xMin;
+		let b_1 = lb.yMin;
+		let b_2 = lb.xMax;
+		let b_3 = lb.yMax;
+		let size = t.fontSize();
+		let font = d.font != null ? Reflect.field(swf_Library.inst.data.chars,Std.string(d.font)) : t.format.font != null ? { name : t.format.font, bold : t.format.bold} : null;
 		let name = font != null && font.name != null ? font.name : "Verdana";
 		g.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
 		g.globalCompositeOperation = op != null ? op : "source-over";
 		let col = t.textColor;
-		let r = Math.max(0,Math.min(255,(col >> 16 & 255) * cx[0] + cx[4])) | 0;
-		let gg = Math.max(0,Math.min(255,(col >> 8 & 255) * cx[1] + cx[5])) | 0;
-		let bb = Math.max(0,Math.min(255,(col & 255) * cx[2] + cx[6])) | 0;
-		g.globalAlpha = Math.max(0,Math.min(1,cx[3] + cx[7] / 255));
+		let r = Math.max(0,Math.min(255,(col >> 16 & 255) * __cx[0] + __cx[4])) | 0;
+		let gg = Math.max(0,Math.min(255,(col >> 8 & 255) * __cx[1] + __cx[5])) | 0;
+		let bb = Math.max(0,Math.min(255,(col & 255) * __cx[2] + __cx[6])) | 0;
+		g.globalAlpha = Math.max(0,Math.min(1,__cx[3] + __cx[7] / 255));
 		g.fillStyle = "rgb(" + r + "," + gg + "," + bb + ")";
 		g.font = (font != null && font.bold ? "bold " : "") + size + "px " + name + ", Verdana, sans-serif";
 		g.textBaseline = "top";
-		let align = d.align != null ? d.align : 0;
-		let x = b[0] + 2;
+		let align = d.align != null ? d.align : t.format.align == "right" ? 1 : t.format.align == "center" ? 2 : 0;
+		let x = b_0 + 2;
 		if(align == 1) {
 			g.textAlign = "right";
-			x = b[2] - 2;
+			x = b_2 - 2;
 		} else if(align == 2) {
 			g.textAlign = "center";
-			x = (b[0] + b[2]) / 2;
+			x = (b_0 + b_2) / 2;
 		} else {
 			g.textAlign = "left";
 		}
-		let lines = t.plainText().split("\n");
-		let y = b[1] + 2;
+		let lines = t.__plainText().split("\n");
+		let y = b_1 + 2;
 		let leading = d.leading != null ? d.leading : 0;
 		let _g = 0;
 		while(_g < lines.length) {
@@ -968,20 +1071,20 @@ class swf_Renderer {
 		}
 		g.globalAlpha = 1;
 	}
-	applyColor(g,cx) {
-		let tinted = cx[0] != 1 || cx[1] != 1 || cx[2] != 1 || cx[4] != 0 || cx[5] != 0 || cx[6] != 0 || cx[7] != 0;
+	applyColor(g,__cx) {
+		let tinted = __cx[0] != 1 || __cx[1] != 1 || __cx[2] != 1 || __cx[4] != 0 || __cx[5] != 0 || __cx[6] != 0 || __cx[7] != 0;
 		if(!tinted) {
-			g.globalAlpha = Math.max(0,Math.min(1,cx[3]));
+			g.globalAlpha = Math.max(0,Math.min(1,__cx[3]));
 			return;
 		}
 		g.globalAlpha = 1;
-		g.filter = "url(#" + this.colorFilter(cx) + ")";
+		g.filter = "url(#" + this.colorFilter(__cx) + ")";
 	}
-	colorFilter(cx) {
+	colorFilter(__cx) {
 		let _g = [];
 		let _g1 = 0;
-		while(_g1 < cx.length) {
-			let v = cx[_g1];
+		while(_g1 < __cx.length) {
+			let v = __cx[_g1];
 			++_g1;
 			_g.push(Math.round(v * 1000) / 1000);
 		}
@@ -997,7 +1100,7 @@ class swf_Renderer {
 		f.setAttribute("color-interpolation-filters","sRGB");
 		let cm = window.document.createElementNS(ns,"feColorMatrix");
 		cm.setAttribute("type","matrix");
-		cm.setAttribute("values",[cx[0],0,0,0,cx[4] / 255,0,cx[1],0,0,cx[5] / 255,0,0,cx[2],0,cx[6] / 255,0,0,0,cx[3],cx[7] / 255].join(" "));
+		cm.setAttribute("values",[__cx[0],0,0,0,__cx[4] / 255,0,__cx[1],0,0,__cx[5] / 255,0,0,__cx[2],0,__cx[6] / 255,0,0,0,__cx[3],__cx[7] / 255].join(" "));
 		f.appendChild(cm);
 		this.svgDefs.appendChild(f);
 		this.filterIds.h[key] = id;
@@ -1009,8 +1112,8 @@ class swf_Renderer {
 		}
 		return [p[0] * c[0],p[1] * c[1],p[2] * c[2],p[3] * c[3],p[0] * c[4] + p[4],p[1] * c[5] + p[5],p[2] * c[6] + p[6],p[3] * c[7] + p[7]];
 	}
-	static compositeOp(blend) {
-		switch(blend) {
+	static compositeOp(__blend) {
+		switch(__blend) {
 		case "add":
 			return "lighter";
 		case "darken":
@@ -1036,28 +1139,48 @@ class swf_Renderer {
 }
 swf_Renderer.__name__ = true;
 class swf_TextField extends swf_DisplayObject {
-	constructor(charId) {
+	constructor(__charId) {
 		swf_DisplayObject._hx_skip_constructor = true;
 		super();
 		swf_DisplayObject._hx_skip_constructor = false;
-		this._hx_constructor(charId);
+		this._hx_constructor(__charId);
 	}
-	_hx_constructor(charId) {
+	_hx_constructor(__charId) {
+		this.format = { };
+		this.__h = 20;
+		this.__w = 100;
 		this.textColor = 0;
 		this.html = false;
 		this.text = "";
-		super._hx_constructor(charId);
-		this.def = Reflect.field(swf_Library.inst.data.chars,charId == null ? "null" : "" + charId);
-		if(this.def != null) {
-			this.text = this.def.text != null ? this.def.text : "";
-			this.html = this.def.html == true;
-			if(this.def.color != null) {
-				let c = this.def.color;
+		super._hx_constructor(__charId);
+		this.__def = Reflect.field(swf_Library.inst.data.chars,__charId == null ? "null" : "" + __charId);
+		if(this.__def != null) {
+			this.text = this.__def.text != null ? this.__def.text : "";
+			this.html = this.__def.html == true;
+			if(this.__def.color != null) {
+				let c = this.__def.color;
 				this.textColor = c[0] << 16 | c[1] << 8 | c[2];
 			}
 		}
 	}
-	plainText() {
+	fontSize() {
+		if(this.format.size != null) {
+			return this.format.size;
+		}
+		if(this.__def != null && this.__def.size != null) {
+			return this.__def.size;
+		} else {
+			return 12;
+		}
+	}
+	__localBounds() {
+		if(this.__def != null && this.__def.b != null) {
+			let b = this.__def.b;
+			return new swf_Rect(b[0],b[1],b[2],b[3]);
+		}
+		return new swf_Rect(0,0,this.__w,this.__h);
+	}
+	__plainText() {
 		let t = this.text == null ? "" : this.text;
 		if(this.html || t.indexOf("<") >= 0) {
 			let _this_r = new RegExp("<br\\s*/?>","gi".split("u").join(""));
@@ -1089,7 +1212,7 @@ class viewer_Viewer {
 		viewer_Viewer.renderer = new swf_Renderer(canvas);
 		viewer_Viewer.renderer.background = "#20263a";
 		viewer_Viewer.root = new swf_MovieClip(-1);
-		viewer_Viewer.root.isRoot = true;
+		viewer_Viewer.root.__isRoot = true;
 		let list = doc.getElementById("list");
 		let filter = doc.getElementById("filter");
 		let _g = [];
@@ -1231,6 +1354,7 @@ js_Boot.__toStr = ({ }).toString;
 swf_DisplayObject._hx_skip_constructor = false;
 swf_MovieClip.queue = [];
 swf_MovieClip.frameScripts = new haxe_ds_StringMap();
+swf_MovieClip.classByChar = new haxe_ds_IntMap();
 swf_Renderer.IDENT = [1,1,1,1,0,0,0,0];
 viewer_Viewer.zoom = 2.0;
 viewer_Viewer.paused = false;

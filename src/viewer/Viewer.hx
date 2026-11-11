@@ -31,7 +31,7 @@ class Viewer {
 		renderer = new Renderer(canvas);
 		renderer.background = "#20263a";
 		root = new MovieClip(-1);
-		root.isRoot = true;
+		root.__isRoot = true;
 
 		var list = doc.getElementById("list");
 		var filter:js.html.InputElement = cast doc.getElementById("filter");

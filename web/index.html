@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kikifest</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0d14; color: #ddd; font: 14px system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  #game { height: min(92vh, calc(96vw * 520 / 420)); aspect-ratio: 420 / 520; background: #000; image-rendering: auto; }
+  #status { min-height: 1em; }
+  .help { opacity: .7; font-size: 12px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="status">Chargement…</div>
+<div class="help">Igor : flèches + Entrée · Sandy : R D F G + A</div>
+<script src="js/game.js"></script>
+</body>
+</html>

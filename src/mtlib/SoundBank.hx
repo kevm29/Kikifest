@@ -1,0 +1,81 @@
+package mtlib;
+
+import js.html.audio.AudioContext;
+import js.html.audio.AudioBuffer;
+
+/** Sons du jeu en Web Audio. Muet pendant les re-simulations du rollback. */
+class SoundBank {
+	public static var muted:Bool = false;
+	public static var base:String = "assets/sfx/";
+
+	static var ctx:AudioContext;
+	static var buffers:Map<String, AudioBuffer> = new Map();
+	static var loading:Map<String, Bool> = new Map();
+
+	static function context():AudioContext {
+		if (ctx == null) {
+			try ctx = new AudioContext() catch (e:Dynamic) {}
+		}
+		return ctx;
+	}
+
+	/** Le navigateur n'autorise le son qu'après une action du joueur (touche pressée). */
+	public static function unlock() {
+		var c = context();
+		if (c != null && c.state == SUSPENDED) c.resume();
+	}
+
+	static function url(linkage:String):String {
+		if (linkage.indexOf(".") > 0) return base + linkage;
+		var lib = swf.Library.inst;
+		var id = lib.exportId(linkage);
+		if (id == null) return null;
+		var c:Dynamic = lib.char(id);
+		return c != null && c.file != null ? base + c.file : null;
+	}
+
+	public static function preload(linkage:String) {
+		var c = context();
+		if (c == null || buffers.exists(linkage) || loading.exists(linkage)) return;
+		var u = url(linkage);
+		if (u == null) return;
+		loading.set(linkage, true);
+		js.Browser.window.fetch(u).then(r -> r.arrayBuffer()).then(b -> c.decodeAudioData(b)).then(buf -> {
+			buffers.set(linkage, buf);
+			return null;
+		});
+	}
+
+	public static function play(linkage:String, volume:Float, loops:Int, onEnd:Void->Void):Dynamic {
+		if (muted || linkage == null) return null;
+		var c = context();
+		if (c == null) return null;
+		var b = buffers.get(linkage);
+		if (b == null) {
+			preload(linkage);
+			return null;
+		}
+		var src = c.createBufferSource();
+		src.buffer = b;
+		src.loop = loops > 1;
+		var g = c.createGain();
+		g.gain.value = safe(volume);
+		src.connect(g);
+		g.connect(c.destination);
+		src.onended = () -> onEnd();
+		src.start();
+		return {src: src, gain: g};
+	}
+
+	/** Flash ignorait un volume invalide (undefined/NaN) : on garde le volume plein. */
+	static inline function safe(v:Float):Float
+		return (v == null || Math.isNaN(v) || !Math.isFinite(v)) ? 1.0 : Math.max(0, v);
+
+	public static function stop(h:Dynamic) {
+		try h.src.stop() catch (e:Dynamic) {}
+	}
+
+	public static function setVolume(h:Dynamic, v:Float) {
+		h.gain.gain.value = safe(v);
+	}
+}
