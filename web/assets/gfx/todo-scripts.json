@@ -1,0 +1,394 @@
+[
+ {
+  "sprite": 39,
+  "frame": 1
+ },
+ {
+  "sprite": 43,
+  "frame": 1
+ },
+ {
+  "sprite": 53,
+  "frame": 1
+ },
+ {
+  "sprite": 66,
+  "frame": 1
+ },
+ {
+  "sprite": 85,
+  "frame": 1
+ },
+ {
+  "sprite": 86,
+  "frame": 1
+ },
+ {
+  "sprite": 86,
+  "frame": 79
+ },
+ {
+  "sprite": 95,
+  "frame": 1
+ },
+ {
+  "sprite": 191,
+  "frame": 1
+ },
+ {
+  "sprite": 193,
+  "frame": 1
+ },
+ {
+  "sprite": 207,
+  "frame": 1
+ },
+ {
+  "sprite": 218,
+  "frame": 1
+ },
+ {
+  "sprite": 340,
+  "frame": 13
+ },
+ {
+  "sprite": 392,
+  "frame": 1
+ },
+ {
+  "sprite": 408,
+  "frame": 11
+ },
+ {
+  "sprite": 468,
+  "frame": 1
+ },
+ {
+  "sprite": 468,
+  "frame": 2
+ },
+ {
+  "sprite": 468,
+  "frame": 3
+ },
+ {
+  "sprite": 468,
+  "frame": 4
+ },
+ {
+  "sprite": 533,
+  "frame": 2
+ },
+ {
+  "sprite": 552,
+  "frame": 20
+ },
+ {
+  "sprite": 656,
+  "frame": 1
+ },
+ {
+  "sprite": 699,
+  "frame": 1
+ },
+ {
+  "sprite": 747,
+  "frame": 1
+ },
+ {
+  "sprite": 754,
+  "frame": 1
+ },
+ {
+  "sprite": 760,
+  "frame": 1
+ },
+ {
+  "sprite": 763,
+  "frame": 1
+ },
+ {
+  "sprite": 769,
+  "frame": 1
+ },
+ {
+  "sprite": 776,
+  "frame": 1
+ },
+ {
+  "sprite": 795,
+  "frame": 1
+ },
+ {
+  "sprite": 797,
+  "frame": 1
+ },
+ {
+  "sprite": 801,
+  "frame": 1
+ },
+ {
+  "sprite": 814,
+  "frame": 1
+ },
+ {
+  "sprite": 895,
+  "frame": 1
+ },
+ {
+  "sprite": 926,
+  "frame": 1
+ },
+ {
+  "sprite": 930,
+  "frame": 1
+ },
+ {
+  "sprite": 931,
+  "frame": 1
+ },
+ {
+  "sprite": 936,
+  "frame": 1
+ },
+ {
+  "sprite": 954,
+  "frame": 1
+ },
+ {
+  "sprite": 954,
+  "frame": 88
+ },
+ {
+  "sprite": 954,
+  "frame": 89
+ },
+ {
+  "sprite": 954,
+  "frame": 90
+ },
+ {
+  "sprite": 954,
+  "frame": 91
+ },
+ {
+  "sprite": 954,
+  "frame": 92
+ },
+ {
+  "sprite": 954,
+  "frame": 93
+ },
+ {
+  "sprite": 1067,
+  "frame": 1
+ },
+ {
+  "sprite": 1133,
+  "frame": 1
+ },
+ {
+  "sprite": 1133,
+  "frame": 2
+ },
+ {
+  "sprite": 1133,
+  "frame": 3
+ },
+ {
+  "sprite": 1145,
+  "frame": 1
+ },
+ {
+  "sprite": 1197,
+  "frame": 44
+ },
+ {
+  "sprite": 1419,
+  "frame": 7
+ },
+ {
+  "sprite": 1448,
+  "frame": 23
+ },
+ {
+  "sprite": 1958,
+  "frame": 8
+ },
+ {
+  "sprite": 1966,
+  "frame": 8
+ },
+ {
+  "sprite": 1981,
+  "frame": 1
+ },
+ {
+  "sprite": 2058,
+  "frame": 10
+ },
+ {
+  "sprite": 2083,
+  "frame": 1
+ },
+ {
+  "sprite": 2202,
+  "frame": 1
+ },
+ {
+  "sprite": 2740,
+  "frame": 13
+ },
+ {
+  "sprite": 3079,
+  "frame": 8
+ },
+ {
+  "sprite": 3079,
+  "frame": 9
+ },
+ {
+  "sprite": 3101,
+  "frame": 49
+ },
+ {
+  "sprite": 3101,
+  "frame": 76
+ },
+ {
+  "sprite": 3101,
+  "frame": 110
+ },
+ {
+  "sprite": 3123,
+  "frame": 51
+ },
+ {
+  "sprite": 3123,
+  "frame": 57
+ },
+ {
+  "sprite": 3123,
+  "frame": 58
+ },
+ {
+  "sprite": 3318,
+  "frame": 1
+ },
+ {
+  "sprite": 3318,
+  "frame": 11
+ },
+ {
+  "sprite": 3518,
+  "frame": 1
+ },
+ {
+  "sprite": 3518,
+  "frame": 2
+ },
+ {
+  "sprite": 3518,
+  "frame": 3
+ },
+ {
+  "sprite": 3773,
+  "frame": 13
+ },
+ {
+  "sprite": 3921,
+  "frame": 8
+ },
+ {
+  "sprite": 4019,
+  "frame": 27
+ },
+ {
+  "sprite": 4047,
+  "frame": 9
+ },
+ {
+  "sprite": 4047,
+  "frame": 11
+ },
+ {
+  "sprite": 4047,
+  "frame": 21
+ },
+ {
+  "sprite": 4067,
+  "frame": 13
+ },
+ {
+  "sprite": 4083,
+  "frame": 1
+ },
+ {
+  "sprite": 4083,
+  "frame": 2
+ },
+ {
+  "sprite": 4083,
+  "frame": 3
+ },
+ {
+  "sprite": 4083,
+  "frame": 4
+ },
+ {
+  "sprite": 4155,
+  "frame": 21
+ },
+ {
+  "sprite": 4616,
+  "frame": 8
+ },
+ {
+  "sprite": 4616,
+  "frame": 10
+ },
+ {
+  "sprite": 4616,
+  "frame": 19
+ },
+ {
+  "sprite": 4622,
+  "frame": 8
+ },
+ {
+  "sprite": 4622,
+  "frame": 10
+ },
+ {
+  "sprite": 4622,
+  "frame": 19
+ },
+ {
+  "sprite": 4652,
+  "frame": 11
+ },
+ {
+  "sprite": 4652,
+  "frame": 12
+ },
+ {
+  "sprite": 4652,
+  "frame": 13
+ },
+ {
+  "sprite": 4652,
+  "frame": 24
+ },
+ {
+  "sprite": 4734,
+  "frame": 1
+ },
+ {
+  "sprite": 4734,
+  "frame": 21
+ },
+ {
+  "sprite": 4734,
+  "frame": 27
+ }
+]

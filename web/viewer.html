@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kikifest – visionneuse</title>
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #12151f; color: #e8e8f0; display: flex; height: 100vh; }
+  aside { width: 260px; display: flex; flex-direction: column; border-right: 1px solid #2a3044; }
+  aside input { margin: 8px; padding: 6px; background: #1b2030; color: inherit; border: 1px solid #333a52; border-radius: 4px; }
+  #list { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; }
+  #list li { padding: 3px 10px; cursor: pointer; font-family: monospace; font-size: 12px; }
+  #list li:hover { background: #2a3044; }
+  main { flex: 1; display: flex; flex-direction: column; }
+  #bar { padding: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid #2a3044; }
+  button { background: #2a3044; color: inherit; border: 0; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+  #labels button { font-size: 12px; }
+  #stage { flex: 1; width: 100%; display: block; }
+</style>
+</head>
+<body>
+<aside>
+  <input id="filter" placeholder="Filtrer les symboles">
+  <ul id="list"></ul>
+</aside>
+<main>
+  <div id="bar">
+    <button id="play">Pause</button>
+    <button id="step">Image suivante</button>
+    <button id="zoomOut">−</button>
+    <button id="zoomIn">+</button>
+    <span id="info"></span>
+    <span id="status">Chargement…</span>
+    <span id="labels"></span>
+  </div>
+  <canvas id="stage"></canvas>
+</main>
+<script src="js/viewer.js"></script>
+</body>
+</html>

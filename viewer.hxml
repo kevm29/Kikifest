@@ -1,0 +1,5 @@
+-cp src
+-main viewer.Viewer
+-js web/js/viewer.js
+-D js-es=6
+-dce full

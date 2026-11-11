@@ -1,0 +1,12 @@
+{
+  "name": "kikifest-extract",
+  "private": true,
+  "type": "module",
+  "description": "Extraction des ressources de Hammerfest (Motion Twin, CC BY-NC-SA 4.0)",
+  "scripts": {
+    "extract": "node extract.mjs"
+  },
+  "devDependencies": {
+    "swf-parser": "^0.14.1"
+  }
+}
