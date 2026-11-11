@@ -36,6 +36,8 @@ La partie est hébergée chez l'un des deux joueurs (l'« hôte »).
 4. Coop locale à deux sur un clavier dans le navigateur (comme l'original).
 5. Séparer la simulation du rendu, et ajouter sauvegarde/restauration de l'état.
 6. Rollback netcode + WebRTC, salon hôte/invité, test à deux.
+   ✅ Salon, signalisation WebRTC, ouverture du port (UPnP) et repli par le serveur de l'hôte
+   (`server/`, `web/index.html`, `web/js/kikinet.js`, guide `docs/HEBERGER.md`).
 7. Finitions : sons, menus, options (cauchemar, miroir), scores.
 
 ## Lancer la visionneuse
