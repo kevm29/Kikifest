@@ -1,0 +1,6 @@
+-cp src
+-cp tests
+-main NetTest
+-js build/nettest.js
+-D js-es=6
+--cmd node build/nettest.js
