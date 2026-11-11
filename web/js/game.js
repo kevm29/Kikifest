@@ -113,6 +113,7 @@ class Boot {
 		Boot.root = new swf_MovieClip(-1);
 		Boot.root.__isRoot = true;
 		mtlib_MtStd.root = Boot.root;
+		swf_MtStdRoot.root = Boot.root;
 		let jobs = [];
 		let _g = 0;
 		let _g1 = Boot.SETS;
@@ -184,14 +185,31 @@ class Boot {
 			if(acc > 250) {
 				acc = 250;
 			}
+			window.requestAnimationFrame(loop);
 			while(acc >= step) {
 				acc -= step;
-				Boot.tick();
+				try {
+					Boot.tick();
+				} catch( _g ) {
+					let e = haxe_Exception.caught(_g).unwrap();
+					Boot.reportError(e);
+				}
 			}
-			Boot.draw();
-			window.requestAnimationFrame(loop);
+			try {
+				Boot.draw();
+			} catch( _g ) {
+				let e = haxe_Exception.caught(_g).unwrap();
+				Boot.reportError(e);
+			}
 		};
 		window.requestAnimationFrame(loop);
+	}
+	static reportError(e) {
+		if(Boot.errors++ < 5) {
+			$global.console.error(e);
+			let stack = e != null && e.stack != null ? e.stack : "";
+			Boot.status("Erreur du jeu (merci de la signaler) : " + Std.string(e) + " " + stack.split("\n").slice(1,3).join(" "));
+		}
 	}
 	static tick() {
 		Boot.manager.main();
@@ -17279,6 +17297,37 @@ class gui_SoccerInterface {
 	}
 }
 gui_SoccerInterface.__name__ = true;
+class haxe_Exception extends Error {
+	constructor(message,previous,native) {
+		super(message);
+		this.message = message;
+		this.__previousException = previous;
+		this.__nativeException = native != null ? native : this;
+	}
+	unwrap() {
+		return this.__nativeException;
+	}
+	static caught(value) {
+		if(((value) instanceof haxe_Exception)) {
+			return value;
+		} else if(((value) instanceof Error)) {
+			return new haxe_Exception(value.message,null,value);
+		} else {
+			return new haxe_ValueException(value,null,value);
+		}
+	}
+}
+haxe_Exception.__name__ = true;
+class haxe_ValueException extends haxe_Exception {
+	constructor(value,previous,native) {
+		super(String(value),previous,native);
+		this.value = value;
+	}
+	unwrap() {
+		return this.value;
+	}
+}
+haxe_ValueException.__name__ = true;
 class haxe_ds_IntMap {
 	constructor() {
 		this.h = { };
@@ -27513,6 +27562,71 @@ class swf_BitmapObject extends swf_DisplayObject {
 	}
 }
 swf_BitmapObject.__name__ = true;
+class swf_FrameScripts {
+	static register(scripts) {
+		let _g = 0;
+		let _g1 = Reflect.fields(scripts);
+		while(_g < _g1.length) {
+			let key = _g1[_g];
+			++_g;
+			let body = Reflect.field(scripts,key);
+			let f = null;
+			try {
+				f = new Function('__s', 'random', '_global', '_root', 'int', 'trace', ("with (__s) {\n" + body + "\n}"));
+			} catch( _g ) {
+				let _g1 = haxe_Exception.caught(_g).unwrap();
+				$global.console.warn("script de frame " + key + " non traduit : " + Std.string(_g1));
+				continue;
+			}
+			swf_MovieClip.frameScripts.h[key] = function(mc) {
+				swf_FrameScripts.run(f,mc);
+			};
+		}
+	}
+	static run(f,mc) {
+		try {
+			f.call(mc,swf_FrameScripts.scope(mc),swf_FrameScripts.random,swf_FrameScripts.global,swf_MtStdRoot.get(),function(v) {
+				return v | 0;
+			},function(_) {
+				return;
+			});
+		} catch( _g ) {
+		}
+	}
+	static random(n) {
+		let k = n | 0;
+		if(k <= 0) {
+			return 0;
+		} else {
+			return mtlib_Rand.random(k);
+		}
+	}
+	static scope(mc) {
+		let s = mc.__scope;
+		if(s != null) {
+			return s;
+		}
+		let globals = swf_FrameScripts.GLOBALS;
+		s = new Proxy(mc, {
+			has: function(t, k) { return typeof k === 'string' && globals.indexOf(k) < 0; },
+			get: function(t, k) {
+				if (k === Symbol.unscopables) return undefined;
+				var v = t[k];
+				return typeof v === 'function' ? v.bind(t) : v;
+			},
+			set: function(t, k, v) { t[k] = v; return true; }
+		});
+		mc.__scope = s;
+		return s;
+	}
+}
+swf_FrameScripts.__name__ = true;
+class swf_MtStdRoot {
+	static get() {
+		return swf_MtStdRoot.root;
+	}
+}
+swf_MtStdRoot.__name__ = true;
 class swf_Library {
 	constructor(base,data,svgs) {
 		this.atlasPages = [];
@@ -27656,7 +27770,18 @@ class swf_Library {
 		window.fetch(base + "/gfx/library.json").then(function(r) {
 			return r.json();
 		}).then(function(lib) {
-			return window.fetch(base + "/gfx/atlas.json").then(function(r) {
+			return window.fetch(base + "/gfx/framescripts.json").then(function(r) {
+				if(r.ok) {
+					return r.json();
+				} else {
+					return null;
+				}
+			}).then(function(fs) {
+				if(fs != null) {
+					swf_FrameScripts.register(fs);
+				}
+				return window.fetch(base + "/gfx/atlas.json");
+			}).then(function(r) {
 				if(r.ok) {
 					return r.json();
 				} else {
@@ -27681,21 +27806,29 @@ class swf_Library {
 				while(_g < _g1) {
 					let i = _g++;
 					let img = window.document.createElement("img");
+					l.atlasPages.push(img);
 					img.onload = function() {
-						loaded += 1;
-						if(onProgress != null) {
-							onProgress(loaded / n);
-						}
-						if(loaded == n) {
-							swf_Library.inst = l;
-							onReady(l);
-						}
+						return createImageBitmap(img).then(function(bmp) {
+							l.atlasPages[i] = bmp;
+							return null;
+						},function(_) {
+							return null;
+						}).then(function(_) {
+							loaded += 1;
+							if(onProgress != null) {
+								onProgress(loaded / n);
+							}
+							if(loaded == n) {
+								swf_Library.inst = l;
+								onReady(l);
+							}
+							return null;
+						});
 					};
 					img.onerror = function() {
 						fail("planche " + i);
 					};
 					img.src = base + "/gfx/atlas/atlas-" + i + ".webp";
-					l.atlasPages.push(img);
 				}
 			}).catch(fail);
 		}).catch(fail);
@@ -28184,6 +28317,7 @@ Boot.SET_VARS = (function($this) {
 	$r = _g;
 	return $r;
 }(this));
+Boot.errors = 0;
 Cookie.NAME = "$hammerfest_data";
 Cookie.VERSION = 4;
 Data.DOC_WIDTH = 420;
@@ -28769,6 +28903,8 @@ mtlib_Timer.deltaT = 0.025;
 mtlib_Timer.frameCount = 0;
 mtlib_Tools.__x = "$x".substring(1);
 mtlib_Tools.__y = "$y".substring(1);
+swf_FrameScripts.GLOBALS = ["Math","random","_global","_root","undefined","NaN","Infinity","Number","String","Array","Boolean","Object","isNaN","parseInt","parseFloat","int","trace","console","eval"];
+swf_FrameScripts.global = { get tmod() { return mtlib_Timer.tmod; } }
 swf_Renderer.IDENT = [1,1,1,1,0,0,0,0];
 Boot.main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);

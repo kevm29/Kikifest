@@ -17,14 +17,15 @@ const PAD = 1;
   const lib = JSON.parse(fs.readFileSync(path.join(dir, "library.json"), "utf8"));
   const svgs = JSON.parse(fs.readFileSync(path.join(dir, "shapes.json"), "utf8"));
 
-  // tailles et échelle (2x pour les petites formes, 1x pour les grandes)
+  // résolution : 3x pour les petites formes (personnages, objets), 2x pour les moyennes, 1x pour les décors
   const items = [];
   for (const [id, svg] of Object.entries(svgs)) {
     const c = lib.chars[id];
     if (!c || !c.b) continue;
     const w = c.b[2] - c.b[0], h = c.b[3] - c.b[1];
     if (w <= 0 || h <= 0) continue;
-    const scale = Math.max(w, h) <= 200 ? 2 : 1;
+    const m = Math.max(w, h);
+    const scale = m <= 100 ? 3 : m <= 300 ? 2 : 1;
     items.push({ id, w: Math.ceil(w * scale), h: Math.ceil(h * scale), scale });
   }
   // rangement par étagères

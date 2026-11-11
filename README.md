@@ -32,4 +32,5 @@ La visionneuse des ressources est sur http://localhost:8080/viewer.html.
   (convertisseur `mt2hx.py` puis corrections de `patches.py`) ; seul `src/game/Boot.hx` est écrit à la main.
   Le moteur d'affichage Flash (`src/swf`) et la bibliothèque standard MotionTypes (`src/mtlib`, `src/mtflash`)
   sont écrits à la main.
-- Les graphismes : `tools/extract` (extraction du SWF), puis `tools/extract/rasterize.cjs` (planches d'images).
+- Les graphismes : `tools/extract` (extraction du SWF), puis `tools/extract/rasterize.cjs` (planches d'images)
+  et `tools/extract/framescripts.mjs` (scripts des animations, depuis un export `-export script` de JPEXS).

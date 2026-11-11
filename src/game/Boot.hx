@@ -45,6 +45,7 @@ class Boot {
 		root = new MovieClip(-1);
 		root.__isRoot = true;
 		MtStd.root = root;
+		swf.FrameScripts.MtStdRoot.root = root;
 		var jobs:Array<js.lib.Promise<Dynamic>> = [];
 		for (s in SETS)
 			jobs.push(fetchText("assets/data/levels/" + s + ".xml").then(t -> Reflect.setField(root, SET_VARS.get(s), StringTools.trim(t))));
@@ -98,14 +99,33 @@ class Boot {
 			last = t;
 			if (acc > 250)
 				acc = 250;
+			// la boucle continue même si une image du jeu lève une erreur (sinon tout se fige)
+			Browser.window.requestAnimationFrame(loop);
 			while (acc >= step) {
 				acc -= step;
-				tick();
+				try {
+					tick();
+				} catch (e:Dynamic) {
+					reportError(e);
+				}
 			}
-			draw();
-			Browser.window.requestAnimationFrame(loop);
+			try {
+				draw();
+			} catch (e:Dynamic) {
+				reportError(e);
+			}
 		}
 		Browser.window.requestAnimationFrame(loop);
+	}
+
+	static var errors = 0;
+
+	static function reportError(e:Dynamic) {
+		if (errors++ < 5) {
+			Browser.console.error(e);
+			var stack:String = untyped e != null && e.stack != null ? e.stack : "";
+			status("Erreur du jeu (merci de la signaler) : " + Std.string(e) + " " + stack.split("\n").slice(1, 3).join(" "));
+		}
 	}
 
 	public static function tick() {

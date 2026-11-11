@@ -30,7 +30,7 @@ class Library {
 
 	/** Planches pré-pixellisées (tools/extract/rasterize.cjs) : id -> [page, x, y, w, h, échelle]. */
 	var atlasMap:haxe.DynamicAccess<Array<Float>> = null;
-	var atlasPages:Array<ImageElement> = [];
+	var atlasPages:Array<Dynamic> = [];
 
 	public static function load(base:String, onReady:Library->Void, ?onError:String->Void, ?onProgress:Float->Void) {
 		function fail(e:Dynamic) {
@@ -38,7 +38,12 @@ class Library {
 				onError(Std.string(e));
 		}
 		Browser.window.fetch(base + "/gfx/library.json").then(r -> r.json()).then(lib -> {
-			Browser.window.fetch(base + "/gfx/atlas.json").then(r -> r.ok ? r.json() : null).then(atlas -> {
+			// scripts de frame AS2 traduits (facultatif)
+			Browser.window.fetch(base + "/gfx/framescripts.json").then(r -> r.ok ? r.json() : null).then(fs -> {
+				if (fs != null)
+					FrameScripts.register(fs);
+				return Browser.window.fetch(base + "/gfx/atlas.json");
+			}).then(r -> r.ok ? r.json() : null).then(atlas -> {
 				if (atlas == null) {
 					// pas d'atlas : SVG décodés à la demande
 					Browser.window.fetch(base + "/gfx/shapes.json").then(r -> r.json()).then(shapes -> {
@@ -53,18 +58,26 @@ class Library {
 				var loaded = 0;
 				for (i in 0...n) {
 					var img = Browser.document.createImageElement();
+					l.atlasPages.push(img);
 					img.onload = () -> {
-						loaded++;
-						if (onProgress != null)
-							onProgress(loaded / n);
-						if (loaded == n) {
-							inst = l;
-							onReady(l);
-						}
+						// décodage complet dès le chargement : sinon le navigateur décode la planche au premier
+						// dessin, ce qui bloque le jeu un instant (première bombe, premier ennemi…)
+						js.Syntax.code("createImageBitmap({0})", img).then(bmp -> {
+							l.atlasPages[i] = bmp;
+							return null;
+						}, _ -> null).then(_ -> {
+							loaded++;
+							if (onProgress != null)
+								onProgress(loaded / n);
+							if (loaded == n) {
+								inst = l;
+								onReady(l);
+							}
+							return null;
+						});
 					};
 					img.onerror = () -> fail("planche " + i);
 					img.src = base + "/gfx/atlas/atlas-" + i + ".webp";
-					l.atlasPages.push(img);
 				}
 			}).catchError(fail);
 		}).catchError(fail);
@@ -75,7 +88,7 @@ class Library {
 		return atlasMap == null ? null : atlasMap.get(Std.string(id));
 	}
 
-	public inline function atlasPage(i:Int):ImageElement return atlasPages[i];
+	public inline function atlasPage(i:Int):Dynamic return atlasPages[i];
 
 	public inline function char(id:Int):Dynamic {
 		return Reflect.field(data.chars, Std.string(id));
