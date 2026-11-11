@@ -46,6 +46,15 @@ class Boot {
 		root = new MovieClip(-1);
 		root.__isRoot = true;
 		MtStd.root = root;
+		// fonctions que la page Flash d'origine fournissait au jeu (envoi du score, sortie)
+		MtStd.setGlobal("gameOver", function(score:Dynamic, ?a:Dynamic, ?data:Dynamic) {
+			status("Partie terminée ! Appuie sur Échap pour rejouer.");
+			gameEnded = true;
+		});
+		MtStd.setGlobal("exitGame", function(?url:Dynamic, ?params:Dynamic) {
+			status("Partie terminée ! Appuie sur Échap pour rejouer.");
+			gameEnded = true;
+		});
 		swf.FrameScripts.MtStdRoot.root = root;
 		var jobs:Array<js.lib.Promise<Dynamic>> = [];
 		for (s in SETS)
@@ -94,6 +103,8 @@ class Boot {
 
 		Browser.window.addEventListener("keydown", (e:js.html.KeyboardEvent) -> {
 			Key.set(e.keyCode, true);
+			if (gameEnded && e.keyCode == 27)
+				Browser.location.reload();
 			mtlib.SoundBank.unlock();
 			if (e.keyCode >= 32 && e.keyCode <= 40)
 				e.preventDefault();
@@ -128,6 +139,7 @@ class Boot {
 	}
 
 	static var errors = 0;
+	static var gameEnded = false;
 
 	static function reportError(e:Dynamic) {
 		if (errors++ < 5) {

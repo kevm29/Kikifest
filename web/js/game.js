@@ -113,6 +113,14 @@ class Boot {
 		Boot.root = new swf_MovieClip(-1);
 		Boot.root.__isRoot = true;
 		mtlib_MtStd.root = Boot.root;
+		mtlib_MtStd.setGlobal("gameOver",function(score,a,data) {
+			Boot.status("Partie terminée ! Appuie sur Échap pour rejouer.");
+			Boot.gameEnded = true;
+		});
+		mtlib_MtStd.setGlobal("exitGame",function(url,params) {
+			Boot.status("Partie terminée ! Appuie sur Échap pour rejouer.");
+			Boot.gameEnded = true;
+		});
 		swf_MtStdRoot.root = Boot.root;
 		let jobs = [];
 		let _g = 0;
@@ -191,6 +199,9 @@ class Boot {
 		window.kiki.manager = Boot.manager;
 		window.addEventListener("keydown",function(e) {
 			mtlib_Key.set(e.keyCode,true);
+			if(Boot.gameEnded && e.keyCode == 27) {
+				$global.location.reload();
+			}
 			mtlib_SoundBank.unlock();
 			if(e.keyCode >= 32 && e.keyCode <= 40) {
 				e.preventDefault();
@@ -28419,6 +28430,7 @@ Boot.SET_VARS = (function($this) {
 	return $r;
 }(this));
 Boot.errors = 0;
+Boot.gameEnded = false;
 Cookie.NAME = "$hammerfest_data";
 Cookie.VERSION = 4;
 Data.DOC_WIDTH = 420;
