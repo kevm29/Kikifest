@@ -63,7 +63,7 @@ class SimpleButton extends gui.Item
 	ATTACHEMENT
 	------------------------------------------------------------------------*/
 	public static function attach(c:gui.Container, l:String, k:Dynamic, func:Dynamic)  untyped {
-		var b : gui.SimpleButton = (( c.depthMan.attach("hammer_editor_button", RootData.DP_INTERF) ):Dynamic);
+		var b : gui.SimpleButton = (( c?.depthMan?.attach("hammer_editor_button", RootData.DP_INTERF) ):Dynamic);
 		b?.initButton(c,l,k, func);
 		return b;
 	}

@@ -46,7 +46,7 @@ class FxManager
 	public function attachLevelPop(name:Dynamic, fl_label:Dynamic)  untyped {
 		if ( name!=null ) {
 			levelName?.removeMovieClip();
-			levelName = ((game.depthMan.attach("hammer_interf_zone",Data.DP_INTERF)):Dynamic);
+			levelName = ((game?.depthMan?.attach("hammer_interf_zone",Data.DP_INTERF)):Dynamic);
 			{ if (levelName != null) levelName._x = -10; }
 			{ if (levelName != null) levelName._y = Data.GAME_HEIGHT-1; }
 			{ if (levelName?.field != null) levelName.field.text = name; }
@@ -69,7 +69,7 @@ class FxManager
 		var mc:Dynamic = game?.depthMan?.attach("hurryUp",Data.DP_INTERF);
 		{ if (mc != null) mc._x = Data.GAME_WIDTH/2; }
 		{ if (mc != null) mc._y = Data.GAME_HEIGHT/2; }
-		((mc):Dynamic).label = str;
+		{ if (((mc):Dynamic) != null) ((mc):Dynamic).label = str; }
 		mcList?.push(mc);
 		lastAlert = mc;
 		return mc;
@@ -108,7 +108,7 @@ i++; } }
 	------------------------------------------------------------------------*/
 	public function attachExit()  untyped {
 		detachExit();
-		var mc:Dynamic = (( game.depthMan.attach("hammer_fx_exit",Data.DP_INTERF) ):Dynamic);
+		var mc:Dynamic = (( game?.depthMan?.attach("hammer_fx_exit",Data.DP_INTERF) ):Dynamic);
 		{ if (mc != null) mc._x = Data.GAME_WIDTH/2; }
 		{ if (mc != null) mc._y = Data.GAME_HEIGHT; }
 		{ if (mc != null) mc.label = Lang.get(3); }
@@ -151,8 +151,8 @@ i++; } }
 
 		addGlow(anim?.mc, glowColor, 2);
 
-		((anim.mc):Dynamic).label.field.textColor = color;
-		((anim.mc):Dynamic).value = txt;
+		{ if (((anim?.mc):Dynamic)?.label?.field != null) ((anim?.mc):Dynamic).label.field.textColor = color; }
+		{ if (((anim?.mc):Dynamic) != null) ((anim?.mc):Dynamic).value = txt; }
 	}
 
 
@@ -202,7 +202,7 @@ i++; } }
 	------------------------------------------------------------------------*/
 	public function keyRequired(kid:Dynamic)  untyped {
 		igMsg?.removeMovieClip();
-		igMsg = (( game.depthMan.attach("hammer_interf_inGameMsg",Data.DP_TOP) ):Dynamic);
+		igMsg = (( game?.depthMan?.attach("hammer_interf_inGameMsg",Data.DP_TOP) ):Dynamic);
 		{ if (igMsg?.label != null) igMsg.label.text = Lang.get(40); }
 		{ if (igMsg?.field != null) igMsg.field.text = Lang.getKeyName(kid); }
 		addGlow(igMsg,0x0, 2);
@@ -215,7 +215,7 @@ i++; } }
 	------------------------------------------------------------------------*/
 	public function keyUsed(kid:Dynamic)  untyped {
 		igMsg?.removeMovieClip();
-		igMsg = (( game.depthMan.attach("hammer_interf_inGameMsg",Data.DP_TOP) ):Dynamic);
+		igMsg = (( game?.depthMan?.attach("hammer_interf_inGameMsg",Data.DP_TOP) ):Dynamic);
 		{ if (igMsg?.label != null) igMsg.label.text = Lang.get(41); }
 		{ if (igMsg?.field != null) igMsg.field.text = Lang.getKeyName(kid); }
 		addGlow(igMsg,0x0, 2);

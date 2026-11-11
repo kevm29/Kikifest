@@ -365,6 +365,8 @@ def convert_wrappers(toks):
             p = sig(toks, i)
             pc = match_close(toks, p)
             inner = convert_wrappers(toks[p + 1:pc])
+            if t.v in ("downcast", "upcast"):
+                inner = safe_nav(inner)  # downcast(a.b).c : a.b aussi doit tolérer undefined
             itxt = text(inner)
             if t.v == "downcast":
                 rep = "((" + itxt + "):Dynamic)"
@@ -477,6 +479,22 @@ def safe_nav(toks):
                 if not is_type and nxt not in ASSIGN_OPS:
                     for d in dots:
                         toks[d].v = "?."
+                elif not is_type and nxt in ASSIGN_OPS and raw_root:
+                    # ((x):Dynamic).a.b = v; -> écriture protégée
+                    prev = V(toks, sig(toks, i, -1))
+                    if prev is not None and toks[sig(toks, i, -1)].k == "raw" and prev.rstrip()[-1:] in (";", "}"):
+                        prev = ";"
+                    path = toks[i:dots[-1]]
+                    if prev in (";", "{", "}", "else", None) and not any(x.k == "op" and x.v in ("(", "[") for x in path[1:]):
+                        e = j
+                        while e < n and not (toks[e].k == "op" and toks[e].v in (";", "}")):
+                            if toks[e].k == "op" and toks[e].v in "([{":
+                                e = match_close(toks, e)
+                            e += 1
+                        if e < n and toks[e].v == ";":
+                            safe = "".join("?." if (x.k == "op" and x.v in (".", "?.")) else x.v for x in path)
+                            toks[i] = Tok("raw", "{ if (" + safe + " != null) " + toks[i].v)
+                            toks[e] = Tok("raw", "; }")
                 elif not is_type and nxt in ASSIGN_OPS and not paren_root:
                     # écriture sur un objet peut-être undefined : on la protège (AVM1 l'ignorait)
                     prev = V(toks, sig(toks, i, -1))
@@ -576,7 +594,7 @@ def struct_ext_to_dynamic(toks):
 def simple_rewrites(toks):
     for i, t in enumerate(toks):
         if t.k == "id":
-            if t.v in ("int", "float") and V(toks, sig(toks, i)) == "(" and V(toks, sig(toks, i, -1)) not in (".", ":", "function"):
+            if t.v in ("int", "float") and V(toks, sig(toks, i)) == "(" and V(toks, sig(toks, i, -1)) not in (".", "function"):
                 t.v = "Std.int" if t.v == "int" else "(1.0*)"
             elif t.v in TYPE_MAP:
                 t.v = TYPE_MAP[t.v]

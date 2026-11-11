@@ -596,7 +596,7 @@ i++; } }
 	------------------------------------------------------------------------*/
 	override public function update()  untyped {
 		if ( player?._name==null ) {
-			hate( (( game.getOne(RootData.PLAYER) ):Dynamic) );
+			hate( (( game?.getOne(RootData.PLAYER) ):Dynamic) );
 		}
 
 		fl_playerClose = isHealthy() && ( distance(player?.x,player?.y) <= closeDistance*(anger+1) );

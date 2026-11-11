@@ -142,7 +142,7 @@ class Tuberculoz extends entity.Mover {
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode)  untyped {
 		var linkage:Dynamic = "hammer_boss_human";
-		var mc : entity.boss.Tuberculoz = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.boss.Tuberculoz = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		mc?.initBoss(g) ;
 		return mc ;
 	}
@@ -167,7 +167,7 @@ class Tuberculoz extends entity.Mover {
 		playAnim(RootData.ANIM_BOSS_BAT_FORM);
 		endUpdate();
 
-		lifeBar		= (( game.depthMan.attach("hammer_interf_boss_bar",RootData.DP_INTERF) ):Dynamic);
+		lifeBar		= (( game?.depthMan?.attach("hammer_interf_boss_bar",RootData.DP_INTERF) ):Dynamic);
 		{ if (lifeBar != null) lifeBar._rotation = -90; }
 		{ if (lifeBar != null) lifeBar._x = 0; }
 		{ if (lifeBar != null) lifeBar._y	= RootData.GAME_HEIGHT*0.5; }
@@ -431,7 +431,7 @@ i++; } }
 		}
 		// Changement de direction
 		if (  (dx<0 && x<=-RootData.GAME_WIDTH) || (dx>0 && x>=RootData.GAME_WIDTH*2)  ) {
-			var p : entity.Player = (( game.getOne(RootData.PLAYER) ):Dynamic);
+			var p : entity.Player = (( game?.getOne(RootData.PLAYER) ):Dynamic);
 			dx = -dx;
 			y = p?.y;
 			dir = -dir;

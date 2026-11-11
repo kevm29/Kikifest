@@ -26,7 +26,7 @@ class BossBomb extends entity.bomb.BadBomb
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = "hammer_bomb_boss";
-		var mc : entity.bomb.bad.BossBomb = (( g.depthMan.attach(linkage,RootData.DP_BOMBS) ):Dynamic);
+		var mc : entity.bomb.bad.BossBomb = (( g?.depthMan?.attach(linkage,RootData.DP_BOMBS) ):Dynamic);
 		mc?.initBomb(g, x,y );
 		return mc;
 	}
@@ -56,7 +56,7 @@ class BossBomb extends entity.bomb.BadBomb
 	override public function onExplode()  untyped {
 		super.onExplode();
 		var b:Dynamic = entity.bad.walker.Orange.attach(game,x-RootData.CASE_WIDTH*0.5,y-RootData.CASE_HEIGHT*0.5);
-		var boss : entity.boss.Tuberculoz = (( game.getOne(RootData.BOSS) ):Dynamic);
+		var boss : entity.boss.Tuberculoz = (( game?.getOne(RootData.BOSS) ):Dynamic);
 		if ( boss?.lives<=70 ) {
 			b?.angerMore();
 		}

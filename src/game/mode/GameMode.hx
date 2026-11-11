@@ -1018,13 +1018,13 @@ i++; } }
 		};
 		var ratio:Dynamic  = a/100;
 		var ct:Dynamic = {
-			ra:Int(100-a),
-			ga:Int(100-a),
-			ba:Int(100-a),
+			ra:Std.int(100-a),
+			ga:Std.int(100-a),
+			ba:Std.int(100-a),
 			aa:100,
-			rb:Int(ratio*coo?.r),
-			gb:Int(ratio*coo?.g),
-			bb:Int(ratio*coo?.b),
+			rb:Std.int(ratio*coo?.r),
+			gb:Std.int(ratio*coo?.g),
+			bb:Std.int(ratio*coo?.b),
 			ab:0
 		};
 		color = new Color(root);
@@ -1572,7 +1572,7 @@ else {
 	------------------------------------------------------------------------*/
 	public function attachPop(msg:Dynamic,fl_tuto:Dynamic)  untyped {
 		killPop();
-		popMC = (( depthMan.attach("hammer_interf_pop", RootData.DP_INTERF) ):Dynamic);
+		popMC = (( depthMan?.attach("hammer_interf_pop", RootData.DP_INTERF) ):Dynamic);
 		{ if (popMC != null) popMC._x = RootData.GAME_WIDTH*0.5; }
 
 		if ( fl_tuto ) {
@@ -1652,7 +1652,7 @@ else {
 		if ( s!="" && s!=null ) {
 			// Affichage
 			killItemName();
-			itemNameMC = (( depthMan.attach("hammer_interf_item_name", RootData.DP_TOP) ):Dynamic);
+			itemNameMC = (( depthMan?.attach("hammer_interf_item_name", RootData.DP_TOP) ):Dynamic);
 			{ if (itemNameMC != null) itemNameMC._x = RootData.GAME_WIDTH*0.5 + 20; } // icon width
 			{ if (itemNameMC != null) itemNameMC._y = 15; }//Data.GAME_HEIGHT-20; // 15;
 			{ if (itemNameMC?.field != null) itemNameMC.field.text = s; }
@@ -1731,7 +1731,7 @@ i++; } }
 		if ( txt==null ) {
 			txt = "?";
 		}
-		((mc):Dynamic).field.text = txt;
+		{ if (((mc):Dynamic)?.field != null) ((mc):Dynamic).field.text = txt; }
 		mapIcons?.push(mc);
 	}
 
@@ -1948,7 +1948,7 @@ i++; } }
 		world?.lock();
 
 		pauseMC?.removeMovieClip();
-		pauseMC = ((  depthMan.attach("hammer_interf_instructions", RootData.DP_INTERF)  ):Dynamic);
+		pauseMC = ((  depthMan?.attach("hammer_interf_instructions", RootData.DP_INTERF)  ):Dynamic);
 		pauseMC?.gotoAndStop("1");
 		{ if (pauseMC != null) pauseMC._x = RootData.GAME_WIDTH*0.5; }
 		{ if (pauseMC != null) pauseMC._y = RootData.GAME_HEIGHT*0.5; }
@@ -1989,7 +1989,7 @@ i++; } }
 		}
 
 		mapMC?.removeMovieClip();
-		mapMC = (( depthMan.attach("hammer_map", RootData.DP_INTERF) ):Dynamic);
+		mapMC = (( depthMan?.attach("hammer_map", RootData.DP_INTERF) ):Dynamic);
 		{ if (mapMC?.field != null) mapMC.field.text = Lang.getSectorName(currentDim, world?.currentId); }
 		{ if (mapMC != null) mapMC._x = -xOffset; }
 

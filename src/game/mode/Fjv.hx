@@ -47,7 +47,7 @@ class Fjv extends mode.Adventure {
 	RETOUR AU SITE
 	------------------------------------------------------------------------*/
 	override public function endMode()  untyped {
-		MtStd.setVar( ((fCookie.data):Dynamic), "score", getPlayerList()[0]?.score );
+		MtStd.setVar( ((fCookie?.data):Dynamic), "score", getPlayerList()[0]?.score );
 		stopMusic();
 		manager?.startMode( new mode.FjvEnd(manager,false) );
 	}
@@ -58,7 +58,7 @@ class Fjv extends mode.Adventure {
 	------------------------------------------------------------------------*/
 	override public function usePortal(pid:Dynamic,e:Dynamic)  untyped {
 		stopMusic();
-		MtStd.setVar( ((fCookie.data):Dynamic), "score", getPlayerList()[0]?.score );
+		MtStd.setVar( ((fCookie?.data):Dynamic), "score", getPlayerList()[0]?.score );
 		manager?.startMode( new mode.FjvEnd(manager,true) );
 		return true;
 	}

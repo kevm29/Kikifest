@@ -38,7 +38,7 @@ class PlayerArrow extends entity.Shoot
 	------------------------------------------------------------------------*/
 	public static function attach( g:mode.GameMode, x:Dynamic,y:Dynamic )  untyped {
 		var linkage:Dynamic = "hammer_shoot_arrow";
-		var s : entity.shoot.PlayerArrow = (( g.depthMan.attach(linkage,RootData.DP_SHOTS) ):Dynamic);
+		var s : entity.shoot.PlayerArrow = (( g?.depthMan?.attach(linkage,RootData.DP_SHOTS) ):Dynamic);
 		s?.initShoot(g, x, y);
 		return s;
 	}

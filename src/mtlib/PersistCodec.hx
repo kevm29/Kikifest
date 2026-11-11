@@ -108,7 +108,7 @@ i++; } }
 
 	public function decode_array()  untyped {
 		var a:Dynamic = new Array();
-		((a):Dynamic).pos = 0;
+		{ if (((a):Dynamic) != null) ((a):Dynamic).pos = 0; }
 		cache?.unshift((cast (a)));
 		return (cast (a));
 	}
@@ -121,7 +121,7 @@ i++; } }
 			var exit:Dynamic = (bc?.read(1) == 1);
 			if( exit )
 				return false;
-			((a):Dynamic).pos += decode_int();
+			{ if (((a):Dynamic) != null) ((a):Dynamic).pos += decode_int(); }
 		}
 		return true;
 	}

@@ -46,7 +46,7 @@ class LitchiWeak extends entity.bad.Jumper {
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_LITCHI_WEAK];
-		var mc : entity.bad.walker.LitchiWeak = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.bad.walker.LitchiWeak = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		mc?.initBad(g,x,y) ;
 		return mc ;
 	}

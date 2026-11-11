@@ -48,7 +48,7 @@ class Framboise extends entity.bad.Shooter {
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_FRAMBOISE];
-		var mc : entity.bad.walker.Framboise = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.bad.walker.Framboise = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		mc?.initBad(g,x,y) ;
 		return mc ;
 	}
@@ -111,10 +111,10 @@ class Framboise extends entity.bad.Shooter {
 		fb?.destroy();
 		if ( fb?._currentframe>=5 ) {
 			if ( fb?._currentframe==5 ) {
-				((this.sub):Dynamic).o1._visible = true;
+				{ if (((this.sub):Dynamic)?.o1 != null) ((this.sub):Dynamic).o1._visible = true; }
 			}
 			else {
-				((this.sub):Dynamic).o2._visible = true;
+				{ if (((this.sub):Dynamic)?.o2 != null) ((this.sub):Dynamic).o2._visible = true; }
 			}
 		}
 		else {
@@ -156,8 +156,8 @@ i++; } }
 		disableAnimator();
 		this.gotoAndStop("15");
 		this.sub?.stop();
-		((this.sub):Dynamic).o1._visible = false;
-		((this.sub):Dynamic).o2._visible = false;
+		{ if (((this.sub):Dynamic)?.o1 != null) ((this.sub):Dynamic).o1._visible = false; }
+		{ if (((this.sub):Dynamic)?.o2 != null) ((this.sub):Dynamic).o2._visible = false; }
 		hide();
 	}
 

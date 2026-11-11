@@ -40,7 +40,7 @@ class Abricot extends entity.bad.Jumper
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic, spawner:Dynamic)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_ABRICOT];
-		var mc : entity.bad.walker.Abricot = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.bad.walker.Abricot = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		{ if (mc != null) mc.fl_spawner = spawner ; }
 		mc?.initBad(g,x,y) ;
 		return mc ;

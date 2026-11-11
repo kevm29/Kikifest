@@ -402,7 +402,7 @@ i++; } }
 		pauseMC?.gotoAndStop("2");
 		{ if (pauseMC?.move != null) pauseMC.move.text			= Lang.get(29); }
 		{ if (pauseMC?.attack != null) pauseMC.attack.text			= Lang.get(30); }
-		((pauseMC):Dynamic).up.text	= Lang.get(31);
+		{ if (((pauseMC):Dynamic)?.up != null) ((pauseMC):Dynamic).up.text	= Lang.get(31); }
 		{ if (pauseMC?.tip != null) pauseMC.tip.text			= Lang.get(32); }
 		{ if (pauseMC?.click != null) pauseMC.click.text			= ""; }
 	}

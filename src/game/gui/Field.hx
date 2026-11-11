@@ -35,7 +35,7 @@ class Field extends gui.Item
 	ATTACHEMENT
 	------------------------------------------------------------------------*/
 	public static function attach(c:gui.Container)  untyped {
-		var mc : gui.Field = (( c.depthMan.attach("hammer_editor_field", RootData.DP_INTERF) ):Dynamic) ;
+		var mc : gui.Field = (( c?.depthMan?.attach("hammer_editor_field", RootData.DP_INTERF) ):Dynamic) ;
 		mc?.initField(c);
 		return mc;
 	}

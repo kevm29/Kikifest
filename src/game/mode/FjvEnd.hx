@@ -25,7 +25,7 @@ class FjvEnd extends Mode
 		fl_win = win;
 		fCookie = SharedObject.getLocal("$fjv_data");
 		_name = "$fjv_end";
-		scr = (( depthMan.attach("hammer_fjv_end",RootData.DP_INTERF) ):Dynamic);
+		scr = (( depthMan?.attach("hammer_fjv_end",RootData.DP_INTERF) ):Dynamic);
 		bg = depthMan?.attach("hammer_fjv_bg",RootData.DP_SPECIAL_BG);
 		if ( fl_win ) {
 			scr?.gotoAndStop("2");
@@ -34,21 +34,21 @@ class FjvEnd extends Mode
 			scr?.gotoAndStop("1");
 		}
 		fCookie = SharedObject.getLocal("$fjv_data");
-		timer = MtStd.parseInt( MtStd.getVar( ((fCookie.data):Dynamic), "timer" ), 10 );
-		var list:Dynamic = MtStd.getVar( ((fCookie.data):Dynamic), "list" );
-		var name:Dynamic = MtStd.getVar( ((fCookie.data):Dynamic), "name" );
+		timer = MtStd.parseInt( MtStd.getVar( ((fCookie?.data):Dynamic), "timer" ), 10 );
+		var list:Dynamic = MtStd.getVar( ((fCookie?.data):Dynamic), "list" );
+		var name:Dynamic = MtStd.getVar( ((fCookie?.data):Dynamic), "name" );
 		if ( list==null ) {
 			list = new Array();
 		}
 		if ( name!=null ) {
-			var score:Dynamic = MtStd.parseInt( MtStd.getVar( ((fCookie.data):Dynamic), "score" ), 10 );
+			var score:Dynamic = MtStd.parseInt( MtStd.getVar( ((fCookie?.data):Dynamic), "score" ), 10 );
 			list?.push( {name:name, win:fl_win, score:score} );
-			MtStd.setVar( ((fCookie.data):Dynamic), "name", null );
+			MtStd.setVar( ((fCookie?.data):Dynamic), "name", null );
 		}
 		while (list?.length>50) {
 			list?.splice(0,1);
 		}
-		MtStd.setVar( ((fCookie.data):Dynamic), "list", list );
+		MtStd.setVar( ((fCookie?.data):Dynamic), "list", list );
 		var txt:Dynamic = "";
 		{ var i:Dynamic=0; while (i<list?.length) {
 			txt+=list[i]?.name+" -> "+list[i]?.win+" ("+list[i]?.score+")\r\n";
@@ -117,7 +117,7 @@ i++; } }
 		if ( !fl_name ) {
 
 			timer-=Timer.tmod;
-			MtStd.setVar( ((fCookie.data):Dynamic), "timer", timer );
+			MtStd.setVar( ((fCookie?.data):Dynamic), "timer", timer );
 			var sec:Dynamic = Math.ceil(timer/RootData.SECOND);
 			if ( sec>=60 ) {
 				var min:Dynamic = Math.floor(sec/60);
@@ -138,7 +138,7 @@ i++; } }
 			name = Tools.replace( name, "\n", "" );
 			name = RootData.cleanLeading(name);
 			if ( name?.length>0 && Key.isDown(Key.ENTER) ) {
-				MtStd.setVar( ((fCookie.data):Dynamic), "name", name );
+				MtStd.setVar( ((fCookie?.data):Dynamic), "name", name );
 				manager?.startGameMode( new mode.Fjv(manager,0) );
 			}
 		}

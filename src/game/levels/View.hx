@@ -331,7 +331,7 @@ class View
 		((mc):Dynamic)?.skin?.gotoAndStop( ""+Math.abs(id) );
 		((mc):Dynamic)?.skin?.sub?.stop();
 		if ( fl_flip ) {
-			((mc):Dynamic).skin.sub._xscale *= -1;
+			{ if (((mc):Dynamic)?.skin?.sub != null) ((mc):Dynamic).skin.sub._xscale *= -1; }
 		}
 
 		// téléporteur
@@ -389,7 +389,7 @@ class View
 	ATTACHE UN BACKGROUND SPÉCIAL EN REMPLACEMENT TEMPORAIRE DE L'ACTUEL
 	------------------------------------------------------------------------*/
 	public function attachSpecialBg( id:Dynamic, subId:Dynamic )  untyped {
-		_specialBg = (( depthMan.attach("hammer_special_bg", RootData.DP_SPECIAL_BG) ):Dynamic);
+		_specialBg = (( depthMan?.attach("hammer_special_bg", RootData.DP_SPECIAL_BG) ):Dynamic);
 		_specialBg?.gotoAndStop(Std.string(id+1));
 
 		if ( subId!=null ) {
@@ -435,9 +435,9 @@ class View
 		{ if (world != null) world.portalList = new Array(); }
 
 		// Containers généraux
-		_top		= (( depthMan.empty(RootData.DP_TOP_LAYER) ):Dynamic);
-		_field		= (( depthMan.empty(RootData.DP_FIELD_LAYER) ):Dynamic);
-		_back		= (( depthMan.empty(RootData.DP_BACK_LAYER) ):Dynamic);
+		_top		= (( depthMan?.empty(RootData.DP_TOP_LAYER) ):Dynamic);
+		_field		= (( depthMan?.empty(RootData.DP_FIELD_LAYER) ):Dynamic);
+		_back		= (( depthMan?.empty(RootData.DP_BACK_LAYER) ):Dynamic);
 		_top_dm		= new DepthManager(_top);
 		_field_dm	= new DepthManager(_field);
 		_back_dm	= new DepthManager(_back);
@@ -605,7 +605,7 @@ i++; } }
 
 		{ var cx:Dynamic=0; while (cx<RootData.LEVEL_WIDTH) {
 			{ var cy:Dynamic=0; while (cy<RootData.LEVEL_HEIGHT) {
-				var mc:Dynamic = (( _top_dm.attach("debugGrid",depth) ):Dynamic);
+				var mc:Dynamic = (( _top_dm?.attach("debugGrid",depth) ):Dynamic);
 				{ if (mc != null) mc._x = cx*RootData.CASE_WIDTH+xOffset; }
 				{ if (mc != null) mc._y = cy*RootData.CASE_HEIGHT; }
 //				mc.fieldA.text = downcast(world).fallMap[cx][cy];

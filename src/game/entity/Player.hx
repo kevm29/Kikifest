@@ -320,7 +320,7 @@ i++; } }
 	ATTACHEMENT
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
-		var mc : entity.Player = (( g.depthMan.attach("hammer_player",RootData.DP_PLAYER) ):Dynamic) ;
+		var mc : entity.Player = (( g?.depthMan?.attach("hammer_player",RootData.DP_PLAYER) ):Dynamic) ;
 		mc?.initPlayer(g,x,y) ;
 		return mc ;
 	}
@@ -1030,7 +1030,7 @@ else {
 						if ( b?.lifeTimer>0 ) {
 							var b2:Dynamic = b?.duplicate();
 							if ( b2?.isType(RootData.PLAYER_BOMB) ) {
-								((b2):Dynamic).owner = this;
+								{ if (((b2):Dynamic) != null) ((b2):Dynamic).owner = this; }
 							}
 							{ if (b2 != null) b2.lifeTimer = b?.lifeTimer ; }
 							{ if (b2 != null) b2.dx = -b?.dx ; }

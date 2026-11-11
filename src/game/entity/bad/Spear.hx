@@ -97,7 +97,7 @@ class Spear extends entity.Bad
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_SPEAR];
-		var mc : entity.bad.Spear = (( g.depthMan.attach(linkage,RootData.DP_SPEAR) ):Dynamic);
+		var mc : entity.bad.Spear = (( g?.depthMan?.attach(linkage,RootData.DP_SPEAR) ):Dynamic);
 		mc?.initBad(g,x,y);
 		return mc;
 	}

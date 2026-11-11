@@ -35,7 +35,7 @@ class PlayerPearl extends entity.Shoot
 	------------------------------------------------------------------------*/
 	public static function attach( g:mode.GameMode, x:Dynamic,y:Dynamic )  untyped {
 		var linkage:Dynamic = "hammer_shoot_player_pearl";
-		var s : entity.shoot.PlayerPearl = (( g.depthMan.attach(linkage,RootData.DP_SHOTS) ):Dynamic);
+		var s : entity.shoot.PlayerPearl = (( g?.depthMan?.attach(linkage,RootData.DP_SHOTS) ):Dynamic);
 		s?.initShoot(g, x, y);
 		return s;
 	}

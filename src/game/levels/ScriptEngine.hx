@@ -1037,7 +1037,7 @@ i++; } }
 		{ var i:Dynamic=0; while (i<mcList?.length) {
 			if ( mcList[i]?.sid == id ) {
 				mcList[i]?.mc?.play();
-				((mcList[i].mc):Dynamic)?.sub?.play();
+				((mcList[i]?.mc):Dynamic)?.sub?.play();
 			}
 		
 i++; } }
@@ -1089,7 +1089,7 @@ i++; } }
 
 					{ var i:Dynamic=0; while (i<mcList?.length) {
 						if ( mcList[i]?.sid == 101 ) {
-							((mcList[i].mc):Dynamic).head = game?.getPlayerList()[0]?.head;
+							{ if (((mcList[i]?.mc):Dynamic) != null) ((mcList[i]?.mc):Dynamic).head = game?.getPlayerList()[0]?.head; }
 						}
 					
 i++; } }
@@ -1101,7 +1101,7 @@ i++; } }
 
 			}
 else if (__sw == (5)) { // sortie après tuberculoz
-				if ( ((game.getOne(RootData.BOSS)):Dynamic)?.fl_defeated ) {
+				if ( ((game?.getOne(RootData.BOSS)):Dynamic)?.fl_defeated ) {
 					bossDoorTimer-=Timer.tmod;
 					if ( bossDoorTimer<=0 ) {
 						game?.destroyList(RootData.BOSS);

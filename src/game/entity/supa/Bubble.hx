@@ -23,7 +23,7 @@ class Bubble extends entity.Supa
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode)  untyped {
 		var linkage:Dynamic = "hammer_supa_bubble";
-		var mc : entity.supa.Bubble = (( g.depthMan.attach(linkage,RootData.DP_SUPA) ):Dynamic);
+		var mc : entity.supa.Bubble = (( g?.depthMan?.attach(linkage,RootData.DP_SUPA) ):Dynamic);
 		mc?.initSupa(g, RootData.GAME_WIDTH,0 );
 		return mc;
 	}

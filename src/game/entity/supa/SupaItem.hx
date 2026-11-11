@@ -35,7 +35,7 @@ class SupaItem extends entity.Supa
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode, id:Dynamic)  untyped {
 		var linkage:Dynamic = "hammer_supa_item";
-		var mc : entity.supa.SupaItem = (( g.depthMan.attach(linkage,RootData.DP_SUPA) ):Dynamic);
+		var mc : entity.supa.SupaItem = (( g?.depthMan?.attach(linkage,RootData.DP_SUPA) ):Dynamic);
 		{ if (mc != null) mc.supaId = id; }
 		mc?.initSupa(g, RootData.GAME_WIDTH/2,-50 );
 		return mc;

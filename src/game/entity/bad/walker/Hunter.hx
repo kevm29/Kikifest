@@ -35,7 +35,7 @@ class Hunter extends entity.bad.Jumper
 	------------------------------------------------------------------------*/
 	override public function init(g:Dynamic)  untyped {
 		super.init(g);
-		prey = ((game.getOne(RootData.PLAYER)):Dynamic);
+		prey = ((game?.getOne(RootData.PLAYER)):Dynamic);
 	}
 
 
@@ -44,7 +44,7 @@ class Hunter extends entity.bad.Jumper
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_BANANE];
-		var mc : entity.bad.walker.Hunter = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.bad.walker.Hunter = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		mc?.initBad(g,x,y) ;
 		return mc ;
 	}

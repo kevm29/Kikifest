@@ -27,7 +27,7 @@ class Green extends entity.bomb.PlayerBomb
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = "hammer_bomb_green" ;
-		var mc : entity.bomb.player.Green = (( g.depthMan.attach(linkage,RootData.DP_BOMBS) ):Dynamic) ;
+		var mc : entity.bomb.player.Green = (( g?.depthMan?.attach(linkage,RootData.DP_BOMBS) ):Dynamic) ;
 		mc?.initBomb(g, x,y ) ;
 		return mc ;
 	}

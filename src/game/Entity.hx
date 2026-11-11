@@ -328,13 +328,13 @@ i++; } }
 		};
 		var ratio:Dynamic  = a/100;
 		var ct:Dynamic = {
-			ra:Int(100-a),
-			ga:Int(100-a),
-			ba:Int(100-a),
+			ra:Std.int(100-a),
+			ga:Std.int(100-a),
+			ba:Std.int(100-a),
 			aa:100,
-			rb:Int(ratio*coo?.r),
-			gb:Int(ratio*coo?.g),
-			bb:Int(ratio*coo?.b),
+			rb:Std.int(ratio*coo?.r),
+			gb:Std.int(ratio*coo?.g),
+			bb:Std.int(ratio*coo?.b),
 			ab:0
 		};
 		color = new Color(this);

@@ -194,7 +194,7 @@ class Boot {
 		m2.loadSound(f2,false);
 		_g2.push(m2);
 		let init = { fl_local : true, musics : _g2, rawLang : lang, families : null, options : params.get("options") != null ? params.get("options") : ""};
-		window.kiki = { root : Boot.root, boot : Boot};
+		window.kiki = { root : Boot.root, boot : Boot, Data : Data, SpecialItem : entity_item_SpecialItem, ScoreItem : entity_item_ScoreItem};
 		Boot.manager = new GameManager(Boot.root,init);
 		window.kiki.manager = Boot.manager;
 		window.addEventListener("keydown",function(e) {
@@ -341,7 +341,8 @@ class Cookie {
 	constructor(m) {
 		this.manager = m;
 		this.cookie = mtlib_SharedObject.getLocal(Cookie.NAME);
-		this.data = this.cookie.data;
+		let tmp = this.cookie;
+		this.data = tmp != null ? tmp.data : null;
 		this.checkVersion();
 	}
 	reset() {
@@ -349,7 +350,8 @@ class Cookie {
 		if(tmp != null) {
 			tmp.clear();
 		}
-		this.data = this.cookie.data;
+		let tmp1 = this.cookie;
+		this.data = tmp1 != null ? tmp1.data : null;
 		if(this.data != null) {
 			this.data.version = Cookie.VERSION;
 		}
@@ -1819,7 +1821,7 @@ class Entity extends swf_MovieClip {
 	setColorHex(a,col) {
 		let coo = { r : col >> 16, g : col >> 8 & 255, b : col & 255};
 		let ratio = a / 100;
-		let ct = { ra : Int(100 - a), ga : Int(100 - a), ba : Int(100 - a), aa : 100, rb : Int(ratio * (coo != null ? coo.r : null)), gb : Int(ratio * (coo != null ? coo.g : null)), bb : Int(ratio * (coo != null ? coo.b : null)), ab : 0};
+		let ct = { ra : 100 - a | 0, ga : 100 - a | 0, ba : 100 - a | 0, aa : 100, rb : ratio * (coo != null ? coo.r : null) | 0, gb : ratio * (coo != null ? coo.g : null) | 0, bb : ratio * (coo != null ? coo.b : null) | 0, ab : 0};
 		this.color = new mtlib_Color(this);
 		let tmp = this.color;
 		if(tmp != null) {
@@ -2014,15 +2016,17 @@ class FxManager {
 			if(tmp != null) {
 				tmp.removeMovieClip();
 			}
-			this.levelName = this.game.depthMan.attach("hammer_interf_zone",Data.DP_INTERF);
+			let tmp1 = this.game;
+			let tmp2 = tmp1 != null ? tmp1.depthMan : null;
+			this.levelName = tmp2 != null ? tmp2.attach("hammer_interf_zone",Data.DP_INTERF) : null;
 			if(this.levelName != null) {
 				this.levelName._x = -10;
 			}
 			if(this.levelName != null) {
 				this.levelName._y = Data.GAME_HEIGHT - 1;
 			}
-			let tmp1 = this.levelName;
-			if((tmp1 != null ? tmp1.field : null) != null) {
+			let tmp3 = this.levelName;
+			if((tmp3 != null ? tmp3.field : null) != null) {
 				this.levelName.field.text = name;
 			}
 			FxManager.addGlow(this.levelName,0,2);
@@ -2050,7 +2054,9 @@ class FxManager {
 		if(mc != null) {
 			mc._y = Data.GAME_HEIGHT / 2;
 		}
-		mc.label = str;
+		if(mc != null) {
+			mc.label = str;
+		}
 		let tmp2 = this.mcList;
 		if(tmp2 != null) {
 			tmp2.push(mc);
@@ -2089,7 +2095,9 @@ class FxManager {
 	}
 	attachExit() {
 		this.detachExit();
-		let mc = this.game.depthMan.attach("hammer_fx_exit",Data.DP_INTERF);
+		let tmp = this.game;
+		let tmp1 = tmp != null ? tmp.depthMan : null;
+		let mc = tmp1 != null ? tmp1.attach("hammer_fx_exit",Data.DP_INTERF) : null;
 		if(mc != null) {
 			mc._x = Data.GAME_WIDTH / 2;
 		}
@@ -2142,8 +2150,14 @@ class FxManager {
 		}
 		txt = Data.formatNumberStr(txt);
 		FxManager.addGlow(anim != null ? anim.mc : null,glowColor,2);
-		anim.mc.label.field.textColor = color;
-		anim.mc.value = txt;
+		let tmp = anim != null ? anim.mc : null;
+		let tmp1 = tmp != null ? tmp.label : null;
+		if((tmp1 != null ? tmp1.field : null) != null) {
+			(anim != null ? anim.mc : null).label.field.textColor = color;
+		}
+		if((anim != null ? anim.mc : null) != null) {
+			(anim != null ? anim.mc : null).value = txt;
+		}
 	}
 	attachExplodeZone(x,y,radius) {
 		let tmp = this.game;
@@ -2201,13 +2215,15 @@ class FxManager {
 		if(tmp != null) {
 			tmp.removeMovieClip();
 		}
-		this.igMsg = this.game.depthMan.attach("hammer_interf_inGameMsg",Data.DP_TOP);
-		let tmp1 = this.igMsg;
-		if((tmp1 != null ? tmp1.label : null) != null) {
+		let tmp1 = this.game;
+		let tmp2 = tmp1 != null ? tmp1.depthMan : null;
+		this.igMsg = tmp2 != null ? tmp2.attach("hammer_interf_inGameMsg",Data.DP_TOP) : null;
+		let tmp3 = this.igMsg;
+		if((tmp3 != null ? tmp3.label : null) != null) {
 			this.igMsg.label.text = Lang.get(40);
 		}
-		let tmp2 = this.igMsg;
-		if((tmp2 != null ? tmp2.field : null) != null) {
+		let tmp4 = this.igMsg;
+		if((tmp4 != null ? tmp4.field : null) != null) {
 			this.igMsg.field.text = Lang.getKeyName(kid);
 		}
 		FxManager.addGlow(this.igMsg,0,2);
@@ -2220,13 +2236,15 @@ class FxManager {
 		if(tmp != null) {
 			tmp.removeMovieClip();
 		}
-		this.igMsg = this.game.depthMan.attach("hammer_interf_inGameMsg",Data.DP_TOP);
-		let tmp1 = this.igMsg;
-		if((tmp1 != null ? tmp1.label : null) != null) {
+		let tmp1 = this.game;
+		let tmp2 = tmp1 != null ? tmp1.depthMan : null;
+		this.igMsg = tmp2 != null ? tmp2.attach("hammer_interf_inGameMsg",Data.DP_TOP) : null;
+		let tmp3 = this.igMsg;
+		if((tmp3 != null ? tmp3.label : null) != null) {
 			this.igMsg.label.text = Lang.get(41);
 		}
-		let tmp2 = this.igMsg;
-		if((tmp2 != null ? tmp2.field : null) != null) {
+		let tmp4 = this.igMsg;
+		if((tmp4 != null ? tmp4.field : null) != null) {
 			this.igMsg.field.text = Lang.getKeyName(kid);
 		}
 		FxManager.addGlow(this.igMsg,0,2);
@@ -2924,7 +2942,10 @@ class GameManager {
 				this.progressBar.set__y(Data.GAME_HEIGHT - 40);
 			}
 		}
-		this.progressBar.bar._xscale = ratio * 100;
+		let tmp = this.progressBar;
+		if((tmp != null ? tmp.bar : null) != null) {
+			this.progressBar.bar._xscale = ratio * 100;
+		}
 	}
 	redirect(url,params) {
 		let tmp = this.current;
@@ -3186,7 +3207,9 @@ class GameParameters {
 	}
 	setLowDetails() {
 		this.fl_detail = false;
-		mtlib_MtStd.getRoot()._quality = "$medium".substring(1);
+		if(mtlib_MtStd.getRoot() != null) {
+			mtlib_MtStd.getRoot()._quality = "$medium".substring(1);
+		}
 		Data.MAX_FX = Math.ceil(Data.MAX_FX * 0.5);
 	}
 	hasFamily(id) {
@@ -3815,7 +3838,9 @@ class SpecialManager {
 		this.interrupt(97);
 		this.interrupt(98);
 		let bonus = 50000;
-		let mc = this.game.depthMan.attach("hammer_fx_perfect",Data.DP_INTERF);
+		let tmp = this.game;
+		let tmp1 = tmp != null ? tmp.depthMan : null;
+		let mc = tmp1 != null ? tmp1.attach("hammer_fx_perfect",Data.DP_INTERF) : null;
 		if(mc != null) {
 			mc._x = Data.GAME_WIDTH * 0.5;
 		}
@@ -3832,8 +3857,8 @@ class SpecialManager {
 		} else if(mc != null) {
 			mc.bonus = "" + Std.string(bonus);
 		}
-		let tmp = this.game;
-		let pl = tmp != null ? tmp.getPlayerList() : null;
+		let tmp2 = this.game;
+		let pl = tmp2 != null ? tmp2.getPlayerList() : null;
 		let i = 0;
 		while(i < (pl != null ? pl.length : null)) {
 			let tmp = pl[i];
@@ -3891,7 +3916,9 @@ class SpecialManager {
 			tmp9.setLives(tmp != null ? tmp.pid : null,tmp1 != null ? tmp1.lives : null);
 		}
 		if(fl_perfect) {
-			let mc = this.game.depthMan.attach("hammer_fx_perfect",Data.DP_INTERF);
+			let tmp = this.game;
+			let tmp1 = tmp != null ? tmp.depthMan : null;
+			let mc = tmp1 != null ? tmp1.attach("hammer_fx_perfect",Data.DP_INTERF) : null;
 			if(mc != null) {
 				mc._x = Data.GAME_WIDTH * 0.5;
 			}
@@ -3908,9 +3935,9 @@ class SpecialManager {
 			} else if(mc != null) {
 				mc.bonus = "150000";
 			}
-			let tmp = this.player;
-			if(tmp != null) {
-				tmp.getScoreHidden(150000);
+			let tmp2 = this.player;
+			if(tmp2 != null) {
+				tmp2.getScoreHidden(150000);
 			}
 		}
 	}
@@ -4117,7 +4144,8 @@ class SpecialManager {
 																						} else {
 																							auto += 1;
 																							if(__sw == auto - 1) {
-																								let bad = this.game.getOne(Data.BAD_CLEAR);
+																								let tmp = this.game;
+																								let bad = tmp != null ? tmp.getOne(Data.BAD_CLEAR) : null;
 																								if(bad != null) {
 																									let tmp = this.game;
 																									let tmp1 = tmp != null ? tmp.fxMan : null;
@@ -4670,16 +4698,18 @@ class SpecialManager {
 																																																																																					} else {
 																																																																																						auto += 1;
 																																																																																						if(__sw == auto - 1) {
-																																																																																							let c = this.game.depthMan.attach("hammer_fx_clouds",Data.DP_SPRITE_BACK_LAYER);
+																																																																																							let tmp = this.game;
+																																																																																							let tmp1 = tmp != null ? tmp.depthMan : null;
+																																																																																							let c = tmp1 != null ? tmp1.attach("hammer_fx_clouds",Data.DP_SPRITE_BACK_LAYER) : null;
 																																																																																							if(c != null) {
 																																																																																								c.speed = 0.5;
 																																																																																							}
 																																																																																							if(c != null) {
 																																																																																								c._y += 9;
 																																																																																							}
-																																																																																							let tmp = this.clouds;
-																																																																																							if(tmp != null) {
-																																																																																								tmp.push(c);
+																																																																																							let tmp2 = this.clouds;
+																																																																																							if(tmp2 != null) {
+																																																																																								tmp2.push(c);
 																																																																																							}
 																																																																																							let f = new mtflash_filters_BlurFilter();
 																																																																																							if(f != null) {
@@ -4691,21 +4721,23 @@ class SpecialManager {
 																																																																																							if(c != null) {
 																																																																																								c.filters = [f];
 																																																																																							}
-																																																																																							c = this.game.depthMan.attach("hammer_fx_clouds",Data.DP_SPRITE_TOP_LAYER);
+																																																																																							let tmp3 = this.game;
+																																																																																							let tmp4 = tmp3 != null ? tmp3.depthMan : null;
+																																																																																							c = tmp4 != null ? tmp4.attach("hammer_fx_clouds",Data.DP_SPRITE_TOP_LAYER) : null;
 																																																																																							if(c != null) {
 																																																																																								c.speed = 1;
 																																																																																							}
-																																																																																							let tmp1 = this.clouds;
-																																																																																							if(tmp1 != null) {
-																																																																																								tmp1.push(c);
+																																																																																							let tmp5 = this.clouds;
+																																																																																							if(tmp5 != null) {
+																																																																																								tmp5.push(c);
 																																																																																							}
 																																																																																							this.temporary(id,null);
 																																																																																							this.registerRecurring($bind(this,this.onFireRain),Data.SECOND * 0.8,true);
 																																																																																							this.onFireRain();
-																																																																																							let tmp2 = this.game;
-																																																																																							let tmp3 = tmp2 != null ? tmp2.fxMan : null;
-																																																																																							if(tmp3 != null) {
-																																																																																								tmp3.attachBg(Data.BG_STORM,null,9999);
+																																																																																							let tmp6 = this.game;
+																																																																																							let tmp7 = tmp6 != null ? tmp6.fxMan : null;
+																																																																																							if(tmp7 != null) {
+																																																																																								tmp7.attachBg(Data.BG_STORM,null,9999);
 																																																																																							}
 																																																																																						} else {
 																																																																																							auto += 1;
@@ -7113,7 +7145,8 @@ class entity_Bad extends entity_Mover {
 	update() {
 		let tmp = this.player;
 		if((tmp != null ? tmp._name : null) == null) {
-			this.hate(this.game.getOne(Data.PLAYER));
+			let tmp = this.game;
+			this.hate(tmp != null ? tmp.getOne(Data.PLAYER) : null);
 		}
 		let tmp1;
 		if(this.isHealthy()) {
@@ -8332,7 +8365,9 @@ class entity_Player extends entity_Physics {
 						if((b != null ? b.lifeTimer : null) > 0) {
 							let b2 = b != null ? b.duplicate() : null;
 							if(b2 != null ? b2.isType(Data.PLAYER_BOMB) : null) {
-								b2.owner = this;
+								if(b2 != null) {
+									b2.owner = this;
+								}
 							}
 							if(b2 != null) {
 								b2.lifeTimer = b != null ? b.lifeTimer : null;
@@ -8895,7 +8930,8 @@ class entity_Player extends entity_Physics {
 		}
 	}
 	static attach(g,x,y) {
-		let mc = g.depthMan.attach("hammer_player",Data.DP_PLAYER);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach("hammer_player",Data.DP_PLAYER) : null;
 		if(mc != null) {
 			mc.initPlayer(g,x,y);
 		}
@@ -9582,7 +9618,8 @@ class entity_WalkingBomb extends entity_Physics {
 	}
 	static attach(g,b) {
 		let linkage = "hammer_player_wbomb";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,b);
 		}
@@ -9741,7 +9778,8 @@ class entity_bad_FireBall extends entity_Bad {
 	}
 	static attach(g,p) {
 		let linkage = Data.LINKAGES[Data.BAD_FIREBALL];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		let n = g != null ? g.countList(Data.PLAYER) : null;
 		let offs = n == 1 ? 0 : -30 + (p != null ? p.pid : null) * 60;
 		if(mc != null) {
@@ -10616,7 +10654,8 @@ class entity_bad_Spear extends entity_Bad {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_SPEAR];
-		let mc = g.depthMan.attach(linkage,Data.DP_SPEAR);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_SPEAR) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -10967,7 +11006,8 @@ class entity_bad_flyer_Baleine extends entity_bad_Flyer {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_BALEINE];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11011,7 +11051,8 @@ class entity_bad_flyer_Tzongre extends entity_bad_Flyer {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_TZONGRE];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11053,7 +11094,8 @@ class entity_bad_walker_Abricot extends entity_bad_Jumper {
 	}
 	static attach(g,x,y,spawner) {
 		let linkage = Data.LINKAGES[Data.BAD_ABRICOT];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.fl_spawner = spawner;
 		}
@@ -11242,7 +11284,8 @@ class entity_bad_walker_Ananas extends entity_bad_Jumper {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_ANANAS];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11264,7 +11307,8 @@ class entity_bad_walker_Banane extends entity_bad_Jumper {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_BANANE];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11382,7 +11426,8 @@ class entity_bad_walker_Bombe extends entity_bad_Jumper {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_BOMBE];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11397,7 +11442,8 @@ class entity_bad_walker_Cerise extends entity_bad_Walker {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_CERISE];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11426,7 +11472,8 @@ class entity_bad_walker_Citron extends entity_bad_Shooter {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_CITRON];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11540,7 +11587,8 @@ class entity_bad_walker_Fraise extends entity_bad_Shooter {
 	}
 	destroy() {
 		if(this.fl_ball) {
-			let bad = this.game.getAnotherOne(Data.CATCHER,this);
+			let tmp = this.game;
+			let bad = tmp != null ? tmp.getAnotherOne(Data.CATCHER,this) : null;
 			if(bad != null) {
 				if(bad != null) {
 					bad.assignBall();
@@ -11552,9 +11600,15 @@ class entity_bad_walker_Fraise extends entity_bad_Shooter {
 	endUpdate() {
 		super.endUpdate();
 		if(this.fl_ball) {
-			this.sub.balle._visible = true;
+			let tmp = this.sub;
+			if((tmp != null ? tmp.balle : null) != null) {
+				this.sub.balle._visible = true;
+			}
 		} else {
-			this.sub.balle._visible = false;
+			let tmp = this.sub;
+			if((tmp != null ? tmp.balle : null) != null) {
+				this.sub.balle._visible = false;
+			}
 		}
 		let tmp;
 		if(this.dx == 0) {
@@ -11602,7 +11656,8 @@ class entity_bad_walker_Fraise extends entity_bad_Shooter {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_FRAISE];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11673,9 +11728,15 @@ class entity_bad_walker_Framboise extends entity_bad_Shooter {
 		}
 		if((fb != null ? fb._currentframe : null) >= 5) {
 			if((fb != null ? fb._currentframe : null) == 5) {
-				this.sub.o1._visible = true;
+				let tmp = this.sub;
+				if((tmp != null ? tmp.o1 : null) != null) {
+					this.sub.o1._visible = true;
+				}
 			} else {
-				this.sub.o2._visible = true;
+				let tmp = this.sub;
+				if((tmp != null ? tmp.o2 : null) != null) {
+					this.sub.o2._visible = true;
+				}
 			}
 		} else {
 			let tmp = this.sub;
@@ -11723,8 +11784,14 @@ class entity_bad_walker_Framboise extends entity_bad_Shooter {
 		if(tmp4 != null) {
 			tmp4.stop();
 		}
-		this.sub.o1._visible = false;
-		this.sub.o2._visible = false;
+		let tmp5 = this.sub;
+		if((tmp5 != null ? tmp5.o1 : null) != null) {
+			this.sub.o1._visible = false;
+		}
+		let tmp6 = this.sub;
+		if((tmp6 != null ? tmp6.o2 : null) != null) {
+			this.sub.o2._visible = false;
+		}
 		this.hide();
 	}
 	walk() {
@@ -11835,7 +11902,8 @@ class entity_bad_walker_Framboise extends entity_bad_Shooter {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_FRAMBOISE];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11884,7 +11952,8 @@ class entity_bad_walker_Kiwi extends entity_bad_Shooter {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_KIWI];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11968,7 +12037,8 @@ class entity_bad_walker_Litchi extends entity_bad_Jumper {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_LITCHI];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -11999,7 +12069,8 @@ class entity_bad_walker_LitchiWeak extends entity_bad_Jumper {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_LITCHI_WEAK];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -12014,7 +12085,8 @@ class entity_bad_walker_Orange extends entity_bad_Jumper {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_ORANGE];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -12044,7 +12116,8 @@ class entity_bad_walker_Poire extends entity_bad_Shooter {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_POIRE];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -12077,7 +12150,8 @@ class entity_bad_walker_Pomme extends entity_bad_Shooter {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_POMME];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -12365,7 +12439,8 @@ class entity_bad_ww_Crawler extends entity_bad_WallWalker {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_CRAWLER];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -12552,7 +12627,10 @@ class entity_bad_ww_Saw extends entity_bad_WallWalker {
 		} else {
 			this.rotSpeed = Math.min(entity_bad_ww_Saw.ROTATION_SPEED,this.rotSpeed + mtlib_Timer.tmod);
 		}
-		this.sub.sub._rotation += this.rotSpeed;
+		let tmp = this.sub;
+		if((tmp != null ? tmp.sub : null) != null) {
+			this.sub.sub._rotation += this.rotSpeed;
+		}
 	}
 	update() {
 		let tmp = this.game;
@@ -12596,7 +12674,8 @@ class entity_bad_ww_Saw extends entity_bad_WallWalker {
 	}
 	static attach(g,x,y) {
 		let linkage = Data.LINKAGES[Data.BAD_SAW];
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBad(g,x,y);
 		}
@@ -12791,7 +12870,8 @@ class entity_bomb_bad_BossBomb extends entity_bomb_BadBomb {
 	onExplode() {
 		super.onExplode();
 		let b = entity_bad_walker_Orange.attach(this.game,this.x - Data.CASE_WIDTH * 0.5,this.y - Data.CASE_HEIGHT * 0.5);
-		let boss = this.game.getOne(Data.BOSS);
+		let tmp = this.game;
+		let boss = tmp != null ? tmp.getOne(Data.BOSS) : null;
 		if((boss != null ? boss.lives : null) <= 70) {
 			if(b != null) {
 				b.angerMore();
@@ -12819,7 +12899,8 @@ class entity_bomb_bad_BossBomb extends entity_bomb_BadBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_boss";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -12945,7 +13026,8 @@ class entity_bomb_bad_Mine extends entity_bomb_BadBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_mine";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -12993,7 +13075,8 @@ class entity_bomb_bad_PoireBomb extends entity_bomb_BadBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_poire";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -13041,7 +13124,8 @@ class entity_bomb_player_Black extends entity_bomb_PlayerBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_black";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -13089,7 +13173,8 @@ class entity_bomb_player_Blue extends entity_bomb_PlayerBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_blue";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -13150,7 +13235,8 @@ class entity_bomb_player_Classic extends entity_bomb_PlayerBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_classic";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -13222,7 +13308,8 @@ class entity_bomb_player_Green extends entity_bomb_PlayerBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_green";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -13280,7 +13367,8 @@ class entity_bomb_player_MineFrozen extends entity_bomb_PlayerBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_mine_frozen";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -13338,7 +13426,8 @@ class entity_bomb_player_PoireBombFrozen extends entity_bomb_PlayerBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_poire_frozen";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -13447,7 +13536,8 @@ class entity_bomb_player_Red extends entity_bomb_PlayerBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_red";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -13541,7 +13631,8 @@ class entity_bomb_player_RepelBomb extends entity_bomb_PlayerBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_repel";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -13667,7 +13758,8 @@ class entity_bomb_player_SoccerBall extends entity_bomb_PlayerBomb {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_bomb_soccer";
-		let mc = g.depthMan.attach(linkage,Data.DP_BOMBS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BOMBS) : null;
 		if(mc != null) {
 			mc.initBomb(g,x,y);
 		}
@@ -14097,7 +14189,8 @@ class entity_boss_Bat extends entity_Mover {
 	}
 	static attach(g) {
 		let linkage = "hammer_boss_bat";
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBoss(g);
 		}
@@ -14148,7 +14241,9 @@ class entity_boss_Tuberculoz extends entity_Mover {
 		this.init(g);
 		this.playAnim(Data.ANIM_BOSS_BAT_FORM);
 		this.endUpdate();
-		this.lifeBar = this.game.depthMan.attach("hammer_interf_boss_bar",Data.DP_INTERF);
+		let tmp = this.game;
+		let tmp1 = tmp != null ? tmp.depthMan : null;
+		this.lifeBar = tmp1 != null ? tmp1.attach("hammer_interf_boss_bar",Data.DP_INTERF) : null;
 		if(this.lifeBar != null) {
 			this.lifeBar._rotation = -90;
 		}
@@ -14435,7 +14530,8 @@ class entity_boss_Tuberculoz extends entity_Mover {
 			}
 		}
 		if(this.dx < 0 && this.x <= -Data.GAME_WIDTH || this.dx > 0 && this.x >= Data.GAME_WIDTH * 2) {
-			let p = this.game.getOne(Data.PLAYER);
+			let tmp = this.game;
+			let p = tmp != null ? tmp.getOne(Data.PLAYER) : null;
 			this.dx = -this.dx;
 			this.y = p != null ? p.y : null;
 			this.dir = -this.dir;
@@ -15062,7 +15158,8 @@ class entity_boss_Tuberculoz extends entity_Mover {
 	}
 	static attach(g) {
 		let linkage = "hammer_boss_human";
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initBoss(g);
 		}
@@ -15242,7 +15339,8 @@ class entity_fx_Particle extends entity_Mover {
 	}
 	static attach(g,frame,x,y) {
 		let linkage = "hammer_fx_particle";
-		let mc = g.depthMan.attach(linkage,Data.DP_BADS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_BADS) : null;
 		if(mc != null) {
 			mc.initParticle(g,frame,x,y);
 		}
@@ -15325,7 +15423,8 @@ class entity_item_ScoreItem extends entity_Item {
 		super.execute(p);
 	}
 	static attach(g,x,y,id,subId) {
-		let mc = g.depthMan.attach("hammer_item_score",Data.DP_ITEMS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach("hammer_item_score",Data.DP_ITEMS) : null;
 		if(id >= 1000) {
 			id -= 1000;
 		}
@@ -15395,7 +15494,8 @@ class entity_item_SpecialItem extends entity_Item {
 		if((g != null ? g.fl_clear : null) && id == 0) {
 			return null;
 		}
-		let mc = g.depthMan.attach("hammer_item_special",Data.DP_ITEMS);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach("hammer_item_special",Data.DP_ITEMS) : null;
 		if(mc != null) {
 			mc.initItem(g,x,y,id,subId);
 		}
@@ -15422,7 +15522,8 @@ class entity_shoot_Ball extends entity_Shoot {
 		if(tmp1 != null) {
 			tmp1.attachFx(this.x,this.y - Data.CASE_HEIGHT / 2,"hammer_fx_pop");
 		}
-		let bad = this.game.getOne(Data.CATCHER);
+		let tmp2 = this.game;
+		let bad = tmp2 != null ? tmp2.getOne(Data.CATCHER) : null;
 		if(bad != null) {
 			bad.assignBall();
 		}
@@ -15443,7 +15544,8 @@ class entity_shoot_Ball extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_ball";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y);
 		}
@@ -15526,7 +15628,8 @@ class entity_shoot_BossFireBall extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_boss_fireball";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y - 10);
 		}
@@ -15570,7 +15673,8 @@ class entity_shoot_FireBall extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_fireball";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y - 10);
 		}
@@ -15635,7 +15739,8 @@ class entity_shoot_FireRain extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_firerain";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y - 10);
 		}
@@ -15746,7 +15851,8 @@ class entity_shoot_FramBall extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_framBall2";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y);
 		}
@@ -15835,7 +15941,8 @@ class entity_shoot_Hammer extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_hammer";
-		let s = g.depthMan.attach(linkage,Data.DP_SPEAR);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SPEAR) : null;
 		if(s != null) {
 			s.initShoot(g,x,y - 10);
 		}
@@ -15859,7 +15966,8 @@ class entity_shoot_Pepin extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_pepin";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y);
 		}
@@ -15925,7 +16033,8 @@ class entity_shoot_PlayerArrow extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_arrow";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y);
 		}
@@ -15979,7 +16088,8 @@ class entity_shoot_PlayerFireBall extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_player_fireball";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y);
 		}
@@ -16088,7 +16198,8 @@ class entity_shoot_PlayerPearl extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_player_pearl";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y);
 		}
@@ -16123,7 +16234,8 @@ class entity_shoot_Zeste extends entity_Shoot {
 	}
 	static attach(g,x,y) {
 		let linkage = "hammer_shoot_zest";
-		let s = g.depthMan.attach(linkage,Data.DP_SHOTS);
+		let tmp = g != null ? g.depthMan : null;
+		let s = tmp != null ? tmp.attach(linkage,Data.DP_SHOTS) : null;
 		if(s != null) {
 			s.initShoot(g,x,y);
 		}
@@ -16167,7 +16279,8 @@ class entity_supa_Arrow extends entity_Supa {
 	}
 	static attach(g) {
 		let linkage = "hammer_supa_arrow";
-		let mc = g.depthMan.attach(linkage,Data.DP_SUPA);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_SUPA) : null;
 		if(mc != null) {
 			mc.initSupa(g,Data.GAME_WIDTH,-50);
 		}
@@ -16226,7 +16339,8 @@ class entity_supa_Ball extends entity_Supa {
 	}
 	static attach(g) {
 		let linkage = "hammer_supa_ball";
-		let mc = g.depthMan.attach(linkage,Data.DP_SUPA);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_SUPA) : null;
 		if(mc != null) {
 			mc.initSupa(g,Data.GAME_WIDTH,0);
 		}
@@ -16291,7 +16405,8 @@ class entity_supa_Bubble extends entity_Supa {
 	}
 	static attach(g) {
 		let linkage = "hammer_supa_bubble";
-		let mc = g.depthMan.attach(linkage,Data.DP_SUPA);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_SUPA) : null;
 		if(mc != null) {
 			mc.initSupa(g,Data.GAME_WIDTH,0);
 		}
@@ -16341,7 +16456,8 @@ class entity_supa_IceMeteor extends entity_Supa {
 	}
 	static attach(g) {
 		let linkage = "hammer_supa_icemeteor";
-		let mc = g.depthMan.attach(linkage,Data.DP_SUPA);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_SUPA) : null;
 		if(mc != null) {
 			mc.initSupa(g,Data.GAME_WIDTH,0);
 		}
@@ -16361,7 +16477,8 @@ class entity_supa_Smoke extends entity_Supa {
 	}
 	static attach(g) {
 		let linkage = "hammer_supa_smoke";
-		let mc = g.depthMan.attach(linkage,Data.DP_SUPA);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_SUPA) : null;
 		if(mc != null) {
 			mc.initSupa(g,Data.GAME_WIDTH / 2,Data.GAME_HEIGHT / 2);
 		}
@@ -16453,7 +16570,8 @@ class entity_supa_SupaItem extends entity_Supa {
 	}
 	static attach(g,id) {
 		let linkage = "hammer_supa_item";
-		let mc = g.depthMan.attach(linkage,Data.DP_SUPA);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_SUPA) : null;
 		if(mc != null) {
 			mc.supaId = id;
 		}
@@ -16518,7 +16636,8 @@ class entity_supa_Tons extends entity_Supa {
 	}
 	static attach(g) {
 		let linkage = "hammer_supa_tons";
-		let mc = g.depthMan.attach(linkage,Data.DP_SUPA);
+		let tmp = g != null ? g.depthMan : null;
+		let mc = tmp != null ? tmp.attach(linkage,Data.DP_SUPA) : null;
 		if(mc != null) {
 			mc.initSupa(g,Data.GAME_WIDTH,0);
 		}
@@ -16658,7 +16777,8 @@ class gui_Field extends gui_Item {
 		this.setField(s);
 	}
 	static attach(c) {
-		let mc = c.depthMan.attach("hammer_editor_field",Data.DP_INTERF);
+		let tmp = c != null ? c.depthMan : null;
+		let mc = tmp != null ? tmp.attach("hammer_editor_field",Data.DP_INTERF) : null;
 		if(mc != null) {
 			mc.initField(c);
 		}
@@ -17130,7 +17250,8 @@ class gui_Label extends gui_Item {
 		super();
 	}
 	static attach(c,l) {
-		let b = c.depthMan.attach("hammer_editor_label",Data.DP_INTERF);
+		let tmp = c != null ? c.depthMan : null;
+		let b = tmp != null ? tmp.attach("hammer_editor_label",Data.DP_INTERF) : null;
 		if(b != null) {
 			b.init(c,l);
 		}
@@ -17295,7 +17416,8 @@ class gui_SimpleButton extends gui_Item {
 		}
 	}
 	static attach(c,l,k,func) {
-		let b = c.depthMan.attach("hammer_editor_button",Data.DP_INTERF);
+		let tmp = c != null ? c.depthMan : null;
+		let b = tmp != null ? tmp.attach("hammer_editor_button",Data.DP_INTERF) : null;
 		if(b != null) {
 			b.initButton(c,l,k,func);
 		}
@@ -19769,10 +19891,11 @@ class levels_ScriptEngine {
 				if(tmp1 != null) {
 					tmp1.play();
 				}
-				let tmp2 = this.mcList[i].mc;
-				let tmp3 = tmp2 != null ? tmp2.sub : null;
-				if(tmp3 != null) {
-					tmp3.play();
+				let tmp2 = this.mcList[i];
+				let tmp3 = tmp2 != null ? tmp2.mc : null;
+				let tmp4 = tmp3 != null ? tmp3.sub : null;
+				if(tmp4 != null) {
+					tmp4.play();
 				}
 			}
 			i += 1;
@@ -19832,9 +19955,14 @@ class levels_ScriptEngine {
 					}
 					let tmp1 = this.mcList[i1];
 					if((tmp1 != null ? tmp1.sid : null) == 101) {
-						let tmp = this.game;
-						let tmp1 = tmp != null ? tmp.getPlayerList()[0] : null;
-						this.mcList[i1].mc.head = tmp1 != null ? tmp1.head : null;
+						let tmp = this.mcList[i1];
+						if((tmp != null ? tmp.mc : null) != null) {
+							let tmp = this.mcList[i1];
+							let tmp1 = tmp != null ? tmp.mc : null;
+							let tmp2 = this.game;
+							let tmp3 = tmp2 != null ? tmp2.getPlayerList()[0] : null;
+							tmp1.head = tmp3 != null ? tmp3.head : null;
+						}
 					}
 					i1 += 1;
 				}
@@ -19845,8 +19973,9 @@ class levels_ScriptEngine {
 				this.fl_elevatorOpen = false;
 			}
 		} else if(__sw == 5) {
-			let tmp = this.game.getOne(Data.BOSS);
-			if(tmp != null ? tmp.fl_defeated : null) {
+			let tmp = this.game;
+			let tmp1 = tmp != null ? tmp.getOne(Data.BOSS) : null;
+			if(tmp1 != null ? tmp1.fl_defeated : null) {
 				this.bossDoorTimer -= mtlib_Timer.tmod;
 				if(this.bossDoorTimer <= 0) {
 					let tmp = this.game;
@@ -20362,7 +20491,10 @@ class levels_View {
 			tmp5.stop();
 		}
 		if(fl_flip) {
-			mc.skin.sub._xscale *= -1;
+			let tmp = mc != null ? mc.skin : null;
+			if((tmp != null ? tmp.sub : null) != null) {
+				mc.skin.sub._xscale *= -1;
+			}
 		}
 		if(id == Data.FIELD_TELEPORT) {
 			if(td != null) {
@@ -20461,10 +20593,11 @@ class levels_View {
 		}
 	}
 	attachSpecialBg(id,subId) {
-		this._specialBg = this.depthMan.attach("hammer_special_bg",Data.DP_SPECIAL_BG);
-		let tmp = this._specialBg;
-		if(tmp != null) {
-			tmp.gotoAndStop(Std.string(id + 1));
+		let tmp = this.depthMan;
+		this._specialBg = tmp != null ? tmp.attach("hammer_special_bg",Data.DP_SPECIAL_BG) : null;
+		let tmp1 = this._specialBg;
+		if(tmp1 != null) {
+			tmp1.gotoAndStop(Std.string(id + 1));
 		}
 		if(subId != null) {
 			let tmp = this._specialBg;
@@ -20521,17 +20654,20 @@ class levels_View {
 		if(this.world != null) {
 			this.world.portalList = [];
 		}
-		this._top = this.depthMan.empty(Data.DP_TOP_LAYER);
-		this._field = this.depthMan.empty(Data.DP_FIELD_LAYER);
-		this._back = this.depthMan.empty(Data.DP_BACK_LAYER);
+		let tmp = this.depthMan;
+		this._top = tmp != null ? tmp.empty(Data.DP_TOP_LAYER) : null;
+		let tmp1 = this.depthMan;
+		this._field = tmp1 != null ? tmp1.empty(Data.DP_FIELD_LAYER) : null;
+		let tmp2 = this.depthMan;
+		this._back = tmp2 != null ? tmp2.empty(Data.DP_BACK_LAYER) : null;
 		this._top_dm = new mtlib_DepthManager(this._top);
 		this._field_dm = new mtlib_DepthManager(this._field);
 		this._back_dm = new mtlib_DepthManager(this._back);
 		if(this._top != null) {
 			this._top._x = this.xOffset;
 		}
-		let tmp = this._back_dm;
-		this._tiles = tmp != null ? tmp.empty(2) : null;
+		let tmp3 = this._back_dm;
+		this._tiles = tmp3 != null ? tmp3.empty(2) : null;
 		if(this._tiles != null) {
 			this._tiles.set__x(this.xOffset);
 		}
@@ -20700,8 +20836,8 @@ class levels_View {
 			}
 			this._top_dm = new mtlib_DepthManager(this._top);
 		}
-		let tmp1 = this._specialBg;
-		if((tmp1 != null ? tmp1._name : null) != null) {
+		let tmp4 = this._specialBg;
+		if((tmp4 != null ? tmp4._name : null) != null) {
 			let tmp = this._back_dm;
 			if(tmp != null) {
 				tmp.destroy();
@@ -20752,15 +20888,16 @@ class levels_View {
 		while(cx < Data.LEVEL_WIDTH) {
 			let cy = 0;
 			while(cy < Data.LEVEL_HEIGHT) {
-				let mc = this._top_dm.attach("debugGrid",depth);
+				let tmp = this._top_dm;
+				let mc = tmp != null ? tmp.attach("debugGrid",depth) : null;
 				if(mc != null) {
 					mc._x = cx * Data.CASE_WIDTH + this.xOffset;
 				}
 				if(mc != null) {
 					mc._y = cy * Data.CASE_HEIGHT;
 				}
-				let tmp = this.world;
-				let o = tmp != null ? tmp.flagMap[cx] : null;
+				let tmp1 = this.world;
+				let o = tmp1 != null ? tmp1.flagMap[cx] : null;
 				if(((o == null ? null : o[cy]) & flag) == 0) {
 					if(mc != null) {
 						mc.gotoAndStop("1");
@@ -20768,9 +20905,9 @@ class levels_View {
 				} else if(mc != null) {
 					mc.gotoAndStop("2");
 				}
-				let tmp1 = this.gridList;
-				if(tmp1 != null) {
-					tmp1.push(mc);
+				let tmp2 = this.gridList;
+				if(tmp2 != null) {
+					tmp2.push(mc);
 				}
 				cy += 1;
 			}
@@ -21781,7 +21918,7 @@ class mode_GameMode extends Mode {
 	setColorHex(a,col) {
 		let coo = { r : col >> 16, g : col >> 8 & 255, b : col & 255};
 		let ratio = a / 100;
-		let ct = { ra : Int(100 - a), ga : Int(100 - a), ba : Int(100 - a), aa : 100, rb : Int(ratio * (coo != null ? coo.r : null)), gb : Int(ratio * (coo != null ? coo.g : null)), bb : Int(ratio * (coo != null ? coo.b : null)), ab : 0};
+		let ct = { ra : 100 - a | 0, ga : 100 - a | 0, ba : 100 - a | 0, aa : 100, rb : ratio * (coo != null ? coo.r : null) | 0, gb : ratio * (coo != null ? coo.g : null) | 0, bb : ratio * (coo != null ? coo.b : null) | 0, ab : 0};
 		this.color = new mtlib_Color(this.root);
 		let tmp = this.color;
 		if(tmp != null) {
@@ -22334,7 +22471,8 @@ class mode_GameMode extends Mode {
 	}
 	attachPop(msg,fl_tuto) {
 		this.killPop();
-		this.popMC = this.depthMan.attach("hammer_interf_pop",Data.DP_INTERF);
+		let tmp = this.depthMan;
+		this.popMC = tmp != null ? tmp.attach("hammer_interf_pop",Data.DP_INTERF) : null;
 		if(this.popMC != null) {
 			this.popMC._x = Data.GAME_WIDTH * 0.5;
 		}
@@ -22357,23 +22495,23 @@ class mode_GameMode extends Mode {
 			}
 		}
 		while((msg != null ? msg.charCodeAt(0) : null) == 10 || (msg != null ? msg.charCodeAt(0) : null) == 13) msg = msg != null ? msg.substring(1) : null;
-		let tmp = this.popMC;
-		let tmp1 = tmp != null ? tmp.sub : null;
-		if((tmp1 != null ? tmp1.field : null) != null) {
+		let tmp1 = this.popMC;
+		let tmp2 = tmp1 != null ? tmp1.sub : null;
+		if((tmp2 != null ? tmp2.field : null) != null) {
 			this.popMC.sub.field.html = true;
 		}
-		let tmp2 = this.popMC;
-		let tmp3 = tmp2 != null ? tmp2.sub : null;
-		if((tmp3 != null ? tmp3.field : null) != null) {
+		let tmp3 = this.popMC;
+		let tmp4 = tmp3 != null ? tmp3.sub : null;
+		if((tmp4 != null ? tmp4.field : null) != null) {
 			this.popMC.sub.field.htmlText = Data.replaceTag(msg,"*","<font color=\"#f7e8d5\">","</font>");
 		}
-		let tmp4 = this.popMC;
-		let tmp5 = tmp4 != null ? tmp4.sub : null;
-		let tmp6 = tmp5 != null ? tmp5.field : null;
-		let h = tmp6 != null ? tmp6.textHeight : null;
-		let tmp7 = this.popMC;
-		let tmp8 = tmp7 != null ? tmp7.sub : null;
-		if((tmp8 != null ? tmp8.field : null) != null) {
+		let tmp5 = this.popMC;
+		let tmp6 = tmp5 != null ? tmp5.sub : null;
+		let tmp7 = tmp6 != null ? tmp6.field : null;
+		let h = tmp7 != null ? tmp7.textHeight : null;
+		let tmp8 = this.popMC;
+		let tmp9 = tmp8 != null ? tmp8.sub : null;
+		if((tmp9 != null ? tmp9.field : null) != null) {
 			this.popMC.sub.field._y = -h * 0.5 - 2;
 		}
 	}
@@ -22446,15 +22584,16 @@ class mode_GameMode extends Mode {
 		}
 		if(s != "" && s != null) {
 			this.killItemName();
-			this.itemNameMC = this.depthMan.attach("hammer_interf_item_name",Data.DP_TOP);
+			let tmp = this.depthMan;
+			this.itemNameMC = tmp != null ? tmp.attach("hammer_interf_item_name",Data.DP_TOP) : null;
 			if(this.itemNameMC != null) {
 				this.itemNameMC._x = Data.GAME_WIDTH * 0.5 + 20;
 			}
 			if(this.itemNameMC != null) {
 				this.itemNameMC._y = 15;
 			}
-			let tmp = this.itemNameMC;
-			if((tmp != null ? tmp.field : null) != null) {
+			let tmp1 = this.itemNameMC;
+			if((tmp1 != null ? tmp1.field : null) != null) {
 				this.itemNameMC.field.text = s;
 			}
 			let icon;
@@ -22483,9 +22622,9 @@ class mode_GameMode extends Mode {
 			if(icon != null) {
 				icon._yscale = icon != null ? icon._xscale : null;
 			}
-			let tmp1 = icon != null ? icon.sub : null;
-			if(tmp1 != null) {
-				tmp1.stop();
+			let tmp2 = icon != null ? icon.sub : null;
+			if(tmp2 != null) {
+				tmp2.stop();
 			}
 		}
 	}
@@ -22556,7 +22695,9 @@ class mode_GameMode extends Mode {
 		if(txt == null) {
 			txt = "?";
 		}
-		mc.field.text = txt;
+		if((mc != null ? mc.field : null) != null) {
+			mc.field.text = txt;
+		}
 		let tmp1 = this.mapIcons;
 		if(tmp1 != null) {
 			tmp1.push(mc);
@@ -22794,10 +22935,11 @@ class mode_GameMode extends Mode {
 		if(tmp1 != null) {
 			tmp1.removeMovieClip();
 		}
-		this.pauseMC = this.depthMan.attach("hammer_interf_instructions",Data.DP_INTERF);
-		let tmp2 = this.pauseMC;
-		if(tmp2 != null) {
-			tmp2.gotoAndStop("1");
+		let tmp2 = this.depthMan;
+		this.pauseMC = tmp2 != null ? tmp2.attach("hammer_interf_instructions",Data.DP_INTERF) : null;
+		let tmp3 = this.pauseMC;
+		if(tmp3 != null) {
+			tmp3.gotoAndStop("1");
 		}
 		if(this.pauseMC != null) {
 			this.pauseMC._x = Data.GAME_WIDTH * 0.5;
@@ -22805,32 +22947,32 @@ class mode_GameMode extends Mode {
 		if(this.pauseMC != null) {
 			this.pauseMC._y = Data.GAME_HEIGHT * 0.5;
 		}
-		let tmp3 = this.pauseMC;
-		if((tmp3 != null ? tmp3.click : null) != null) {
+		let tmp4 = this.pauseMC;
+		if((tmp4 != null ? tmp4.click : null) != null) {
 			this.pauseMC.click.text = "";
 		}
-		let tmp4 = this.pauseMC;
-		if((tmp4 != null ? tmp4.title : null) != null) {
+		let tmp5 = this.pauseMC;
+		if((tmp5 != null ? tmp5.title : null) != null) {
 			this.pauseMC.title.text = Lang.get(5);
 		}
-		let tmp5 = this.pauseMC;
-		if((tmp5 != null ? tmp5.move : null) != null) {
+		let tmp6 = this.pauseMC;
+		if((tmp6 != null ? tmp6.move : null) != null) {
 			this.pauseMC.move.text = Lang.get(7);
 		}
-		let tmp6 = this.pauseMC;
-		if((tmp6 != null ? tmp6.attack : null) != null) {
+		let tmp7 = this.pauseMC;
+		if((tmp7 != null ? tmp7.attack : null) != null) {
 			this.pauseMC.attack.text = Lang.get(8);
 		}
-		let tmp7 = this.pauseMC;
-		if((tmp7 != null ? tmp7.pause : null) != null) {
+		let tmp8 = this.pauseMC;
+		if((tmp8 != null ? tmp8.pause : null) != null) {
 			this.pauseMC.pause.text = Lang.get(9);
 		}
-		let tmp8 = this.pauseMC;
-		if((tmp8 != null ? tmp8.space : null) != null) {
+		let tmp9 = this.pauseMC;
+		if((tmp9 != null ? tmp9.space : null) != null) {
 			this.pauseMC.space.text = Lang.get(10);
 		}
-		let tmp9 = this.pauseMC;
-		if((tmp9 != null ? tmp9.sector : null) != null) {
+		let tmp10 = this.pauseMC;
+		if((tmp10 != null ? tmp10.sector : null) != null) {
 			let tmp = Lang.get(14) + "«";
 			let tmp1 = this.world;
 			this.pauseMC.sector.text = tmp + Lang.getSectorName(this.currentDim,tmp1 != null ? tmp1.currentId : null) + "»";
@@ -22843,12 +22985,12 @@ class mode_GameMode extends Mode {
 			this.tipId = 0;
 			tip = Lang.get(301 + this.tipId++);
 		}
-		let tmp10 = this.pauseMC;
-		if((tmp10 != null ? tmp10.tip : null) != null) {
-			this.pauseMC.tip.html = true;
-		}
 		let tmp11 = this.pauseMC;
 		if((tmp11 != null ? tmp11.tip : null) != null) {
+			this.pauseMC.tip.html = true;
+		}
+		let tmp12 = this.pauseMC;
+		if((tmp12 != null ? tmp12.tip : null) != null) {
 			let tmp = "<b>" + Lang.get(300) + "</b>";
 			this.pauseMC.tip.htmlText = tmp + Std.string(tip);
 		}
@@ -22867,17 +23009,18 @@ class mode_GameMode extends Mode {
 		if(tmp1 != null) {
 			tmp1.removeMovieClip();
 		}
-		this.mapMC = this.depthMan.attach("hammer_map",Data.DP_INTERF);
-		let tmp2 = this.mapMC;
-		if((tmp2 != null ? tmp2.field : null) != null) {
+		let tmp2 = this.depthMan;
+		this.mapMC = tmp2 != null ? tmp2.attach("hammer_map",Data.DP_INTERF) : null;
+		let tmp3 = this.mapMC;
+		if((tmp3 != null ? tmp3.field : null) != null) {
 			let tmp = this.world;
 			this.mapMC.field.text = Lang.getSectorName(this.currentDim,tmp != null ? tmp.currentId : null);
 		}
 		if(this.mapMC != null) {
 			this.mapMC._x = -this.xOffset;
 		}
-		let tmp3 = this.dimensions[0];
-		let lid = tmp3 != null ? tmp3.currentId : null;
+		let tmp4 = this.dimensions[0];
+		let lid = tmp4 != null ? tmp4.currentId : null;
 		if(lid == 0) {
 			let tmp = this.mapMC;
 			if((tmp != null ? tmp.ptr : null) != null) {
@@ -23950,17 +24093,32 @@ class mode_BossRush extends mode_Adventure {
 		if((tmp1 != null ? tmp1.title : null) != null) {
 			this.pauseMC.title.text = Lang.get(36);
 		}
-		this.pauseMC.timeLabel.text = Lang.get(37);
-		let tmp2 = this.chrono;
-		let tmp3 = tmp2 != null ? tmp2.getStrShort() : null;
-		this.pauseMC.time.text = tmp3;
-		this.pauseMC.timeAvgLabel.text = Lang.get(38);
-		if(this.levelAvg > 0) {
+		let tmp2 = this.pauseMC;
+		if((tmp2 != null ? tmp2.timeLabel : null) != null) {
+			this.pauseMC.timeLabel.text = Lang.get(37);
+		}
+		let tmp3 = this.pauseMC;
+		if((tmp3 != null ? tmp3.time : null) != null) {
 			let tmp = this.chrono;
-			let tmp1 = tmp != null ? tmp.formatTimeShort(Math.round(this.levelAvg)) : null;
-			this.pauseMC.timeAvg.text = tmp1;
+			let tmp1 = tmp != null ? tmp.getStrShort() : null;
+			this.pauseMC.time.text = tmp1;
+		}
+		let tmp4 = this.pauseMC;
+		if((tmp4 != null ? tmp4.timeAvgLabel : null) != null) {
+			this.pauseMC.timeAvgLabel.text = Lang.get(38);
+		}
+		if(this.levelAvg > 0) {
+			let tmp = this.pauseMC;
+			if((tmp != null ? tmp.timeAvg : null) != null) {
+				let tmp = this.chrono;
+				let tmp1 = tmp != null ? tmp.formatTimeShort(Math.round(this.levelAvg)) : null;
+				this.pauseMC.timeAvg.text = tmp1;
+			}
 		} else {
-			this.pauseMC.timeAvg.text = "--";
+			let tmp = this.pauseMC;
+			if((tmp != null ? tmp.timeAvg : null) != null) {
+				this.pauseMC.timeAvg.text = "--";
+			}
 		}
 	}
 	onResurrect() {
@@ -24012,10 +24170,13 @@ class mode_BossRush extends mode_Adventure {
 		let tmp = this.fxMan;
 		let tmp1 = tmp != null ? tmp.attachFx(5,Data.DOC_HEIGHT - 45,"hammer_interf_time") : null;
 		let mc = tmp1 != null ? tmp1.mc : null;
-		let tmp2 = Lang.get(39) + " +";
-		let tmp3 = this.chrono;
-		let tmp4 = tmp3 != null ? tmp3.formatTimeShort(t) : null;
-		mc.sub.field.text = tmp2 + tmp4;
+		let tmp2 = mc != null ? mc.sub : null;
+		if((tmp2 != null ? tmp2.field : null) != null) {
+			let tmp = Lang.get(39) + " +";
+			let tmp1 = this.chrono;
+			let tmp2 = tmp1 != null ? tmp1.formatTimeShort(t) : null;
+			mc.sub.field.text = tmp + tmp2;
+		}
 		FxManager.addGlow(mc,Data.DARK_COLORS[0],2);
 	}
 	main() {
@@ -24058,23 +24219,25 @@ class mode_Fjv extends mode_Adventure {
 		}
 	}
 	endMode() {
-		let tmp = this.fCookie.data;
-		let tmp1 = this.getPlayerList()[0];
-		mtlib_MtStd.setVar(tmp,"score",tmp1 != null ? tmp1.score : null);
+		let tmp = this.fCookie;
+		let tmp1 = tmp != null ? tmp.data : null;
+		let tmp2 = this.getPlayerList()[0];
+		mtlib_MtStd.setVar(tmp1,"score",tmp2 != null ? tmp2.score : null);
 		this.stopMusic();
-		let tmp2 = this.manager;
-		if(tmp2 != null) {
-			tmp2.startMode(new mode_FjvEnd(this.manager,false));
+		let tmp3 = this.manager;
+		if(tmp3 != null) {
+			tmp3.startMode(new mode_FjvEnd(this.manager,false));
 		}
 	}
 	usePortal(pid,e) {
 		this.stopMusic();
-		let tmp = this.fCookie.data;
-		let tmp1 = this.getPlayerList()[0];
-		mtlib_MtStd.setVar(tmp,"score",tmp1 != null ? tmp1.score : null);
-		let tmp2 = this.manager;
-		if(tmp2 != null) {
-			tmp2.startMode(new mode_FjvEnd(this.manager,true));
+		let tmp = this.fCookie;
+		let tmp1 = tmp != null ? tmp.data : null;
+		let tmp2 = this.getPlayerList()[0];
+		mtlib_MtStd.setVar(tmp1,"score",tmp2 != null ? tmp2.score : null);
+		let tmp3 = this.manager;
+		if(tmp3 != null) {
+			tmp3.startMode(new mode_FjvEnd(this.manager,true));
 		}
 		return true;
 	}
@@ -24122,9 +24285,10 @@ class mode_FjvEnd extends Mode {
 		this.fl_win = win;
 		this.fCookie = mtlib_SharedObject.getLocal("$fjv_data");
 		this._name = "$fjv_end";
-		this.scr = this.depthMan.attach("hammer_fjv_end",Data.DP_INTERF);
 		let tmp = this.depthMan;
-		this.bg = tmp != null ? tmp.attach("hammer_fjv_bg",Data.DP_SPECIAL_BG) : null;
+		this.scr = tmp != null ? tmp.attach("hammer_fjv_end",Data.DP_INTERF) : null;
+		let tmp1 = this.depthMan;
+		this.bg = tmp1 != null ? tmp1.attach("hammer_fjv_bg",Data.DP_SPECIAL_BG) : null;
 		if(this.fl_win) {
 			let tmp = this.scr;
 			if(tmp != null) {
@@ -24137,23 +24301,29 @@ class mode_FjvEnd extends Mode {
 			}
 		}
 		this.fCookie = mtlib_SharedObject.getLocal("$fjv_data");
-		this.timer = mtlib_MtStd.parseInt(mtlib_MtStd.getVar(this.fCookie.data,"timer"),10);
-		let list = mtlib_MtStd.getVar(this.fCookie.data,"list");
-		let name = mtlib_MtStd.getVar(this.fCookie.data,"name");
+		let tmp2 = this.fCookie;
+		this.timer = mtlib_MtStd.parseInt(mtlib_MtStd.getVar(tmp2 != null ? tmp2.data : null,"timer"),10);
+		let tmp3 = this.fCookie;
+		let list = mtlib_MtStd.getVar(tmp3 != null ? tmp3.data : null,"list");
+		let tmp4 = this.fCookie;
+		let name = mtlib_MtStd.getVar(tmp4 != null ? tmp4.data : null,"name");
 		if(list == null) {
 			list = [];
 		}
 		if(name != null) {
-			let score = mtlib_MtStd.parseInt(mtlib_MtStd.getVar(this.fCookie.data,"score"),10);
+			let tmp = this.fCookie;
+			let score = mtlib_MtStd.parseInt(mtlib_MtStd.getVar(tmp != null ? tmp.data : null,"score"),10);
 			if(list != null) {
 				list.push({ name : name, win : this.fl_win, score : score});
 			}
-			mtlib_MtStd.setVar(this.fCookie.data,"name",null);
+			let tmp1 = this.fCookie;
+			mtlib_MtStd.setVar(tmp1 != null ? tmp1.data : null,"name",null);
 		}
 		while((list != null ? list.length : null) > 50) if(list != null) {
 			list.splice(0,1);
 		}
-		mtlib_MtStd.setVar(this.fCookie.data,"list",list);
+		let tmp5 = this.fCookie;
+		mtlib_MtStd.setVar(tmp5 != null ? tmp5.data : null,"list",list);
 		let txt = "";
 		let i = 0;
 		while(i < (list != null ? list.length : null)) {
@@ -24254,7 +24424,8 @@ class mode_FjvEnd extends Mode {
 		}
 		if(!this.fl_name) {
 			this.timer -= mtlib_Timer.tmod;
-			mtlib_MtStd.setVar(this.fCookie.data,"timer",this.timer);
+			let tmp = this.fCookie;
+			mtlib_MtStd.setVar(tmp != null ? tmp.data : null,"timer",this.timer);
 			let sec = Math.ceil(this.timer / Data.SECOND);
 			if(sec >= 60) {
 				let min = Math.floor(sec / 60);
@@ -24283,10 +24454,11 @@ class mode_FjvEnd extends Mode {
 			name = mtlib_Tools.replace(name,"\n","");
 			name = Data.cleanLeading(name);
 			if((name != null ? name.length : null) > 0 && mtlib_Key.isDown(13)) {
-				mtlib_MtStd.setVar(this.fCookie.data,"name",name);
-				let tmp = this.manager;
-				if(tmp != null) {
-					tmp.startGameMode(new mode_Fjv(this.manager,0));
+				let tmp = this.fCookie;
+				mtlib_MtStd.setVar(tmp != null ? tmp.data : null,"name",name);
+				let tmp1 = this.manager;
+				if(tmp1 != null) {
+					tmp1.startGameMode(new mode_Fjv(this.manager,0));
 				}
 			}
 		}
@@ -24896,13 +25068,16 @@ class mode_Soccer extends mode_MultiCoop {
 		if((tmp2 != null ? tmp2.attack : null) != null) {
 			this.pauseMC.attack.text = Lang.get(30);
 		}
-		this.pauseMC.up.text = Lang.get(31);
 		let tmp3 = this.pauseMC;
-		if((tmp3 != null ? tmp3.tip : null) != null) {
-			this.pauseMC.tip.text = Lang.get(32);
+		if((tmp3 != null ? tmp3.up : null) != null) {
+			this.pauseMC.up.text = Lang.get(31);
 		}
 		let tmp4 = this.pauseMC;
-		if((tmp4 != null ? tmp4.click : null) != null) {
+		if((tmp4 != null ? tmp4.tip : null) != null) {
+			this.pauseMC.tip.text = Lang.get(32);
+		}
+		let tmp5 = this.pauseMC;
+		if((tmp5 != null ? tmp5.click : null) != null) {
 			this.pauseMC.click.text = "";
 		}
 	}
@@ -25252,15 +25427,16 @@ class mode_TimeAttack extends mode_Adventure {
 			this.lock();
 			this.display(this.formatTime(0));
 			this.starter = Data.SECOND * 3.5;
-			this.mcStarter = this.depthMan.attach("hammer_interf_starter",Data.DP_INTERF);
+			let tmp = this.depthMan;
+			this.mcStarter = tmp != null ? tmp.attach("hammer_interf_starter",Data.DP_INTERF) : null;
 			if(this.mcStarter != null) {
 				this.mcStarter._x = Data.DOC_WIDTH * 0.5;
 			}
 			if(this.mcStarter != null) {
 				this.mcStarter._y = Data.DOC_HEIGHT * 0.5;
 			}
-			let tmp = this.mcStarter;
-			if((tmp != null ? tmp.field : null) != null) {
+			let tmp1 = this.mcStarter;
+			if((tmp1 != null ? tmp1.field : null) != null) {
 				this.mcStarter.field.text = "";
 			}
 			this.resetChrono();
@@ -25292,15 +25468,16 @@ class mode_TimeAttack extends mode_Adventure {
 		let tmp = this.times;
 		let t = this.times[(tmp != null ? tmp.length : null) - 1];
 		if(t != null) {
-			let mc = this.depthMan.attach("hammer_interf_time",Data.DP_INTERF);
+			let tmp = this.depthMan;
+			let mc = tmp != null ? tmp.attach("hammer_interf_time",Data.DP_INTERF) : null;
 			if(mc != null) {
 				mc._x = 20;
 			}
 			if(mc != null) {
 				mc._y = Data.DOC_HEIGHT - 50;
 			}
-			let tmp = mc != null ? mc.sub : null;
-			if((tmp != null ? tmp.field : null) != null) {
+			let tmp1 = mc != null ? mc.sub : null;
+			if((tmp1 != null ? tmp1.field : null) != null) {
 				let tmp = this.formatTime(t);
 				mc.sub.field.text = "+ " + tmp;
 			}
@@ -25847,6 +26024,9 @@ class mtlib_Color {
 			c[7] = t.ab;
 		}
 		this.mc.__cx = c;
+	}
+	reset() {
+		this.mc.__cx = null;
 	}
 	getTransform() {
 		let c = this.mc.__cx == null ? [1.0,1,1,1,0,0,0,0] : this.mc.__cx;
@@ -26505,7 +26685,9 @@ class mtlib_PersistCodec {
 	}
 	decode_array() {
 		let a = [];
-		a.pos = 0;
+		if(a != null) {
+			a.pos = 0;
+		}
 		let tmp = this.cache;
 		if(tmp != null) {
 			tmp.unshift(a);
@@ -26523,7 +26705,9 @@ class mtlib_PersistCodec {
 			if(exit) {
 				return false;
 			}
-			a.pos += this.decode_int();
+			if(a != null) {
+				a.pos += this.decode_int();
+			}
 		}
 		return true;
 	}
@@ -28424,7 +28608,6 @@ if( String.fromCodePoint == null ) String.fromCodePoint = function(c) { return c
 {
 	String.__name__ = true;
 	Array.__name__ = true;
-	var Int = { };
 }
 js_Boot.__toStr = ({ }).toString;
 

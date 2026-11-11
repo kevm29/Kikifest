@@ -90,7 +90,7 @@ i++; } }
 	------------------------------------------------------------------------*/
 	public function setLowDetails()  untyped {
 		fl_detail = false;
-		(( MtStd.getRoot() ):Dynamic)._quality = "$medium".substring(1);
+		{ if ((( MtStd.getRoot() ):Dynamic) != null) (( MtStd.getRoot() ):Dynamic)._quality = "$medium".substring(1); }
 		Data.MAX_FX = Math.ceil( Data.MAX_FX*0.5 );
 	}
 

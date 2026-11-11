@@ -85,7 +85,7 @@ class Bat extends entity.Mover {
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode)  untyped {
 		var linkage:Dynamic = "hammer_boss_bat";
-		var mc : entity.boss.Bat = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.boss.Bat = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		mc?.initBoss(g) ;
 		return mc ;
 	}

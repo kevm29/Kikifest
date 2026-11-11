@@ -59,7 +59,7 @@ i++; } }
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_FRAISE];
-		var mc : entity.bad.walker.Fraise = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic);
+		var mc : entity.bad.walker.Fraise = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic);
 		mc?.initBad(g,x,y);
 		return mc;
 	}
@@ -167,7 +167,7 @@ i++; } }
 	override public function destroy()  untyped {
 		if ( fl_ball ) {
 			// Ré-attribution de la balle
-			var bad : entity.bad.walker.Fraise = ((game.getAnotherOne(RootData.CATCHER, this)):Dynamic);
+			var bad : entity.bad.walker.Fraise = ((game?.getAnotherOne(RootData.CATCHER, this)):Dynamic);
 			if ( bad!=null ) {
 				bad?.assignBall();
 			}
@@ -184,10 +184,10 @@ i++; } }
 
 		// Balle en main
 		if ( fl_ball ) {
-			((sub):Dynamic).balle._visible = true;
+			{ if (((sub):Dynamic)?.balle != null) ((sub):Dynamic).balle._visible = true; }
 		}
 		else {
-			((sub):Dynamic).balle._visible = false;
+			{ if (((sub):Dynamic)?.balle != null) ((sub):Dynamic).balle._visible = false; }
 		}
 
 		// Se tourne dans la direction du tir

@@ -39,7 +39,7 @@ class Ball extends entity.Shoot
 	------------------------------------------------------------------------*/
 	public static function attach( g:mode.GameMode, x:Dynamic,y:Dynamic )  untyped {
 		var linkage:Dynamic = "hammer_shoot_ball";
-		var s : entity.shoot.Ball = (( g.depthMan.attach(linkage,RootData.DP_SHOTS) ):Dynamic);
+		var s : entity.shoot.Ball = (( g?.depthMan?.attach(linkage,RootData.DP_SHOTS) ):Dynamic);
 		s?.initShoot(g, x, y);
 		return s;
 	}
@@ -52,7 +52,7 @@ class Ball extends entity.Shoot
 		// Ré-attribution d'une balle perdue
 		game?.fxMan?.attachFx(x,y-RootData.CASE_HEIGHT/2, "hammer_fx_pop");
 
-		var bad : entity.bad.walker.Fraise = ((game.getOne(RootData.CATCHER)):Dynamic);
+		var bad : entity.bad.walker.Fraise = ((game?.getOne(RootData.CATCHER)):Dynamic);
 		bad?.assignBall();
 
 		super.onLifeTimer();

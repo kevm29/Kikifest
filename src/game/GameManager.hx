@@ -247,7 +247,7 @@ h?.set("$8d6fff6186db2e4f436852f16dcfbba8","$4768dc07c5f8a02389dd5bc1ab2e8cf4");
 			{ if (progressBar != null) progressBar._y = Data.GAME_HEIGHT-40; }
 		}
 
-		((progressBar):Dynamic).bar._xscale = ratio*100;
+		{ if (((progressBar):Dynamic)?.bar != null) ((progressBar):Dynamic).bar._xscale = ratio*100; }
 	}
 
 

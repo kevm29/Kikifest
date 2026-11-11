@@ -214,7 +214,7 @@ i++; } }
 			lock();
 			display( formatTime(0) );
 			starter = RootData.SECOND*3.5;
-			mcStarter = (( depthMan.attach("hammer_interf_starter",RootData.DP_INTERF) ):Dynamic);
+			mcStarter = (( depthMan?.attach("hammer_interf_starter",RootData.DP_INTERF) ):Dynamic);
 			{ if (mcStarter != null) mcStarter._x = RootData.DOC_WIDTH*0.5; }
 			{ if (mcStarter != null) mcStarter._y = RootData.DOC_HEIGHT*0.5; }
 			{ if (mcStarter?.field != null) mcStarter.field.text = ""; }
@@ -265,7 +265,7 @@ i++; } }
 		var t:Dynamic = times[times?.length-1];
 		if ( t!=null ) {
 			var mc : Dynamic;
-			mc = (( depthMan.attach("hammer_interf_time", RootData.DP_INTERF) ):Dynamic);
+			mc = (( depthMan?.attach("hammer_interf_time", RootData.DP_INTERF) ):Dynamic);
 			{ if (mc != null) mc._x = 20; }
 			{ if (mc != null) mc._y = RootData.DOC_HEIGHT - 50; }
 			{ if (mc?.sub?.field != null) mc.sub.field.text = "+ " + formatTime(t); }

@@ -34,7 +34,7 @@ class ScoreItem extends entity.Item
 	ATTACHEMENT
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic, id:Dynamic, subId:Dynamic)  untyped {
-		var mc : entity.item.ScoreItem = (( g.depthMan.attach("hammer_item_score",RootData.DP_ITEMS) ):Dynamic);
+		var mc : entity.item.ScoreItem = (( g?.depthMan?.attach("hammer_item_score",RootData.DP_ITEMS) ):Dynamic);
 		if ( id>=1000 ) {
 			id -= 1000;
 		}

@@ -223,7 +223,7 @@ else if (__sw == (RootData.PARTICLE_BLOB)) {
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,frame:Dynamic,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = "hammer_fx_particle" ;
-		var mc : entity.fx.Particle = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.fx.Particle = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		mc?.initParticle(g,frame,x,y) ;
 		return mc ;
 	}

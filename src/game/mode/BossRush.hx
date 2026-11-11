@@ -71,14 +71,14 @@ class BossRush extends mode.Adventure
 		super.onPause();
 		pauseMC?.gotoAndStop("4");
 		{ if (pauseMC?.title != null) pauseMC.title.text	= Lang.get(36); }
-		((pauseMC):Dynamic).timeLabel.text = Lang.get(37);
-		((pauseMC):Dynamic).time.text = chrono?.getStrShort();
-		((pauseMC):Dynamic).timeAvgLabel.text = Lang.get(38);
+		{ if (((pauseMC):Dynamic)?.timeLabel != null) ((pauseMC):Dynamic).timeLabel.text = Lang.get(37); }
+		{ if (((pauseMC):Dynamic)?.time != null) ((pauseMC):Dynamic).time.text = chrono?.getStrShort(); }
+		{ if (((pauseMC):Dynamic)?.timeAvgLabel != null) ((pauseMC):Dynamic).timeAvgLabel.text = Lang.get(38); }
 		if ( levelAvg>0 ) {
-			((pauseMC):Dynamic).timeAvg.text = chrono?.formatTimeShort( Math.round(levelAvg) );
+			{ if (((pauseMC):Dynamic)?.timeAvg != null) ((pauseMC):Dynamic).timeAvg.text = chrono?.formatTimeShort( Math.round(levelAvg) ); }
 		}
 		else {
-			((pauseMC):Dynamic).timeAvg.text = "--";
+			{ if (((pauseMC):Dynamic)?.timeAvg != null) ((pauseMC):Dynamic).timeAvg.text = "--"; }
 		}
 	}
 
@@ -157,7 +157,7 @@ i++; } }
 //		mc = downcast( depthMan.attach("hammer_interf_time", Data.DP_INTERF) );
 //		mc._x = 5;
 //		mc._y = Data.DOC_HEIGHT - 45;
-		((mc):Dynamic).sub.field.text = Lang.get(39)+" +"+chrono?.formatTimeShort(t);
+		{ if (((mc):Dynamic)?.sub?.field != null) ((mc):Dynamic).sub.field.text = Lang.get(39)+" +"+chrono?.formatTimeShort(t); }
 		FxManager.addGlow(mc,RootData.DARK_COLORS[0],2);
 	}
 

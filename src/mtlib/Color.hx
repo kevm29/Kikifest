@@ -32,6 +32,11 @@ class Color {
 		mc.__cx = c;
 	}
 
+	/** Annule toute transformation de couleur (extension mt). */
+	public function reset() {
+		mc.__cx = null;
+	}
+
 	public function getTransform():Dynamic {
 		var c = mc.__cx == null ? [1.0, 1, 1, 1, 0, 0, 0, 0] : mc.__cx;
 		return {ra: c[0] * 100, ga: c[1] * 100, ba: c[2] * 100, aa: c[3] * 100, rb: c[4], gb: c[5], bb: c[6], ab: c[7]};

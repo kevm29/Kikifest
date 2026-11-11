@@ -31,7 +31,7 @@ class SpecialItem extends entity.Item
 		if ( g?.fl_clear && id==0 ) { // pas d'extend si level clear
 			return null;
 		}
-		var mc : entity.item.ScoreItem = (( g.depthMan.attach("hammer_item_special",RootData.DP_ITEMS) ):Dynamic);
+		var mc : entity.item.ScoreItem = (( g?.depthMan?.attach("hammer_item_special",RootData.DP_ITEMS) ):Dynamic);
 		mc?.initItem(g,x,y,id,subId) ;
 		return mc;
 	}

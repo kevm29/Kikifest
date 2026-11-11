@@ -19,7 +19,7 @@ class Label extends gui.Item
 	ATTACHEMENT
 	------------------------------------------------------------------------*/
 	public static function attach(c:gui.Container, l:String)  untyped {
-		var b : gui.Label = (( c.depthMan.attach("hammer_editor_label", RootData.DP_INTERF) ):Dynamic);
+		var b : gui.Label = (( c?.depthMan?.attach("hammer_editor_label", RootData.DP_INTERF) ):Dynamic);
 		b?.init(c,l);
 		return b;
 	}

@@ -175,7 +175,7 @@ i++; } }
 
 		var bonus:Dynamic = 50000;
 		var mc : Dynamic;
-		mc = ((game.depthMan.attach("hammer_fx_perfect",Data.DP_INTERF)):Dynamic);
+		mc = ((game?.depthMan?.attach("hammer_fx_perfect",Data.DP_INTERF)):Dynamic);
 		{ if (mc != null) mc._x = Data.GAME_WIDTH*0.5; }
 		{ if (mc != null) mc._y = Data.GAME_HEIGHT*0.5; }
 		{ if (mc != null) mc.label = Lang.get(11); }
@@ -236,7 +236,7 @@ i++; } }
 		game?.gi?.setLives(player?.pid, player?.lives);
 		if ( fl_perfect ) {
 			var mc : Dynamic;
-			mc = ((game.depthMan.attach("hammer_fx_perfect",Data.DP_INTERF)):Dynamic);
+			mc = ((game?.depthMan?.attach("hammer_fx_perfect",Data.DP_INTERF)):Dynamic);
 			{ if (mc != null) mc._x = Data.GAME_WIDTH*0.5; }
 			{ if (mc != null) mc._y = Data.GAME_HEIGHT*0.2; }
 			{ if (mc != null) mc.label = Lang.get(11); }
@@ -457,7 +457,7 @@ i++; } }
 			// *** 21. enceinte
 			}
 else if (__sw == (auto++)) {
-				var bad : entity.Bad = ((game.getOne(Data.BAD_CLEAR)):Dynamic);
+				var bad : entity.Bad = ((game?.getOne(Data.BAD_CLEAR)):Dynamic);
 				if (bad!=null) {
 					game?.fxMan?.attachFx( bad?.x, bad?.y-Data.CASE_HEIGHT, "hammer_fx_pop" );
 					bad?.forceKill(null);
@@ -908,7 +908,7 @@ else if (__sw == (auto++)) {
 			}
 else if (__sw == (auto++)) {
 				var c : Dynamic;
-				c = (( game.depthMan.attach("hammer_fx_clouds", Data.DP_SPRITE_BACK_LAYER) ):Dynamic);
+				c = (( game?.depthMan?.attach("hammer_fx_clouds", Data.DP_SPRITE_BACK_LAYER) ):Dynamic);
 				{ if (c != null) c.speed	= 0.5; }
 				{ if (c != null) c._y		+= 9; }
 				clouds?.push(c);
@@ -916,7 +916,7 @@ else if (__sw == (auto++)) {
 				{ if (f != null) f.blurX		= 4; }
 				{ if (f != null) f.blurY		= f?.blurX; }
 				{ if (c != null) c.filters = [f]; }
-				c = (( game.depthMan.attach("hammer_fx_clouds", Data.DP_SPRITE_TOP_LAYER) ):Dynamic);
+				c = (( game?.depthMan?.attach("hammer_fx_clouds", Data.DP_SPRITE_TOP_LAYER) ):Dynamic);
 				{ if (c != null) c.speed	= 1; }
 				clouds?.push(c);
 				temporary(id,null);

@@ -58,7 +58,7 @@ class Tzongre extends entity.bad.Flyer
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_TZONGRE];
-		var mc : entity.bad.flyer.Tzongre = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.bad.flyer.Tzongre = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		mc?.initBad(g,x,y) ;
 		mc?.setLifeTimer(RootData.SECOND*60) ;
 		return mc ;

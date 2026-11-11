@@ -35,7 +35,7 @@ class FireRain extends entity.Shoot
 	------------------------------------------------------------------------*/
 	public static function attach( g:mode.GameMode, x:Dynamic,y:Dynamic )  untyped {
 		var linkage:Dynamic = "hammer_shoot_firerain" ;
-		var s : entity.shoot.FireBall = (( g.depthMan.attach(linkage,RootData.DP_SHOTS) ):Dynamic) ;
+		var s : entity.shoot.FireBall = (( g?.depthMan?.attach(linkage,RootData.DP_SHOTS) ):Dynamic) ;
 		s?.initShoot(g, x, y-10) ;
 		return s ;
 	}

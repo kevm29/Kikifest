@@ -97,7 +97,7 @@ class Boot {
 			families: null,
 			options: params.get("options") != null ? params.get("options") : "",
 		};
-		untyped js.Browser.window.kiki = {root: root, boot: Boot};
+		untyped js.Browser.window.kiki = {root: root, boot: Boot, Data: Data, SpecialItem: entity.item.SpecialItem, ScoreItem: entity.item.ScoreItem}; // accès pour les tests automatiques
 		manager = new GameManager(root, init);
 		untyped js.Browser.window.kiki.manager = manager;
 
@@ -154,7 +154,7 @@ class Boot {
 		MovieClip.tick(root);
 	}
 
-	static function draw() {
+	public static function draw() {
 		var canvas = renderer.canvas;
 		var dpr = Browser.window.devicePixelRatio;
 		var w = Std.int(canvas.clientWidth * dpr);

@@ -24,7 +24,7 @@ class PoireBomb extends entity.bomb.BadBomb
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = "hammer_bomb_poire";
-		var mc : entity.bomb.bad.PoireBomb = (( g.depthMan.attach(linkage,RootData.DP_BOMBS) ):Dynamic);
+		var mc : entity.bomb.bad.PoireBomb = (( g?.depthMan?.attach(linkage,RootData.DP_BOMBS) ):Dynamic);
 		mc?.initBomb(g, x,y );
 		return mc;
 	}

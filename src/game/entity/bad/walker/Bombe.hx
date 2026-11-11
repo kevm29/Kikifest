@@ -46,7 +46,7 @@ class Bombe extends entity.bad.Jumper
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_BOMBE];
-		var mc : entity.bad.walker.Bombe = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.bad.walker.Bombe = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		mc?.initBad(g,x,y) ;
 		return mc ;
 	}

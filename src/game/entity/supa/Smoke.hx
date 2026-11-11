@@ -32,7 +32,7 @@ class Smoke extends entity.Supa
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode)  untyped {
 		var linkage:Dynamic = "hammer_supa_smoke";
-		var mc : entity.supa.Smoke = (( g.depthMan.attach(linkage,RootData.DP_SUPA) ):Dynamic);
+		var mc : entity.supa.Smoke = (( g?.depthMan?.attach(linkage,RootData.DP_SUPA) ):Dynamic);
 		mc?.initSupa(g, RootData.GAME_WIDTH/2,RootData.GAME_HEIGHT/2 );
 		return mc;
 	}

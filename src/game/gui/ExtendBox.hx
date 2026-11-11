@@ -28,7 +28,7 @@ class ExtendBox
 	------------------------------------------------------------------------*/
 	public function collect(id:Dynamic)  untyped {
 		var mc : Dynamic;
-		mc = ((game.depthMan.attach("hammer_interf_extend", RootData.DP_INTERF)):Dynamic);
+		mc = ((game?.depthMan?.attach("hammer_interf_extend", RootData.DP_INTERF)):Dynamic);
 		mc?.letter?.gotoAndStop( Std.string(id+1) );
 		{ if (mc != null) mc._x = x; }
 		{ if (mc != null) mc._y = y+id*16; }

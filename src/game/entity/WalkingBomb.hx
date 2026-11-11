@@ -42,7 +42,7 @@ class WalkingBomb extends entity.Physics
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode, b:entity.bomb.PlayerBomb)  untyped {
 		var linkage:Dynamic = "hammer_player_wbomb" ;
-		var mc : entity.WalkingBomb = (( g.depthMan.attach(linkage,RootData.DP_BOMBS) ):Dynamic) ;
+		var mc : entity.WalkingBomb = (( g?.depthMan?.attach(linkage,RootData.DP_BOMBS) ):Dynamic) ;
 		mc?.initBomb(g, b) ;
 		return mc ;
 	}

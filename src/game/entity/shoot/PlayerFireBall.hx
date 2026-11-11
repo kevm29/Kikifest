@@ -32,7 +32,7 @@ class PlayerFireBall extends entity.Shoot
 	------------------------------------------------------------------------*/
 	public static function attach( g:mode.GameMode, x:Dynamic,y:Dynamic )  untyped {
 		var linkage:Dynamic = "hammer_shoot_player_fireball";
-		var s : entity.shoot.PlayerFireBall = (( g.depthMan.attach(linkage,RootData.DP_SHOTS) ):Dynamic);
+		var s : entity.shoot.PlayerFireBall = (( g?.depthMan?.attach(linkage,RootData.DP_SHOTS) ):Dynamic);
 		s?.initShoot(g, x, y);
 		return s;
 	}

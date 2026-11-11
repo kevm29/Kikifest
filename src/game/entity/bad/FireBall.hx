@@ -61,7 +61,7 @@ class FireBall extends entity.Bad
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode, p:entity.Player)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_FIREBALL]; 
-		var mc : entity.bad.FireBall = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.bad.FireBall = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		var n:Dynamic = g?.countList(RootData.PLAYER);
 		var offs:Dynamic = (n==1) ? 0 : -30+p?.pid*60;
 

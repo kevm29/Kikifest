@@ -25,7 +25,7 @@ class Cookie {
 	public function new(m:Dynamic)  untyped {
 		manager	= m;
 		cookie	= SharedObject.getLocal(NAME);
-		data	= ((cookie.data):Dynamic);
+		data	= ((cookie?.data):Dynamic);
 
 		checkVersion();
 	}
@@ -36,7 +36,7 @@ class Cookie {
 	------------------------------------------------------------------------*/
 	public function reset()  untyped {
 		cookie?.clear();
-		data			= ((cookie.data):Dynamic);
+		data			= ((cookie?.data):Dynamic);
 		{ if (data != null) data.version	= VERSION; }
 		flush();
 	}

@@ -58,7 +58,7 @@ class Saw extends entity.bad.WallWalker
 	------------------------------------------------------------------------*/
 	public static function attach(g:mode.GameMode,x:Dynamic,y:Dynamic)  untyped {
 		var linkage:Dynamic = RootData.LINKAGES[RootData.BAD_SAW];
-		var mc : entity.bad.ww.Saw = (( g.depthMan.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
+		var mc : entity.bad.ww.Saw = (( g?.depthMan?.attach(linkage,RootData.DP_BADS) ):Dynamic) ;
 		mc?.initBad(g,x,y) ;
 		return mc ;
 	}
@@ -216,7 +216,7 @@ class Saw extends entity.bad.WallWalker
 		else {
 			rotSpeed = Math.min(ROTATION_SPEED, rotSpeed+Timer.tmod);
 		}
-		((sub):Dynamic).sub._rotation += rotSpeed;
+		{ if (((sub):Dynamic)?.sub != null) ((sub):Dynamic).sub._rotation += rotSpeed; }
 	}
 
 
