@@ -1051,6 +1051,18 @@ class swf_DisplayObject {
 		}
 		return v;
 	}
+	__kill() {
+		this._name = null;
+		let ch = this.__children;
+		if(ch != null) {
+			let _g = 0;
+			while(_g < ch.length) {
+				let c = ch[_g];
+				++_g;
+				c.__kill();
+			}
+		}
+	}
 	removeMovieClip() {
 		if(this._parent != null) {
 			this._parent.__removeChild(this);
@@ -1175,6 +1187,7 @@ class swf_MovieClip extends swf_DisplayObject {
 			Reflect.deleteField(this,o._name);
 		}
 		o._parent = null;
+		o.__kill();
 	}
 	__getChildAtDepth(__depth) {
 		let _g = 0;

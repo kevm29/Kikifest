@@ -136,6 +136,7 @@ class MovieClip extends DisplayObject {
 		if (o._name != null && o._name != "" && Reflect.field(this, o._name) == o)
 			Reflect.deleteField(this, o._name);
 		o._parent = null;
+		o.__kill();
 	}
 
 	public function __getChildAtDepth(__depth:Int):Null<DisplayObject> {

@@ -280,6 +280,18 @@ class DisplayObject {
 		return v;
 	}
 
+	/**
+		En Flash, un clip retiré devient une référence morte : _name vaut undefined, pour lui et
+		ses descendants. Le jeu s'en sert pour savoir si un clip existe encore (mc._name != null).
+	**/
+	public function __kill() {
+		_name = null;
+		var ch:Array<DisplayObject> = untyped this.__children;
+		if (ch != null)
+			for (c in ch)
+				c.__kill();
+	}
+
 	public function removeMovieClip() {
 		if (_parent != null)
 			_parent.__removeChild(this);
