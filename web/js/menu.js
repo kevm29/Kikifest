@@ -1781,7 +1781,7 @@ class menu_Menu {
 			return { d : h.d, msg : h.msg, name : h.name};
 		}
 		if(menu_Menu.oldHeroes.length > 0) {
-			return { d : menu_Menu.oldHeroes[0].d, msg : menu_Menu.oldHeroes[0].msg, name : null};
+			return menu_Menu.oldHeroes[0];
 		} else {
 			return null;
 		}
@@ -1836,7 +1836,17 @@ class menu_Menu {
 		menu_Menu.heroForm(page);
 		let h = menu_Menu.lastHero();
 		if(h != null) {
-			page.appendChild(menu_Menu.el("p","said",(h.name != null ? "Le dernier héros de Kikifest" : "Le dernier héros d'Hammerfest") + ", a dit :"));
+			let _g = [];
+			let _g1 = 0;
+			let _g2 = menu_Menu.save.heroes;
+			while(_g1 < _g2.length) {
+				let v = _g2[_g1];
+				++_g1;
+				if(v.msg != null) {
+					_g.push(v);
+				}
+			}
+			page.appendChild(menu_Menu.el("p","said",(_g.length > 0 ? "Le dernier héros de Kikifest" : "Le dernier héros d'Hammerfest") + ", a dit :"));
 			page.appendChild(menu_Menu.quote(h));
 		}
 		let link = menu_Menu.el("p","center");
@@ -2007,16 +2017,7 @@ class menu_Menu {
 		if(mine.length > 0) {
 			hall("Le hall des Héros de Kikifest",mine);
 		}
-		let hall1 = hall;
-		let _g3 = [];
-		let _g4 = 0;
-		let _g5 = menu_Menu.oldHeroes;
-		while(_g4 < _g5.length) {
-			let x = _g5[_g4];
-			++_g4;
-			_g3.push({ d : x.d, msg : x.msg, name : null});
-		}
-		hall1("Les anciens Héros d'Hammerfest",_g3);
+		hall("Le hall des Héros de Hammerfest",menu_Menu.oldHeroes);
 		main.appendChild(page);
 	}
 }

@@ -35,7 +35,7 @@ class Menu {
 	static var itemNames = new Map<Int, String>();
 	static var familyNames = new Map<Int, String>();
 	static var questTexts = new Map<Int, {title:String, desc:String}>();
-	static var oldHeroes:Array<{d:String, msg:String}> = [];
+	static var oldHeroes:Array<{d:String, msg:String, name:String}> = [];
 
 	static var MODES:Array<ModeInfo> = [
 		{
@@ -490,7 +490,7 @@ class Menu {
 			var h = mine[mine.length - 1];
 			return {d: h.d, msg: h.msg, name: h.name};
 		}
-		return oldHeroes.length > 0 ? {d: oldHeroes[0].d, msg: oldHeroes[0].msg, name: null} : null;
+		return oldHeroes.length > 0 ? oldHeroes[0] : null;
 	}
 
 	static function quote(h:{d:String, msg:String, name:String}):Element {
@@ -541,7 +541,7 @@ class Menu {
 		heroForm(page);
 		var h = lastHero();
 		if (h != null) {
-			page.appendChild(el("p", "said", (h.name != null ? "Le dernier héros de Kikifest" : "Le dernier héros d'Hammerfest") + ", a dit :"));
+			page.appendChild(el("p", "said", (save.heroes.filter(x -> x.msg != null).length > 0 ? "Le dernier héros de Kikifest" : "Le dernier héros d'Hammerfest") + ", a dit :"));
 			page.appendChild(quote(h));
 		}
 		var link = el("p", "center");
@@ -649,7 +649,7 @@ class Menu {
 		mine.reverse();
 		if (mine.length > 0)
 			hall("Le hall des Héros de Kikifest", mine);
-		hall("Les anciens Héros d'Hammerfest", [for (x in oldHeroes) {d: x.d, msg: x.msg, name: null}]);
+		hall("Le hall des Héros de Hammerfest", oldHeroes);
 		main.appendChild(page);
 	}
 }
