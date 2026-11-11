@@ -36,6 +36,8 @@ class Menu {
 	static var familyNames = new Map<Int, String>();
 	static var questTexts = new Map<Int, {title:String, desc:String}>();
 	static var oldHeroes:Array<{d:String, msg:String, name:String}> = [];
+	/** classements par étage du site d'origine (assets/data/classement-anciens.json) */
+	static var oldRanking:Dynamic = null;
 
 	static var MODES:Array<ModeInfo> = [
 		{
@@ -103,6 +105,10 @@ class Menu {
 		];
 		jobs.push(Browser.window.fetch("assets/data/pantheon-anciens.json").then(r -> r.json()).then(j -> {
 			oldHeroes = j.heroes;
+			return null;
+		}));
+		jobs.push(Browser.window.fetch("assets/data/classement-anciens.json").then(r -> r.json()).then(j -> {
+			oldRanking = j.floors;
 			return null;
 		}));
 		js.lib.Promise.all(jobs).then(_ -> {
@@ -559,29 +565,42 @@ class Menu {
 		}
 		var rows = [for (r in best) r];
 		rows.sort((x, y) -> y.score - x.score);
-		var any = false;
 		for (f in [4, 3, 2, 1]) {
-			var list = rows.filter(r -> Save.floorOf(r.score) == f);
+			// anciens joueurs de cet étage (captures du site) + vos meilleures parties, rangés au score
+			var olds:Array<{pos:Int, name:String, level:Int, score:Int}> = oldRanking != null ? Reflect.field(oldRanking, Std.string(f)) : null;
+			var list:Array<{pos:Int, name:String, level:Int, score:Int, mine:Bool}> = [];
+			if (olds != null)
+				for (o in olds)
+					list.push({pos: o.pos, name: o.name, level: o.level, score: o.score, mine: false});
+			for (r in rows)
+				if (Save.floorOf(r.score) == f)
+					list.push({pos: 0, name: r.name, level: r.level, score: r.score, mine: true});
+			list.sort((x, y) -> y.score != x.score ? y.score - x.score : (x.mine ? -1 : 1));
+
 			page.appendChild(el("h2", "floor", 'Classement de l\'étage $f :'));
 			var t = el("table", "rank");
 			var tr = el("tr");
 			for (c in ["Position", "Joueur", "Niveau atteint", "Score"])
 				tr.appendChild(el("th", null, c));
 			t.appendChild(tr);
-			if (list.length == 0) {
-				var r = el("tr");
-				var td = el("td", "empty", f == 4 && !any ? "Personne n'a encore terminé de partie. À vous de jouer !" : "Personne à cet étage pour l'instant.");
-				td.setAttribute("colspan", "4");
-				r.appendChild(td);
-				t.appendChild(r);
-			}
-			for (i in 0...list.length) {
-				any = true;
-				var r = el("tr");
-				r.appendChild(el("td", "num", Std.string(i + 1)));
-				r.appendChild(el("td", "who", list[i].name));
-				r.appendChild(el("td", "num", Std.string(list[i].level)));
-				r.appendChild(el("td", "num", fmt(list[i].score)));
+			var shift = 0, last = 0;
+			for (x in list) {
+				var pos = x.mine ? last + 1 : x.pos + shift;
+				if (x.mine)
+					shift++;
+				if (pos > last + 1) { // trou dans les captures d'origine
+					var gap = el("tr");
+					var td = el("td", "gap", "…");
+					td.setAttribute("colspan", "4");
+					gap.appendChild(td);
+					t.appendChild(gap);
+				}
+				last = pos;
+				var r = el("tr", x.mine ? "mine" : null);
+				r.appendChild(el("td", "num", Std.string(pos)));
+				r.appendChild(el("td", "who", x.name));
+				r.appendChild(el("td", "num", Std.string(x.level)));
+				r.appendChild(el("td", "num", fmt(x.score)));
 				t.appendChild(r);
 			}
 			page.appendChild(t);

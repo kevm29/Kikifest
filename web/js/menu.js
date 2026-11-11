@@ -1163,6 +1163,12 @@ class menu_Menu {
 			menu_Menu.oldHeroes = j.heroes;
 			return null;
 		}));
+		jobs.push(window.fetch("assets/data/classement-anciens.json").then(function(r) {
+			return r.json();
+		}).then(function(j) {
+			menu_Menu.oldRanking = j.floors;
+			return null;
+		}));
 		Promise.all(jobs).then(function(_) {
 			menu_Menu.quests = new meta_Quests(texts_h["quests"],[texts_h["specialItems"],texts_h["scoreItems"]]);
 			menu_Menu.readLang(texts_h["lang/fr"]);
@@ -1879,23 +1885,38 @@ class menu_Menu {
 		rows.sort(function(x,y) {
 			return y.score - x.score;
 		});
-		let any = false;
 		let _g3 = 0;
 		let _g4 = [4,3,2,1];
 		while(_g3 < _g4.length) {
 			let f = _g4[_g3];
 			++_g3;
-			let _g = [];
-			let _g1 = 0;
-			let _g2 = rows;
-			while(_g1 < _g2.length) {
-				let v = _g2[_g1];
-				++_g1;
-				if(meta_Save.floorOf(v.score) == f) {
-					_g.push(v);
+			let olds = menu_Menu.oldRanking != null ? Reflect.field(menu_Menu.oldRanking,f == null ? "null" : "" + f) : null;
+			let list = [];
+			if(olds != null) {
+				let _g = 0;
+				while(_g < olds.length) {
+					let o = olds[_g];
+					++_g;
+					list.push({ pos : o.pos, name : o.name, level : o.level, score : o.score, mine : false});
 				}
 			}
-			let list = _g;
+			let _g = 0;
+			while(_g < rows.length) {
+				let r = rows[_g];
+				++_g;
+				if(meta_Save.floorOf(r.score) == f) {
+					list.push({ pos : 0, name : r.name, level : r.level, score : r.score, mine : true});
+				}
+			}
+			list.sort(function(x,y) {
+				if(y.score != x.score) {
+					return y.score - x.score;
+				} else if(x.mine) {
+					return -1;
+				} else {
+					return 1;
+				}
+			});
 			page.appendChild(menu_Menu.el("h2","floor","Classement de l'étage " + f + " :"));
 			let t = menu_Menu.el("table","rank");
 			let tr = menu_Menu.el("tr");
@@ -1908,23 +1929,29 @@ class menu_Menu {
 			let c3 = "Score";
 			tr.appendChild(menu_Menu.el("th",null,c3));
 			t.appendChild(tr);
-			if(list.length == 0) {
-				let r = menu_Menu.el("tr");
-				let td = menu_Menu.el("td","empty",f == 4 && !any ? "Personne n'a encore terminé de partie. À vous de jouer !" : "Personne à cet étage pour l'instant.");
-				td.setAttribute("colspan","4");
-				r.appendChild(td);
-				t.appendChild(r);
-			}
-			let _g5 = 0;
-			let _g6 = list.length;
-			while(_g5 < _g6) {
-				let i = _g5++;
-				any = true;
-				let r = menu_Menu.el("tr");
-				r.appendChild(menu_Menu.el("td","num",Std.string(i + 1)));
-				r.appendChild(menu_Menu.el("td","who",list[i].name));
-				r.appendChild(menu_Menu.el("td","num",Std.string(list[i].level)));
-				r.appendChild(menu_Menu.el("td","num",menu_Menu.fmt(list[i].score)));
+			let shift = 0;
+			let last = 0;
+			let _g1 = 0;
+			while(_g1 < list.length) {
+				let x = list[_g1];
+				++_g1;
+				let pos = x.mine ? last + 1 : x.pos + shift;
+				if(x.mine) {
+					++shift;
+				}
+				if(pos > last + 1) {
+					let gap = menu_Menu.el("tr");
+					let td = menu_Menu.el("td","gap","…");
+					td.setAttribute("colspan","4");
+					gap.appendChild(td);
+					t.appendChild(gap);
+				}
+				last = pos;
+				let r = menu_Menu.el("tr",x.mine ? "mine" : null);
+				r.appendChild(menu_Menu.el("td","num",pos == null ? "null" : "" + pos));
+				r.appendChild(menu_Menu.el("td","who",x.name));
+				r.appendChild(menu_Menu.el("td","num",x.level == null ? "null" : "" + x.level));
+				r.appendChild(menu_Menu.el("td","num",menu_Menu.fmt(x.score)));
 				t.appendChild(r);
 			}
 			page.appendChild(t);

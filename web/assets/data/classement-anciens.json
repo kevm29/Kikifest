@@ -1,0 +1,949 @@
+{
+"note": "Classements par étage du site d'origine (Hammerfest, Motion Twin), d'après des captures d'écran : pos, joueur, niveau atteint, score.",
+"floors": {
+"4": [
+{
+"pos": 1,
+"name": "Erneraude",
+"level": 103,
+"score": 10553889
+},
+{
+"pos": 2,
+"name": "Byaaa",
+"level": 64,
+"score": 9260919
+},
+{
+"pos": 3,
+"name": "questTester",
+"level": 99,
+"score": 5878770
+},
+{
+"pos": 4,
+"name": "Tactize",
+"level": 103,
+"score": 5330121
+},
+{
+"pos": 5,
+"name": "AuronIsBack",
+"level": 95,
+"score": 5103775
+},
+{
+"pos": 6,
+"name": "kogenzer",
+"level": 103,
+"score": 4684362
+},
+{
+"pos": 7,
+"name": "cooeff6",
+"level": 29,
+"score": 4630040
+},
+{
+"pos": 8,
+"name": "Leyoski",
+"level": 95,
+"score": 4585250
+},
+{
+"pos": 9,
+"name": "Jujufifou",
+"level": 103,
+"score": 4388455
+},
+{
+"pos": 10,
+"name": "yakutake93",
+"level": 103,
+"score": 4324273
+},
+{
+"pos": 11,
+"name": "Onetti",
+"level": 103,
+"score": 4302763
+},
+{
+"pos": 12,
+"name": "NoutnoutNout",
+"level": 95,
+"score": 4189120
+},
+{
+"pos": 13,
+"name": "Data0010",
+"level": 103,
+"score": 4152176
+},
+{
+"pos": 14,
+"name": "stefcarbo",
+"level": 98,
+"score": 4134297
+},
+{
+"pos": 15,
+"name": "ninja1967",
+"level": 84,
+"score": 3954810
+},
+{
+"pos": 16,
+"name": "SAPC02",
+"level": 94,
+"score": 3883555
+},
+{
+"pos": 17,
+"name": "Igordu43",
+"level": 103,
+"score": 3621160
+},
+{
+"pos": 18,
+"name": "jjeul",
+"level": 76,
+"score": 3620805
+},
+{
+"pos": 19,
+"name": "miaouss48",
+"level": 103,
+"score": 3616295
+},
+{
+"pos": 20,
+"name": "Titeufleboss",
+"level": 96,
+"score": 3516645
+},
+{
+"pos": 21,
+"name": "thl007",
+"level": 103,
+"score": 3498435
+},
+{
+"pos": 22,
+"name": "petitelou82",
+"level": 100,
+"score": 3496920
+},
+{
+"pos": 23,
+"name": "Yoshigo",
+"level": 103,
+"score": 3394176
+},
+{
+"pos": 24,
+"name": "czsk",
+"level": 101,
+"score": 3390193
+},
+{
+"pos": 25,
+"name": "RoiBurgonde",
+"level": 95,
+"score": 3321645
+},
+{
+"pos": 26,
+"name": "Tentents",
+"level": 54,
+"score": 3320170
+},
+{
+"pos": 27,
+"name": "Brak",
+"level": 103,
+"score": 3206251
+},
+{
+"pos": 28,
+"name": "xessario",
+"level": 98,
+"score": 3187450
+},
+{
+"pos": 29,
+"name": "AstraRL",
+"level": 72,
+"score": 3136495
+},
+{
+"pos": 30,
+"name": "Ivicarus",
+"level": 98,
+"score": 3131070
+}
+],
+"3": [
+{
+"pos": 1,
+"name": "MrEzhekiel",
+"level": 90,
+"score": 5200620
+},
+{
+"pos": 2,
+"name": "axelhbcc2",
+"level": 94,
+"score": 4974212
+},
+{
+"pos": 3,
+"name": "choutheo",
+"level": 94,
+"score": 3684625
+},
+{
+"pos": 4,
+"name": "Storbold",
+"level": 92,
+"score": 3345005
+},
+{
+"pos": 5,
+"name": "ejapiro",
+"level": 90,
+"score": 3002905
+},
+{
+"pos": 6,
+"name": "sangokuarn",
+"level": 95,
+"score": 2832670
+},
+{
+"pos": 7,
+"name": "DarkTim",
+"level": 89,
+"score": 2725000
+},
+{
+"pos": 8,
+"name": "M2Attitude",
+"level": 77,
+"score": 2525315
+},
+{
+"pos": 9,
+"name": "leonie23",
+"level": 84,
+"score": 2446370
+},
+{
+"pos": 10,
+"name": "jjdejlm",
+"level": 72,
+"score": 2350590
+},
+{
+"pos": 11,
+"name": "elost",
+"level": 97,
+"score": 2253466
+},
+{
+"pos": 12,
+"name": "Lytrenic",
+"level": 92,
+"score": 2192745
+},
+{
+"pos": 13,
+"name": "tgtgtg92",
+"level": 87,
+"score": 1988725
+},
+{
+"pos": 14,
+"name": "gelique",
+"level": 62,
+"score": 1985380
+},
+{
+"pos": 15,
+"name": "tougui",
+"level": 94,
+"score": 1820075
+},
+{
+"pos": 16,
+"name": "Luluhero",
+"level": 93,
+"score": 1771470
+},
+{
+"pos": 17,
+"name": "superpt",
+"level": 84,
+"score": 1762500
+},
+{
+"pos": 18,
+"name": "raulreal7",
+"level": 103,
+"score": 1760676
+},
+{
+"pos": 19,
+"name": "Emeldria",
+"level": 100,
+"score": 1759292
+},
+{
+"pos": 20,
+"name": "kappacrucis",
+"level": 78,
+"score": 1738907
+},
+{
+"pos": 21,
+"name": "bbbbbbbbbb",
+"level": 76,
+"score": 1623470
+},
+{
+"pos": 22,
+"name": "mokkochi",
+"level": 62,
+"score": 1618060
+},
+{
+"pos": 23,
+"name": "eryagon",
+"level": 83,
+"score": 1595215
+},
+{
+"pos": 24,
+"name": "theo250",
+"level": 77,
+"score": 1590265
+},
+{
+"pos": 25,
+"name": "enderrock",
+"level": 87,
+"score": 1567740
+},
+{
+"pos": 26,
+"name": "benoit4683",
+"level": 77,
+"score": 1561600
+},
+{
+"pos": 27,
+"name": "2608912",
+"level": 55,
+"score": 1504200
+},
+{
+"pos": 28,
+"name": "ketipo",
+"level": 76,
+"score": 1495200
+},
+{
+"pos": 29,
+"name": "alilette",
+"level": 82,
+"score": 1480195
+},
+{
+"pos": 30,
+"name": "bibitex",
+"level": 76,
+"score": 1474090
+}
+],
+"2": [
+{
+"pos": 1,
+"name": "nasima",
+"level": 103,
+"score": 7163825
+},
+{
+"pos": 2,
+"name": "Quotillon",
+"level": 103,
+"score": 5677750
+},
+{
+"pos": 3,
+"name": "abisomega49",
+"level": 90,
+"score": 4693968
+},
+{
+"pos": 4,
+"name": "Mva54",
+"level": 103,
+"score": 4456045
+},
+{
+"pos": 5,
+"name": "douniia21",
+"level": 103,
+"score": 4431353
+},
+{
+"pos": 6,
+"name": "asm88",
+"level": 91,
+"score": 3975890
+},
+{
+"pos": 7,
+"name": "kalugen",
+"level": 92,
+"score": 3951940
+},
+{
+"pos": 8,
+"name": "elbub",
+"level": 97,
+"score": 3864200
+},
+{
+"pos": 9,
+"name": "papyzazy",
+"level": 101,
+"score": 3798940
+},
+{
+"pos": 10,
+"name": "yoyoo17",
+"level": 85,
+"score": 3508030
+},
+{
+"pos": 11,
+"name": "zasf",
+"level": 64,
+"score": 3282645
+},
+{
+"pos": 12,
+"name": "garance78",
+"level": 72,
+"score": 3237828
+},
+{
+"pos": 13,
+"name": "borisquentin",
+"level": 91,
+"score": 3203520
+},
+{
+"pos": 14,
+"name": "skikis",
+"level": 91,
+"score": 3161190
+},
+{
+"pos": 15,
+"name": "corensuper",
+"level": 92,
+"score": 3003505
+},
+{
+"pos": 16,
+"name": "niouti",
+"level": 95,
+"score": 2962340
+},
+{
+"pos": 17,
+"name": "bonannivjtm4",
+"level": 87,
+"score": 2948333
+},
+{
+"pos": 18,
+"name": "Quent0",
+"level": 103,
+"score": 2907746
+},
+{
+"pos": 19,
+"name": "charles1515",
+"level": 90,
+"score": 2907610
+},
+{
+"pos": 20,
+"name": "eclatsderire",
+"level": 87,
+"score": 2902330
+},
+{
+"pos": 21,
+"name": "kyarider",
+"level": 100,
+"score": 2845713
+},
+{
+"pos": 22,
+"name": "pvaill",
+"level": 68,
+"score": 2786210
+},
+{
+"pos": 23,
+"name": "quenry",
+"level": 91,
+"score": 2756235
+},
+{
+"pos": 24,
+"name": "sharkalow",
+"level": 93,
+"score": 2742500
+},
+{
+"pos": 25,
+"name": "supremaprout",
+"level": 90,
+"score": 2726770
+},
+{
+"pos": 26,
+"name": "GREGORIO2012",
+"level": 101,
+"score": 2724159
+},
+{
+"pos": 27,
+"name": "0svald",
+"level": 93,
+"score": 2707975
+},
+{
+"pos": 28,
+"name": "tsukimi48",
+"level": 92,
+"score": 2702250
+},
+{
+"pos": 29,
+"name": "Lezardus",
+"level": 72,
+"score": 2696010
+},
+{
+"pos": 30,
+"name": "janot2",
+"level": 96,
+"score": 2658185
+},
+{
+"pos": 4651,
+"name": "aristido",
+"level": 12,
+"score": 10215
+},
+{
+"pos": 4652,
+"name": "abricotte83",
+"level": 3,
+"score": 9235
+},
+{
+"pos": 4653,
+"name": "titi007titi",
+"level": 2,
+"score": 8500
+},
+{
+"pos": 4654,
+"name": "juju71500",
+"level": 11,
+"score": 8405
+},
+{
+"pos": 4655,
+"name": "Kugnar",
+"level": 11,
+"score": 7620
+},
+{
+"pos": 4656,
+"name": "dounia11",
+"level": 2,
+"score": 7505
+},
+{
+"pos": 4657,
+"name": "paolo31400",
+"level": 11,
+"score": 7210
+},
+{
+"pos": 4658,
+"name": "najadu06",
+"level": 9,
+"score": 6615
+},
+{
+"pos": 4659,
+"name": "eautilla",
+"level": 11,
+"score": 6505
+},
+{
+"pos": 4660,
+"name": "refiamagica",
+"level": 11,
+"score": 6425
+},
+{
+"pos": 4661,
+"name": "MlleFraisy",
+"level": 8,
+"score": 5760
+},
+{
+"pos": 4662,
+"name": "tennisman09",
+"level": 13,
+"score": 5655
+},
+{
+"pos": 4663,
+"name": "angjie",
+"level": 3,
+"score": 5615
+},
+{
+"pos": 4664,
+"name": "link79400",
+"level": 7,
+"score": 5335
+},
+{
+"pos": 4665,
+"name": "cqmoua",
+"level": 2,
+"score": 4045
+},
+{
+"pos": 4666,
+"name": "longuetika",
+"level": 2,
+"score": 2530
+},
+{
+"pos": 4667,
+"name": "Pasdeg",
+"level": 4,
+"score": 2510
+},
+{
+"pos": 4668,
+"name": "merde694",
+"level": 2,
+"score": 2500
+},
+{
+"pos": 4669,
+"name": "manb",
+"level": 11,
+"score": 915
+},
+{
+"pos": 4670,
+"name": "minsalors",
+"level": 2,
+"score": 35
+},
+{
+"pos": 4671,
+"name": "Carottejy",
+"level": 3,
+"score": 5
+},
+{
+"pos": 4672,
+"name": "patlord",
+"level": 2,
+"score": 5
+},
+{
+"pos": 4673,
+"name": "Kaphotics",
+"level": 0,
+"score": 0
+},
+{
+"pos": 4674,
+"name": "alphys",
+"level": 0,
+"score": 0
+},
+{
+"pos": 4675,
+"name": "Pixiiie",
+"level": 0,
+"score": 0
+},
+{
+"pos": 4676,
+"name": "filnias",
+"level": 0,
+"score": 0
+},
+{
+"pos": 4677,
+"name": "mosent",
+"level": 0,
+"score": 0
+}
+],
+"1": [
+{
+"pos": 1,
+"name": "assiette",
+"level": 103,
+"score": 11152196
+},
+{
+"pos": 2,
+"name": "pierre839",
+"level": 103,
+"score": 10853171
+},
+{
+"pos": 3,
+"name": "al4002",
+"level": 103,
+"score": 10150386
+},
+{
+"pos": 4,
+"name": "BlessedRacc",
+"level": 103,
+"score": 9044864
+},
+{
+"pos": 5,
+"name": "carmonaaaaaa",
+"level": 103,
+"score": 7484712
+},
+{
+"pos": 6,
+"name": "nicoleleu",
+"level": 87,
+"score": 7215410
+},
+{
+"pos": 7,
+"name": "sebos16",
+"level": 103,
+"score": 6659358
+},
+{
+"pos": 8,
+"name": "PapyJul",
+"level": 103,
+"score": 5958731
+},
+{
+"pos": 9,
+"name": "Zmicrobe",
+"level": 103,
+"score": 5875696
+},
+{
+"pos": 10,
+"name": "nammerfest",
+"level": 103,
+"score": 5848617
+},
+{
+"pos": 11,
+"name": "player999999",
+"level": 96,
+"score": 5839325
+},
+{
+"pos": 12,
+"name": "hamham33",
+"level": 103,
+"score": 5767766
+},
+{
+"pos": 13,
+"name": "sheamusigor",
+"level": 97,
+"score": 5687755
+},
+{
+"pos": 14,
+"name": "cr9cr9",
+"level": 96,
+"score": 5681630
+},
+{
+"pos": 15,
+"name": "foccof",
+"level": 93,
+"score": 5584398
+},
+{
+"pos": 16,
+"name": "Noobzor",
+"level": 89,
+"score": 5516812
+},
+{
+"pos": 17,
+"name": "kioube",
+"level": 103,
+"score": 5435306
+},
+{
+"pos": 18,
+"name": "muttter",
+"level": 60,
+"score": 5403235
+},
+{
+"pos": 19,
+"name": "yannick3",
+"level": 103,
+"score": 5198841
+},
+{
+"pos": 20,
+"name": "pingoumaster",
+"level": 98,
+"score": 5148115
+},
+{
+"pos": 21,
+"name": "MoiPresident",
+"level": 91,
+"score": 5014275
+},
+{
+"pos": 22,
+"name": "SACHATANEL",
+"level": 95,
+"score": 4951511
+},
+{
+"pos": 23,
+"name": "barnabe21",
+"level": 88,
+"score": 4893082
+},
+{
+"pos": 24,
+"name": "patoua",
+"level": 103,
+"score": 4828177
+},
+{
+"pos": 25,
+"name": "Marc7777",
+"level": 103,
+"score": 4702420
+},
+{
+"pos": 26,
+"name": "Dragonuit",
+"level": 90,
+"score": 4572590
+},
+{
+"pos": 27,
+"name": "Dinitroy",
+"level": 91,
+"score": 4429300
+},
+{
+"pos": 28,
+"name": "leawly",
+"level": 103,
+"score": 4413831
+},
+{
+"pos": 29,
+"name": "azteroth",
+"level": 62,
+"score": 4386582
+},
+{
+"pos": 30,
+"name": "wxcv0",
+"level": 103,
+"score": 4272216
+},
+{
+"pos": 1801,
+"name": "flavien1",
+"level": 0,
+"score": 18220
+},
+{
+"pos": 1802,
+"name": "nahid",
+"level": 6,
+"score": 17625
+},
+{
+"pos": 1803,
+"name": "caro1968",
+"level": 2,
+"score": 7030
+},
+{
+"pos": 1804,
+"name": "Braska",
+"level": 5,
+"score": 3005
+},
+{
+"pos": 1805,
+"name": "guit00n",
+"level": 0,
+"score": 2505
+},
+{
+"pos": 1806,
+"name": "taiki11",
+"level": 0,
+"score": 500
+},
+{
+"pos": 1807,
+"name": "maaster",
+"level": 2,
+"score": 5
+},
+{
+"pos": 1808,
+"name": "salmase",
+"level": 0,
+"score": 0
+},
+{
+"pos": 1809,
+"name": "kiroul",
+"level": 0,
+"score": 0
+}
+]
+}
+}
