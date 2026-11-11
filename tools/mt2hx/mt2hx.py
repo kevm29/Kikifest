@@ -359,7 +359,7 @@ def convert_wrappers(toks):
         t = toks[i]
         if t.k == "id" and t.v in ("downcast", "upcast", "callback") and V(toks, sig(toks, i)) == "(":
             prev = sig(toks, i, -1)
-            if V(toks, prev) in (".", "function", ":"):
+            if V(toks, prev) in (".", "function"):
                 i += 1
                 continue
             p = sig(toks, i)

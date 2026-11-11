@@ -1050,7 +1050,7 @@ i++; } }
 	public function codeTrigger(id:Dynamic)  untyped {
 		{ var __sw:Dynamic = id;
 if (__sw == (0)) { // Seau 1er level
-				downcast(game).fl_warpStart = true;
+				((game):Dynamic).fl_warpStart = true;
 			
 
 			}

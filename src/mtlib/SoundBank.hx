@@ -11,6 +11,18 @@ class SoundBank {
 	static var ctx:AudioContext;
 	static var buffers:Map<String, AudioBuffer> = new Map();
 	static var loading:Map<String, Bool> = new Map();
+	static var waiting:Map<String, Array<Void->Void>> = new Map();
+
+	/** Appelle f quand le son est chargé (tout de suite s'il l'est déjà). */
+	public static function whenReady(linkage:String, f:Void->Void) {
+		if (buffers.exists(linkage)) {
+			f();
+			return;
+		}
+		if (!waiting.exists(linkage)) waiting.set(linkage, []);
+		waiting.get(linkage).push(f);
+		preload(linkage);
+	}
 
 	static function context():AudioContext {
 		if (ctx == null) {
@@ -42,6 +54,11 @@ class SoundBank {
 		loading.set(linkage, true);
 		js.Browser.window.fetch(u).then(r -> r.arrayBuffer()).then(b -> c.decodeAudioData(b)).then(buf -> {
 			buffers.set(linkage, buf);
+			var w = waiting.get(linkage);
+			if (w != null) {
+				waiting.remove(linkage);
+				for (f in w) f();
+			}
 			return null;
 		});
 	}

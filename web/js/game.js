@@ -157,11 +157,35 @@ class Boot {
 		let mode = params.get("mode");
 		Boot.root["$mode"] = mode != null ? mode : "multicoop";
 		Boot.root["$version"] = "WIN 8,0,0,0";
+		let _g = 0;
+		let _g1 = [["$options",""],["$lang","fr"],["$shake","1"],["$detail","1"],["$sound","1"],["$music","1"],["$volume","100"]];
+		while(_g < _g1.length) {
+			let kv = _g1[_g];
+			++_g;
+			if(Reflect.field(Boot.root,kv[0]) == null) {
+				let o = Boot.root;
+				let value = params.get(HxOverrides.substr(kv[0],1,null)) != null ? params.get(HxOverrides.substr(kv[0],1,null)) : kv[1];
+				o[kv[0]] = value;
+			}
+		}
 		mtlib_Rand.setSeed(params.get("seed") != null ? Std.parseInt(params.get("seed")) : 12345);
 		let canvas = window.document.getElementById("game");
 		Boot.renderer = new swf_Renderer(canvas);
 		Boot.renderer.background = "#000";
-		let init = { fl_local : true, musics : [], rawLang : lang, families : null, options : params.get("options") != null ? params.get("options") : ""};
+		let _g2 = [];
+		let f = "music.mp3";
+		let m = new mtlib_Sound();
+		m.loadSound(f,false);
+		_g2.push(m);
+		let f1 = "boss.mp3";
+		let m1 = new mtlib_Sound();
+		m1.loadSound(f1,false);
+		_g2.push(m1);
+		let f2 = "hurryUp.mp3";
+		let m2 = new mtlib_Sound();
+		m2.loadSound(f2,false);
+		_g2.push(m2);
+		let init = { fl_local : true, musics : _g2, rawLang : lang, families : null, options : params.get("options") != null ? params.get("options") : ""};
 		window.kiki = { root : Boot.root, boot : Boot};
 		Boot.manager = new GameManager(Boot.root,init);
 		window.kiki.manager = Boot.manager;
@@ -19733,7 +19757,7 @@ class levels_ScriptEngine {
 	codeTrigger(id) {
 		let __sw = id;
 		if(__sw == 0) {
-			downcast(this.game).fl_warpStart = true;
+			this.game.fl_warpStart = true;
 		} else if(__sw == 1) {
 			this.game.huTimer -= mtlib_Timer.tmod * 0.5;
 		} else if(__sw == 2) {
@@ -27104,6 +27128,8 @@ class mtlib_SharedObject {
 mtlib_SharedObject.__name__ = true;
 class mtlib_Sound {
 	constructor(target) {
+		this.position = 0;
+		this.wanted = false;
 		this.playing = null;
 		this.pan = 0;
 		this.volume = 100;
@@ -27120,14 +27146,24 @@ class mtlib_Sound {
 	}
 	start(offset,loops) {
 		this.stop();
+		let n = loops == null ? 1 : loops;
 		let _gthis = this;
-		this.playing = mtlib_SoundBank.play(this.linkage,this.volume / 100,loops == null ? 1 : loops,function() {
+		this.playing = mtlib_SoundBank.play(this.linkage,this.volume / 100,n,function() {
 			if(_gthis.onSoundComplete != null) {
 				_gthis.onSoundComplete();
 			}
 		});
+		if(this.playing == null && n > 1 && !mtlib_SoundBank.muted) {
+			this.wanted = true;
+			mtlib_SoundBank.whenReady(this.linkage,function() {
+				if(_gthis.wanted && _gthis.playing == null) {
+					_gthis.start(offset,loops);
+				}
+			});
+		}
 	}
 	stop(id) {
+		this.wanted = false;
 		if(this.playing != null) {
 			mtlib_SoundBank.stop(this.playing);
 		}
@@ -27157,6 +27193,17 @@ class mtlib_Sound {
 }
 mtlib_Sound.__name__ = true;
 class mtlib_SoundBank {
+	static whenReady(linkage,f) {
+		if(Object.prototype.hasOwnProperty.call(mtlib_SoundBank.buffers.h,linkage)) {
+			f();
+			return;
+		}
+		if(!Object.prototype.hasOwnProperty.call(mtlib_SoundBank.waiting.h,linkage)) {
+			mtlib_SoundBank.waiting.h[linkage] = [];
+		}
+		mtlib_SoundBank.waiting.h[linkage].push(f);
+		mtlib_SoundBank.preload(linkage);
+	}
 	static context() {
 		if(mtlib_SoundBank.ctx == null) {
 			try {
@@ -27204,6 +27251,15 @@ class mtlib_SoundBank {
 			return c.decodeAudioData(b);
 		}).then(function(buf) {
 			mtlib_SoundBank.buffers.h[linkage] = buf;
+			let w = mtlib_SoundBank.waiting.h[linkage];
+			if(w != null) {
+				let _this = mtlib_SoundBank.waiting;
+				if(Object.prototype.hasOwnProperty.call(_this.h,linkage)) {
+					delete(_this.h[linkage]);
+				}
+				let _g = 0;
+				while(_g < w.length) w[_g++]();
+			}
 			return null;
 		});
 	}
@@ -28941,6 +28997,7 @@ mtlib_SoundBank.muted = false;
 mtlib_SoundBank.base = "assets/sfx/";
 mtlib_SoundBank.buffers = new haxe_ds_StringMap();
 mtlib_SoundBank.loading = new haxe_ds_StringMap();
+mtlib_SoundBank.waiting = new haxe_ds_StringMap();
 mtlib_Timer.SIM_FPS = 40;
 mtlib_Timer.wantedFPS = 32;
 mtlib_Timer.tmod = 0.8;

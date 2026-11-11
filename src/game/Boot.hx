@@ -67,6 +67,10 @@ class Boot {
 		var mode = params.get("mode");
 		Reflect.setField(root, "$mode", mode != null ? mode : "multicoop");
 		Reflect.setField(root, "$version", "WIN 8,0,0,0");
+		// options que le chargeur Flash d'origine fixait (son, musique, détails, tremblements)
+		for (kv in [["$options", ""], ["$lang", "fr"], ["$shake", "1"], ["$detail", "1"], ["$sound", "1"], ["$music", "1"], ["$volume", "100"]])
+			if (Reflect.field(root, kv[0]) == null)
+				Reflect.setField(root, kv[0], params.get(kv[0].substr(1)) != null ? params.get(kv[0].substr(1)) : kv[1]);
 		Rand.setSeed(params.get("seed") != null ? Std.parseInt(params.get("seed")) : 12345);
 
 		var canvas:js.html.CanvasElement = cast Browser.document.getElementById("game");
@@ -75,7 +79,11 @@ class Boot {
 
 		var init:Dynamic = {
 			fl_local: true,
-			musics: [],
+			musics: [for (f in ["music.mp3", "boss.mp3", "hurryUp.mp3"]) {
+				var m = new mtlib.Sound();
+				m.loadSound(f, false);
+				m;
+			}],
 			rawLang: lang,
 			families: null,
 			options: params.get("options") != null ? params.get("options") : "",

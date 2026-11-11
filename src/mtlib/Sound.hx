@@ -7,6 +7,10 @@ class Sound {
 	var volume:Float = 100;
 	var pan:Float = 0;
 	var playing:Dynamic = null;
+	var wanted:Bool = false;
+
+	/** Position de lecture en ms (non suivie : la musique reprend du début). */
+	public var position:Float = 0;
 
 	public var onSoundComplete:Void->Void;
 	public var onLoad:Bool->Void;
@@ -24,10 +28,17 @@ class Sound {
 
 	public function start(?offset:Float, ?loops:Int) {
 		stop();
-		playing = SoundBank.play(linkage, volume / 100, loops == null ? 1 : loops, () -> if (onSoundComplete != null) onSoundComplete());
+		var n = loops == null ? 1 : loops;
+		playing = SoundBank.play(linkage, volume / 100, n, () -> if (onSoundComplete != null) onSoundComplete());
+		if (playing == null && n > 1 && !SoundBank.muted) {
+			// musique pas encore chargée : elle démarrera dès qu'elle le sera
+			wanted = true;
+			SoundBank.whenReady(linkage, () -> if (wanted && playing == null) start(offset, loops));
+		}
 	}
 
 	public function stop(?id:String) {
+		wanted = false;
 		if (playing != null) SoundBank.stop(playing);
 		playing = null;
 	}
