@@ -1,0 +1,5 @@
+-cp src
+-main netdemo.NetDemo
+-js web/js/netdemo.js
+-D js-es=6
+-dce full
