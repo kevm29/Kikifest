@@ -277,7 +277,9 @@ const fileById = (dir) => {
 };
 
 const svgs = {};
-const cleanSvg = (s) => s.replace(/<\?xml[^>]*>\s*/, "").replace(/\s*xmlns:ffdec="[^"]*"/, "").replace(/\s*ffdec:objectType="[^"]*"/, "");
+// On retire tous les attributs ffdec:* (sinon le SVG est invalide sans la déclaration xmlns:ffdec
+// et le navigateur refuse de l'afficher, ce qui cachait toutes les formes à remplissage bitmap).
+const cleanSvg = (s) => s.replace(/<\?xml[^>]*>\s*/, "").replace(/\s*xmlns:ffdec="[^"]*"/g, "").replace(/\s*ffdec:[A-Za-z-]+="[^"]*"/g, "");
 for (const [dir, ids] of [["shapes", shapeIds], ["morphshapes", morphIds], ["texts", textIds]]) {
   const files = fileById(path.join(tmp, dir));
   for (const id of ids) {
