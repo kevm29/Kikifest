@@ -124,7 +124,9 @@ class Boot {
 			Boot.gameEnded = true;
 		});
 		mtlib_MtStd.setGlobal("exitGame",function(url,params) {
-			Boot.status("Partie terminée ! Appuie sur Échap pour rejouer.");
+			if(!Boot.gameEnded) {
+				Boot.status("Partie terminée ! Appuie sur Échap pour rejouer.");
+			}
 			Boot.gameEnded = true;
 		});
 		swf_MtStdRoot.root = Boot.root;
@@ -277,24 +279,66 @@ class Boot {
 		let before = Boot.quests.compute(save.items).done;
 		save.addPicks(picks);
 		save.games++;
-		let sc = Std.parseInt(Std.string(score));
-		if(sc != null && sc > save.best) {
-			save.best = sc;
+		let mode = Reflect.field(Boot.root,"$mode");
+		let level = Boot.toInt(Reflect.field(data,"$reachedLevel"));
+		let date = DateTools.format(new Date(),"%Y-%m-%d");
+		let heroes = [];
+		let scores = [Boot.toInt(score)];
+		let sub = Reflect.field(data,"$data");
+		if(mode == "multicoop" && sub != null) {
+			scores = [Boot.toInt(Reflect.field(sub,"$s0")),Boot.toInt(Reflect.field(sub,"$s1"))];
 		}
-		save.store();
-		let _g = [];
-		let _g1 = 0;
-		let _g2 = Boot.quests.compute(save.items).done;
-		while(_g1 < _g2.length) {
-			let v = _g2[_g1];
-			++_g1;
-			if(before.indexOf(v) < 0) {
-				_g.push(v);
+		if(mode != "solo" && mode != "multicoop") {
+			scores = [];
+		}
+		let _g = 0;
+		let _g1 = scores.length;
+		while(_g < _g1) {
+			let i = _g++;
+			let name = Boot.pref(i == 0 ? "name" : "name2",i == 0 ? "Igor" : "Sandy");
+			if(save.addRecord({ d : date, mode : mode, name : name, score : scores[i], level : level})) {
+				heroes.push(name);
 			}
 		}
-		let fresh = _g;
+		save.store();
+		let msg = "Partie terminée !";
+		let _g2 = [];
+		let _g3 = 0;
+		let _g4 = Boot.quests.compute(save.items).done;
+		while(_g3 < _g4.length) {
+			let v = _g4[_g3];
+			++_g3;
+			if(before.indexOf(v) < 0) {
+				_g2.push(v);
+			}
+		}
+		let fresh = _g2;
 		if(fresh.length > 0) {
-			Boot.status("Partie terminée ! Nouvelle quête accomplie (" + fresh.length + ") : va voir le menu Quêtes. Échap pour rejouer.");
+			msg += " Nouvelle quête accomplie (" + fresh.length + ") !";
+		}
+		if(heroes.length > 0) {
+			msg += " " + heroes.join(" et ") + " entre" + (heroes.length > 1 ? "nt" : "") + " au Panthéon : va écrire ta phrase dans le menu !";
+		}
+		Boot.status(msg + " Échap pour rejouer.");
+	}
+	static toInt(v) {
+		let n = Std.parseInt(Std.string(v));
+		if(n == null || n < 0) {
+			return 0;
+		} else {
+			return n;
+		}
+	}
+	static pref(k,def) {
+		try {
+			let v = window.localStorage.getItem("kikifest." + k);
+			if(v != null && v != "") {
+				return v;
+			} else {
+				return def;
+			}
+		} catch( _g ) {
+			return def;
 		}
 	}
 	static reportError(e) {
@@ -876,6 +920,101 @@ class Data {
 	}
 }
 Data.__name__ = "Data";
+class DateTools {
+	static __format_get(d,e) {
+		switch(e) {
+		case "%":
+			return "%";
+		case "A":
+			return DateTools.DAY_NAMES[d.getDay()];
+		case "B":
+			return DateTools.MONTH_NAMES[d.getMonth()];
+		case "C":
+			return StringTools.lpad(Std.string(d.getFullYear() / 100 | 0),"0",2);
+		case "D":
+			return DateTools.__format(d,"%m/%d/%y");
+		case "F":
+			return DateTools.__format(d,"%Y-%m-%d");
+		case "M":
+			return StringTools.lpad(Std.string(d.getMinutes()),"0",2);
+		case "R":
+			return DateTools.__format(d,"%H:%M");
+		case "S":
+			return StringTools.lpad(Std.string(d.getSeconds()),"0",2);
+		case "T":
+			return DateTools.__format(d,"%H:%M:%S");
+		case "Y":
+			return Std.string(d.getFullYear());
+		case "a":
+			return DateTools.DAY_SHORT_NAMES[d.getDay()];
+		case "d":
+			return StringTools.lpad(Std.string(d.getDate()),"0",2);
+		case "e":
+			return Std.string(d.getDate());
+		case "b":case "h":
+			return DateTools.MONTH_SHORT_NAMES[d.getMonth()];
+		case "H":case "k":
+			return StringTools.lpad(Std.string(d.getHours()),e == "H" ? "0" : " ",2);
+		case "I":case "l":
+			let hour = d.getHours() % 12;
+			return StringTools.lpad(Std.string(hour == 0 ? 12 : hour),e == "I" ? "0" : " ",2);
+		case "m":
+			return StringTools.lpad(Std.string(d.getMonth() + 1),"0",2);
+		case "n":
+			return "\n";
+		case "p":
+			if(d.getHours() > 11) {
+				return "PM";
+			} else {
+				return "AM";
+			}
+			break;
+		case "r":
+			return DateTools.__format(d,"%I:%M:%S %p");
+		case "s":
+			return Std.string(d.getTime() / 1000 | 0);
+		case "t":
+			return "\t";
+		case "u":
+			let t = d.getDay();
+			if(t == 0) {
+				return "7";
+			} else if(t == null) {
+				return "null";
+			} else {
+				return "" + t;
+			}
+			break;
+		case "w":
+			return Std.string(d.getDay());
+		case "y":
+			return StringTools.lpad(Std.string(d.getFullYear() % 100),"0",2);
+		default:
+			throw new haxe_exceptions_NotImplementedException("Date.format %" + e + "- not implemented yet.",null,{ fileName : "DateTools.hx", lineNumber : 101, className : "DateTools", methodName : "__format_get"});
+		}
+	}
+	static __format(d,f) {
+		let r_b = "";
+		let p = 0;
+		while(true) {
+			let np = f.indexOf("%",p);
+			if(np < 0) {
+				break;
+			}
+			let len = np - p;
+			r_b += len == null ? HxOverrides.substr(f,p,null) : HxOverrides.substr(f,p,len);
+			r_b += Std.string(DateTools.__format_get(d,HxOverrides.substr(f,np + 1,1)));
+			p = np + 2;
+		}
+		let len = f.length - p;
+		r_b += len == null ? HxOverrides.substr(f,p,null) : HxOverrides.substr(f,p,len);
+		return r_b;
+	}
+	static format(d,f) {
+		return DateTools.__format(d,f);
+	}
+}
+DateTools.__name__ = "DateTools";
 class swf_DisplayObject {
 	constructor(__charId) {
 		if(swf_DisplayObject._hx_skip_constructor) {
@@ -5879,6 +6018,16 @@ class StringTools {
 	}
 	static trim(s) {
 		return StringTools.ltrim(StringTools.rtrim(s));
+	}
+	static lpad(s,c,l) {
+		if(c.length <= 0) {
+			return s;
+		}
+		let buf_b = "";
+		l -= s.length;
+		while(buf_b.length < l) buf_b += c == null ? "null" : "" + c;
+		buf_b += s == null ? "null" : "" + s;
+		return buf_b;
 	}
 	static replace(s,sub,by) {
 		return s.split(sub).join(by);
@@ -18057,6 +18206,12 @@ class haxe_Exception extends Error {
 	unwrap() {
 		return this.__nativeException;
 	}
+	toString() {
+		return this.get_message();
+	}
+	get_message() {
+		return this.message;
+	}
 	get_native() {
 		return this.__nativeException;
 	}
@@ -18083,7 +18238,7 @@ class haxe_Exception extends Error {
 haxe_Exception.__name__ = "haxe.Exception";
 Object.assign(haxe_Exception.prototype, {
 	__class__: haxe_Exception
-	,__properties__: {get_native: "get_native"}
+	,__properties__: {get_native: "get_native",get_message: "get_message"}
 });
 class haxe_ValueException extends haxe_Exception {
 	constructor(value,previous,native) {
@@ -18162,6 +18317,35 @@ class haxe_ds__$StringMap_StringMapKeyIterator {
 haxe_ds__$StringMap_StringMapKeyIterator.__name__ = "haxe.ds._StringMap.StringMapKeyIterator";
 Object.assign(haxe_ds__$StringMap_StringMapKeyIterator.prototype, {
 	__class__: haxe_ds__$StringMap_StringMapKeyIterator
+});
+class haxe_exceptions_PosException extends haxe_Exception {
+	constructor(message,previous,pos) {
+		super(message,previous);
+		if(pos == null) {
+			this.posInfos = { fileName : "(unknown)", lineNumber : 0, className : "(unknown)", methodName : "(unknown)"};
+		} else {
+			this.posInfos = pos;
+		}
+	}
+	toString() {
+		return "" + super.toString() + " in " + this.posInfos.className + "." + this.posInfos.methodName + " at " + this.posInfos.fileName + ":" + this.posInfos.lineNumber;
+	}
+}
+haxe_exceptions_PosException.__name__ = "haxe.exceptions.PosException";
+Object.assign(haxe_exceptions_PosException.prototype, {
+	__class__: haxe_exceptions_PosException
+});
+class haxe_exceptions_NotImplementedException extends haxe_exceptions_PosException {
+	constructor(message,previous,pos) {
+		if(message == null) {
+			message = "Not implemented";
+		}
+		super(message,previous,pos);
+	}
+}
+haxe_exceptions_NotImplementedException.__name__ = "haxe.exceptions.NotImplementedException";
+Object.assign(haxe_exceptions_NotImplementedException.prototype, {
+	__class__: haxe_exceptions_NotImplementedException
 });
 class haxe_iterators_ArrayIterator {
 	constructor(array) {
@@ -22483,6 +22667,8 @@ Object.assign(meta_Quests.prototype, {
 });
 class meta_Save {
 	constructor() {
+		this.heroes = [];
+		this.history = [];
 		this.best = 0;
 		this.games = 0;
 		this.items = new haxe_ds_IntMap();
@@ -22499,7 +22685,7 @@ class meta_Save {
 			it[k == null ? "null" : "" + k] = v;
 		}
 		try {
-			window.localStorage.setItem("kikifest.collection",JSON.stringify({ v : 1, items : it, games : this.games, best : this.best}));
+			window.localStorage.setItem("kikifest.collection",JSON.stringify({ v : 1, items : it, games : this.games, best : this.best, history : this.history, heroes : this.heroes}));
 		} catch( _g ) {
 			let _g1 = haxe_Exception.caught(_g).unwrap();
 			$global.console.warn("Sauvegarde impossible",_g1);
@@ -22520,11 +22706,47 @@ class meta_Save {
 			}
 		}
 	}
+	addRecord(r) {
+		this.history.push(r);
+		if(r.score > this.best) {
+			this.best = r.score;
+		}
+		let tmp;
+		if(meta_Save.floorOf(r.score) == 0) {
+			let _this = this.heroes;
+			let _g = [];
+			let _g1 = 0;
+			while(_g1 < _this.length) {
+				let v = _this[_g1];
+				++_g1;
+				if(v.name == r.name) {
+					_g.push(v);
+				}
+			}
+			tmp = _g.length == 0;
+		} else {
+			tmp = false;
+		}
+		if(tmp) {
+			this.heroes.push({ d : r.d, name : r.name, score : r.score});
+			return true;
+		}
+		return false;
+	}
 	totalItems() {
 		let t = 0;
 		let v = this.items.iterator();
 		while(v.hasNext()) t += v.next();
 		return t;
+	}
+	static floorOf(score) {
+		let f = 4;
+		let _g = 0;
+		let _g1 = meta_Save.FLOORS;
+		while(_g < _g1.length) if(score >= _g1[_g++]) {
+			--f;
+		}
+		return f;
 	}
 	static load() {
 		let s = new meta_Save();
@@ -22548,6 +22770,12 @@ class meta_Save {
 				}
 				if(d.best != null) {
 					s.best = d.best;
+				}
+				if(d.history != null) {
+					s.history = d.history;
+				}
+				if(d.heroes != null) {
+					s.heroes = d.heroes;
 				}
 			}
 		} catch( _g ) {
@@ -29987,6 +30215,8 @@ if( String.fromCodePoint == null ) String.fromCodePoint = function(c) { return c
 	Object.defineProperty(String.prototype,"__class__",{ value : String, enumerable : false, writable : true});
 	String.__name__ = "String";
 	Array.__name__ = "Array";
+	Date.prototype.__class__ = Date;
+	Date.__name__ = "Date";
 }
 js_Boot.__toStr = ({ }).toString;
 
@@ -30396,6 +30626,10 @@ Data.TOOL_START = Data.auto_inc++;
 Data.TOOL_SPECIAL = Data.auto_inc++;
 Data.TOOL_SCORE = Data.auto_inc++;
 Data.WATCH = 0;
+DateTools.DAY_SHORT_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+DateTools.DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+DateTools.MONTH_SHORT_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+DateTools.MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 swf_DisplayObject._hx_skip_constructor = false;
 swf_DisplayObject.BLENDS = [null,null,"layer","multiply","screen","lighten","darken","add","subtract","difference","invert","alpha","erase","overlay","hardlight"];
 swf_MovieClip.TIMELINE_DEPTH = -16384;
@@ -30561,6 +30795,7 @@ levels_ScriptEngine.E_DARKNESS = "$e_darkness";
 levels_ScriptEngine.E_FAKELID = "$e_fakelid";
 levels_ScriptEngine.VERBOSE_TRIGGERS = [levels_ScriptEngine.T_POS,levels_ScriptEngine.T_EXPLODE,levels_ScriptEngine.T_ENTER];
 meta_Save.KEY = "kikifest.collection";
+meta_Save.FLOORS = [369920,737965,3508030,11152196];
 mode_GameMode.WATER_COLOR = 255;
 mode_Adventure.BUCKET_X = 11;
 mode_Adventure.BUCKET_Y = 19;

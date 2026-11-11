@@ -54,7 +54,8 @@ class Boot {
 			gameEnded = true;
 		});
 		MtStd.setGlobal("exitGame", function(?url:Dynamic, ?params:Dynamic) {
-			status("Partie terminée ! Appuie sur Échap pour rejouer.");
+			if (!gameEnded) // garde le message de fin de partie (quêtes, Panthéon)
+				status("Partie terminée ! Appuie sur Échap pour rejouer.");
 			gameEnded = true;
 		});
 		swf.FrameScripts.MtStdRoot.root = root;
@@ -159,7 +160,7 @@ class Boot {
 		return quests.compute(meta.Save.load().items).families.join(",");
 	}
 
-	/** Fin de partie : ajoute les objets ramassés à la collection (ce que faisait le serveur). */
+	/** Fin de partie : ajoute les objets ramassés à la collection et la partie au classement (ce que faisait le serveur). */
 	static function recordGame(score:Dynamic, data:Dynamic) {
 		if (data == null || Browser.location.search.indexOf("nosave") >= 0)
 			return;
@@ -170,13 +171,46 @@ class Boot {
 		var before = quests.compute(save.items).done;
 		save.addPicks(picks);
 		save.games++;
-		var sc = Std.parseInt(Std.string(score));
-		if (sc != null && sc > save.best)
-			save.best = sc;
+
+		// classement : une ligne par joueur (en coop, le score de chacun est dans $data)
+		var mode:String = Reflect.field(root, "$mode");
+		var level = toInt(Reflect.field(data, "__S_reachedLevel"));
+		var date = DateTools.format(Date.now(), "%Y-%m-%d");
+		var heroes = [];
+		var scores:Array<Int> = [toInt(score)];
+		var sub:Dynamic = Reflect.field(data, "__S_data");
+		if (mode == "multicoop" && sub != null)
+			scores = [toInt(Reflect.field(sub, "__S_s0")), toInt(Reflect.field(sub, "__S_s1"))];
+		if (mode != "solo" && mode != "multicoop")
+			scores = []; // seuls l'Aventure et l'Aventure à deux comptent au classement
+		for (i in 0...scores.length) {
+			var name = pref(i == 0 ? "name" : "name2", i == 0 ? "Igor" : "Sandy");
+			if (save.addRecord({d: date, mode: mode, name: name, score: scores[i], level: level}))
+				heroes.push(name);
+		}
 		save.store();
+
+		var msg = "Partie terminée !";
 		var fresh = quests.compute(save.items).done.filter(q -> before.indexOf(q) < 0);
 		if (fresh.length > 0)
-			status("Partie terminée ! Nouvelle quête accomplie (" + fresh.length + ") : va voir le menu Quêtes. Échap pour rejouer.");
+			msg += " Nouvelle quête accomplie (" + fresh.length + ") !";
+		if (heroes.length > 0)
+			msg += " " + heroes.join(" et ") + " entre" + (heroes.length > 1 ? "nt" : "") + " au Panthéon : va écrire ta phrase dans le menu !";
+		status(msg + " Échap pour rejouer.");
+	}
+
+	static function toInt(v:Dynamic):Int {
+		var n = Std.parseInt(Std.string(v));
+		return n == null || n < 0 ? 0 : n;
+	}
+
+	static function pref(k:String, def:String):String {
+		try {
+			var v = Browser.window.localStorage.getItem("kikifest." + k);
+			return v != null && v != "" ? v : def;
+		} catch (e:Dynamic) {
+			return def;
+		}
 	}
 
 	static var errors = 0;

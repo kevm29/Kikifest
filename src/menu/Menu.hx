@@ -5,6 +5,8 @@ import js.html.CanvasElement;
 import js.html.Element;
 import meta.Quests;
 import meta.Save;
+import meta.Save.GameRecord;
+import meta.Quests.Quest;
 import swf.Library;
 import swf.MovieClip;
 import swf.Renderer;
@@ -33,6 +35,7 @@ class Menu {
 	static var itemNames = new Map<Int, String>();
 	static var familyNames = new Map<Int, String>();
 	static var questTexts = new Map<Int, {title:String, desc:String}>();
+	static var oldHeroes:Array<{d:String, msg:String}> = [];
 
 	static var MODES:Array<ModeInfo> = [
 		{
@@ -98,6 +101,10 @@ class Menu {
 					return null;
 				})
 		];
+		jobs.push(Browser.window.fetch("assets/data/pantheon-anciens.json").then(r -> r.json()).then(j -> {
+			oldHeroes = j.heroes;
+			return null;
+		}));
 		js.lib.Promise.all(jobs).then(_ -> {
 			quests = new Quests(texts.get("quests"), [texts.get("specialItems"), texts.get("scoreItems")]);
 			readLang(texts.get("lang/fr"));
@@ -147,9 +154,12 @@ class Menu {
 		save = Save.load();
 		state = quests.compute(save.items);
 
-		var nameInput:js.html.InputElement = cast doc.getElementById("player");
-		nameInput.value = getPref("name", "Igor");
-		nameInput.onchange = () -> setPref("name", nameInput.value);
+		for (k in ["name", "name2"]) {
+			var input:js.html.InputElement = cast doc.getElementById(k);
+			input.value = getPref(k, k == "name" ? "Igor" : "Sandy");
+			input.onchange = () -> setPref(k, input.value);
+		}
+		doc.getElementById("pyr").innerHTML = pyramidSvg(-1, 56);
 		doc.getElementById("count").textContent = Std.string(save.totalItems());
 
 		// icônes des cubes de glace (graphismes du jeu)
@@ -181,13 +191,13 @@ class Menu {
 	}
 
 	static function show(view:String) {
-		if (view != "frigo" && view != "quetes")
+		if (["frigo", "quetes", "classement", "pantheon"].indexOf(view) < 0)
 			view = "jouer";
 		if (Browser.location.hash.substr(1) != view && !(view == "jouer" && Browser.location.hash == ""))
 			Browser.location.hash = view;
 		for (c in doc.querySelectorAll(".cube")) {
 			var el:Element = cast c;
-			el.classList.toggle("on", el.dataset.view == view);
+			el.classList.toggle("on", el.dataset.view == view || (view == "pantheon" && el.dataset.view == "classement"));
 		}
 		var main = doc.getElementById("main");
 		main.innerHTML = "";
@@ -196,6 +206,10 @@ class Menu {
 				showFridge(main);
 			case "quetes":
 				showQuests(main);
+			case "classement":
+				showRanking(main);
+			case "pantheon":
+				showPantheon(main);
 			default:
 				showModes(main);
 		}
@@ -373,42 +387,70 @@ class Menu {
 
 	// ---------------------------------------------------------------- quêtes
 
+	static function pageTitle(main:Element, light:String, bold:String) {
+		var h = el("h1", "ptitle", light + " ");
+		h.appendChild(el("b", null, bold));
+		main.appendChild(h);
+	}
+
+	/** Page « quêtes » du site d'origine : deux tableaux, en cours et complétées. */
 	static function showQuests(main:Element) {
-		var p = el("div", "panel wide");
-		p.appendChild(el("h2", null, "Mes quêtes"));
+		var page = el("div", "page");
+		pageTitle(page, "", "quêtes");
 		var all = getPref("spoil", "0") == "1";
-		var done = 0, started = 0, hidden = 0;
-		var listDone = el("div"), listOpen = el("div");
+		var open = [], done = [], hidden = 0;
 		for (q in quests.list) {
 			var complete = state.done.indexOf(q.id) >= 0;
-			var has = q.require.filter(r -> Quests.count(save.items, r.item) > 0).length > 0;
+			var started = q.require.filter(r -> Quests.count(save.items, r.item) > 0).length > 0;
 			if (complete)
-				done++;
-			else if (has)
-				started++;
-			else
+				done.push(q);
+			else if (started || all)
+				open.push(q);
+			if (!complete && !started)
 				hidden++;
-			if (!complete && !has && !all)
-				continue;
-			var t = questTexts.get(q.id);
-			var card = el("section", "quest" + (complete ? " done" : ""));
-			card.appendChild(el("h3", null, (complete ? "✔ " : "") + (t != null ? t.title : "Quête " + q.id)));
-			var req = el("div", "reqs");
-			for (r in q.require) {
-				var c = Quests.count(save.items, r.item);
-				var cell = el("span", "req" + (c >= r.qty ? " ok" : ""));
-				cell.appendChild(itemIcon(r.item, 36, c == 0));
-				cell.appendChild(el("span", "qty", '${Std.int(Math.min(c, r.qty))}/${r.qty}'));
-				req.appendChild(cell);
-			}
-			card.appendChild(req);
-			if (t != null && (complete || all))
-				card.appendChild(el("p", "reward", t.desc));
-			(complete ? listDone : listOpen).appendChild(card);
 		}
-		p.appendChild(el("p", "intro",
-			'$done quête${done > 1 ? "s" : ""} terminée${done > 1 ? "s" : ""}, $started en cours, $hidden encore secrète${hidden > 1 ? "s" : ""}.'
-			+ " Les objets ramassés s'additionnent d'une partie à l'autre."));
+
+		function table(head:String, list:Array<Quest>, empty:String, complete:Bool) {
+			var t = el("table", "qtable");
+			var tr = el("tr");
+			tr.appendChild(el("th", null, head));
+			tr.appendChild(el("th", "st", "Statut"));
+			t.appendChild(tr);
+			if (list.length == 0) {
+				var r = el("tr");
+				var td = el("td", "empty", empty);
+				td.setAttribute("colspan", "2");
+				r.appendChild(td);
+				t.appendChild(r);
+			}
+			for (q in list) {
+				var txt = questTexts.get(q.id);
+				var r = el("tr");
+				var td = el("td");
+				td.appendChild(el("div", "qname", txt != null ? txt.title : "Quête " + q.id));
+				var req = el("div", "reqs");
+				var have = 0, need = 0;
+				for (rq in q.require) {
+					var c = Quests.count(save.items, rq.item);
+					have += Std.int(Math.min(c, rq.qty));
+					need += rq.qty;
+					var cell = el("span", "req" + (c >= rq.qty ? " ok" : ""));
+					cell.appendChild(itemIcon(rq.item, 32, c == 0));
+					cell.appendChild(el("span", "qty", '${Std.int(Math.min(c, rq.qty))}/${rq.qty}'));
+					req.appendChild(cell);
+				}
+				td.appendChild(req);
+				if (txt != null && (complete || all))
+					td.appendChild(el("div", "reward", txt.desc));
+				r.appendChild(td);
+				r.appendChild(el("td", "st", complete ? "Complétée !" : Math.floor(have * 100 / need) + " %"));
+				t.appendChild(r);
+			}
+			page.appendChild(t);
+		}
+		table("Quêtes en cours", open, "Vous n'avez pas encore initié de quêtes !", false);
+		table("Quêtes complétées", done, "Aucune quête complétée ! N'abandonnez pas vos recherches !", true);
+
 		var toggle:js.html.InputElement = cast doc.createInputElement();
 		toggle.type = "checkbox";
 		toggle.checked = all;
@@ -418,16 +460,196 @@ class Menu {
 		};
 		var lab = el("label", "spoil");
 		lab.appendChild(toggle);
-		lab.appendChild(doc.createTextNode(" Montrer aussi les quêtes secrètes et leurs récompenses"));
-		p.appendChild(lab);
-		if (listOpen.childElementCount > 0) {
-			p.appendChild(el("h2", "sub", "En cours"));
-			p.appendChild(listOpen);
+		lab.appendChild(doc.createTextNode(' Montrer aussi les $hidden quêtes encore secrètes et leurs récompenses'));
+		page.appendChild(lab);
+		main.appendChild(page);
+	}
+
+	// ---------------------------------------------------------------- pyramide et Panthéon
+
+	static var FLOOR_COLORS = ["#f2c230", "#c9a3ec", "#a777d6", "#c64fa0", "#e2445f"];
+
+	/** La pyramide du site : la pointe dorée (Panthéon) puis les étages 1 à 4. `hl` = étage mis en valeur. */
+	static function pyramidSvg(hl:Int, size:Int):String {
+		var svg = '<svg viewBox="0 0 200 170" width="$size" height="${Std.int(size * 0.85)}" aria-hidden="true">';
+		var ys = [0, 34, 68, 102, 136, 166];
+		for (f in 0...5) {
+			var y0 = ys[f], y1 = ys[f + 1];
+			var x0 = 100 - y0 * 0.6, x1 = 100 - y1 * 0.6;
+			var col = FLOOR_COLORS[f];
+			var op = hl < 0 || hl == f ? 1 : 0.45;
+			svg += '<polygon points="$x0,$y0 ${200 - x0},$y0 ${200 - x1},$y1 $x1,$y1" fill="$col" opacity="$op" stroke="#fff" stroke-opacity=".5" stroke-width="${hl == f ? 3 : 1}"/>';
 		}
-		if (listDone.childElementCount > 0) {
-			p.appendChild(el("h2", "sub", "Terminées"));
-			p.appendChild(listDone);
+		svg += '<rect x="0" y="164" width="200" height="6" rx="2" fill="#f08a2c"/>';
+		return svg + "</svg>";
+	}
+
+	static function lastHero():{d:String, msg:String, name:String} {
+		var mine = save.heroes.filter(h -> h.msg != null);
+		if (mine.length > 0) {
+			var h = mine[mine.length - 1];
+			return {d: h.d, msg: h.msg, name: h.name};
 		}
-		main.appendChild(p);
+		return oldHeroes.length > 0 ? {d: oldHeroes[0].d, msg: oldHeroes[0].msg, name: null} : null;
+	}
+
+	static function quote(h:{d:String, msg:String, name:String}):Element {
+		var q = el("div", "quote");
+		q.appendChild(el("p", null, h.msg));
+		q.appendChild(el("div", "sig", h.d + (h.name != null ? "  " + h.name : "")));
+		return q;
+	}
+
+	/** Pour un héros qui vient d'entrer au Panthéon : écrire sa phrase. */
+	static function heroForm(page:Element) {
+		for (h in save.heroes) {
+			if (h.msg != null)
+				continue;
+			var box = el("div", "heroform");
+			box.appendChild(el("h3", null, 'Bravo ${h.name} ! Avec ${fmt(h.score)} points, vous entrez au Panthéon.'));
+			box.appendChild(el("p", null, "Laissez quelques paroles pleines de sagesse pour l'éternité :"));
+			var ta:js.html.TextAreaElement = cast doc.createElement("textarea");
+			ta.maxLength = 600;
+			box.appendChild(ta);
+			var b = el("a", "button", "Graver dans la pierre");
+			b.onclick = () -> {
+				var m = StringTools.trim(ta.value);
+				h.msg = m == "" ? "----" : m;
+				save.store();
+				show(Browser.location.hash.substr(1));
+			};
+			box.appendChild(b);
+			page.appendChild(box);
+			return;
+		}
+	}
+
+	static function fmt(n:Int):String {
+		var s = Std.string(n), r = "";
+		while (s.length > 3) {
+			r = "." + s.substr(s.length - 3) + r;
+			s = s.substr(0, s.length - 3);
+		}
+		return s + r;
+	}
+
+	static function showRanking(main:Element) {
+		var page = el("div", "page");
+		var top = el("div", "pyramid");
+		top.innerHTML = pyramidSvg(Save.floorOf(save.best), 240);
+		page.appendChild(top);
+		heroForm(page);
+		var h = lastHero();
+		if (h != null) {
+			page.appendChild(el("p", "said", (h.name != null ? "Le dernier héros de Kikifest" : "Le dernier héros d'Hammerfest") + ", a dit :"));
+			page.appendChild(quote(h));
+		}
+		var link = el("p", "center");
+		var a = el("a", null, "[ Voir le panthéon ]");
+		a.setAttribute("href", "#pantheon");
+		link.appendChild(a);
+		page.appendChild(link);
+
+		// meilleure partie de chaque joueur, rangée par étage (comme les classements hebdomadaires du site)
+		var best = new Map<String, GameRecord>();
+		for (r in save.history) {
+			var b = best.get(r.name);
+			if (b == null || r.score > b.score || (r.score == b.score && r.level > b.level))
+				best.set(r.name, r);
+		}
+		var rows = [for (r in best) r];
+		rows.sort((x, y) -> y.score - x.score);
+		var any = false;
+		for (f in [4, 3, 2, 1]) {
+			var list = rows.filter(r -> Save.floorOf(r.score) == f);
+			page.appendChild(el("h2", "floor", 'Classement de l\'étage $f :'));
+			var t = el("table", "rank");
+			var tr = el("tr");
+			for (c in ["Position", "Joueur", "Niveau atteint", "Score"])
+				tr.appendChild(el("th", null, c));
+			t.appendChild(tr);
+			if (list.length == 0) {
+				var r = el("tr");
+				var td = el("td", "empty", f == 4 && !any ? "Personne n'a encore terminé de partie. À vous de jouer !" : "Personne à cet étage pour l'instant.");
+				td.setAttribute("colspan", "4");
+				r.appendChild(td);
+				t.appendChild(r);
+			}
+			for (i in 0...list.length) {
+				any = true;
+				var r = el("tr");
+				r.appendChild(el("td", "num", Std.string(i + 1)));
+				r.appendChild(el("td", "who", list[i].name));
+				r.appendChild(el("td", "num", Std.string(list[i].level)));
+				r.appendChild(el("td", "num", fmt(list[i].score)));
+				t.appendChild(r);
+			}
+			page.appendChild(t);
+			var next = el("p", "next", "Score à atteindre pour la prochaine montée : ");
+			next.appendChild(el("b", null, fmt(Save.FLOORS[4 - f]) + " points"));
+			page.appendChild(next);
+		}
+
+		// dernières parties
+		if (save.history.length > 0) {
+			page.appendChild(el("h2", "floor", "Vos dernières parties :"));
+			var t = el("table", "rank");
+			var tr = el("tr");
+			for (c in ["Date", "Joueur", "Mode", "Niveau atteint", "Score"])
+				tr.appendChild(el("th", null, c));
+			t.appendChild(tr);
+			var h = save.history.copy();
+			h.reverse();
+			for (g in h.slice(0, 20)) {
+				var r = el("tr");
+				r.appendChild(el("td", null, g.d));
+				r.appendChild(el("td", "who", g.name));
+				r.appendChild(el("td", null, g.mode == "multicoop" ? "À deux" : "Aventure"));
+				r.appendChild(el("td", "num", Std.string(g.level)));
+				r.appendChild(el("td", "num", fmt(g.score)));
+				t.appendChild(r);
+			}
+			page.appendChild(t);
+		}
+		main.appendChild(page);
+	}
+
+	static function showPantheon(main:Element) {
+		var page = el("div", "page");
+		var top = el("div", "pyramid");
+		top.innerHTML = pyramidSvg(0, 200);
+		page.appendChild(top);
+		pageTitle(page, "le", "panthéon");
+		page.appendChild(el("p", null, "Les plus courageux et plus talentueux joueurs ont leur place pour l'éternité au Panthéon ! Vous aussi devenez une légende de Kikifest ! Il faut pour cela dépasser "
+			+ fmt(Save.FLOORS[3]) + " points en une partie d'Aventure."));
+		heroForm(page);
+		var h = lastHero();
+		if (h != null) {
+			page.appendChild(el("p", "said", "Le nouveau héros" + (h.name != null ? " " + h.name : "") + ", les mains gelées d'avoir trop joué, a dit :"));
+			page.appendChild(quote(h));
+		}
+
+		function hall(title:String, list:Array<{d:String, msg:String, name:String}>) {
+			page.appendChild(el("h2", "hall", title));
+			var t = el("table", "rank heroes");
+			var tr = el("tr");
+			for (c in ["Date", "Joueur", "Paroles pleines de sagesse"])
+				tr.appendChild(el("th", null, c));
+			t.appendChild(tr);
+			for (x in list) {
+				var r = el("tr");
+				r.appendChild(el("td", "date", x.d));
+				r.appendChild(el("td", x.name != null ? "who" : "who anon", x.name != null ? x.name : "un héros"));
+				r.appendChild(el("td", "words", x.msg));
+				t.appendChild(r);
+			}
+			page.appendChild(t);
+		}
+		var mine = [for (x in save.heroes) if (x.msg != null) {d: x.d, msg: x.msg, name: x.name}];
+		mine.reverse();
+		if (mine.length > 0)
+			hall("Le hall des Héros de Kikifest", mine);
+		hall("Les anciens Héros d'Hammerfest", [for (x in oldHeroes) {d: x.d, msg: x.msg, name: null}]);
+		main.appendChild(page);
 	}
 }

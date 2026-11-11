@@ -1157,6 +1157,12 @@ class menu_Menu {
 			}));
 		}
 		let jobs = _g;
+		jobs.push(window.fetch("assets/data/pantheon-anciens.json").then(function(r) {
+			return r.json();
+		}).then(function(j) {
+			menu_Menu.oldHeroes = j.heroes;
+			return null;
+		}));
 		Promise.all(jobs).then(function(_) {
 			menu_Menu.quests = new meta_Quests(texts_h["quests"],[texts_h["specialItems"],texts_h["scoreItems"]]);
 			menu_Menu.readLang(texts_h["lang/fr"]);
@@ -1244,11 +1250,19 @@ class menu_Menu {
 		menu_Menu.root.__isRoot = true;
 		menu_Menu.save = meta_Save.load();
 		menu_Menu.state = menu_Menu.quests.compute(menu_Menu.save.items);
-		let nameInput = menu_Menu.doc.getElementById("player");
-		nameInput.value = menu_Menu.getPref("name","Igor");
-		nameInput.onchange = function() {
-			menu_Menu.setPref("name",nameInput.value);
+		let k = "name";
+		let input = menu_Menu.doc.getElementById(k);
+		input.value = menu_Menu.getPref(k,k == "name" ? "Igor" : "Sandy");
+		input.onchange = function() {
+			menu_Menu.setPref(k,input.value);
 		};
+		let k1 = "name2";
+		let input1 = menu_Menu.doc.getElementById(k1);
+		input1.value = menu_Menu.getPref(k1,k1 == "name" ? "Igor" : "Sandy");
+		input1.onchange = function() {
+			menu_Menu.setPref(k1,input1.value);
+		};
+		menu_Menu.doc.getElementById("pyr").innerHTML = menu_Menu.pyramidSvg(-1,56);
 		let tmp = menu_Menu.save.totalItems();
 		menu_Menu.doc.getElementById("count").textContent = Std.string(tmp);
 		let _g = 0;
@@ -1293,7 +1307,7 @@ class menu_Menu {
 		}
 	}
 	static show(view) {
-		if(view != "frigo" && view != "quetes") {
+		if(["frigo","quetes","classement","pantheon"].indexOf(view) < 0) {
 			view = "jouer";
 		}
 		if(HxOverrides.substr($global.location.hash,1,null) != view && !(view == "jouer" && $global.location.hash == "")) {
@@ -1305,13 +1319,19 @@ class menu_Menu {
 			let c = _g1[_g];
 			++_g;
 			let el = c;
-			el.classList.toggle("on",el.dataset.view == view);
+			el.classList.toggle("on",el.dataset.view == view || view == "pantheon" && el.dataset.view == "classement");
 		}
 		let main = menu_Menu.doc.getElementById("main");
 		main.innerHTML = "";
 		switch(view) {
+		case "classement":
+			menu_Menu.showRanking(main);
+			break;
 		case "frigo":
 			menu_Menu.showFridge(main);
+			break;
+		case "pantheon":
+			menu_Menu.showPantheon(main);
 			break;
 		case "quetes":
 			menu_Menu.showQuests(main);
@@ -1596,15 +1616,18 @@ class menu_Menu {
 		}
 		main.appendChild(p);
 	}
+	static pageTitle(main,light,bold) {
+		let h = menu_Menu.el("h1","ptitle",light + " ");
+		h.appendChild(menu_Menu.el("b",null,bold));
+		main.appendChild(h);
+	}
 	static showQuests(main) {
-		let p = menu_Menu.el("div","panel wide");
-		p.appendChild(menu_Menu.el("h2",null,"Mes quêtes"));
+		let page = menu_Menu.el("div","page");
+		menu_Menu.pageTitle(page,"","quêtes");
 		let all = menu_Menu.getPref("spoil","0") == "1";
-		let done = 0;
-		let started = 0;
+		let open = [];
+		let done = [];
 		let hidden = 0;
-		let listDone = menu_Menu.el("div");
-		let listOpen = menu_Menu.el("div");
 		let _g = 0;
 		let _g1 = menu_Menu.quests.list;
 		while(_g < _g1.length) {
@@ -1622,40 +1645,66 @@ class menu_Menu {
 					_g2.push(v);
 				}
 			}
-			let has = _g2.length > 0;
+			let started = _g2.length > 0;
 			if(complete) {
-				++done;
-			} else if(has) {
-				++started;
-			} else {
+				done.push(q);
+			} else if(started || all) {
+				open.push(q);
+			}
+			if(!complete && !started) {
 				++hidden;
 			}
-			if(!complete && !has && !all) {
-				continue;
-			}
-			let t = menu_Menu.questTexts.h[q.id];
-			let card = menu_Menu.el("section","quest" + (complete ? " done" : ""));
-			card.appendChild(menu_Menu.el("h3",null,(complete ? "✔ " : "") + (t != null ? t.title : "Quête " + q.id)));
-			let req = menu_Menu.el("div","reqs");
-			let _g5 = 0;
-			let _g6 = q.require;
-			while(_g5 < _g6.length) {
-				let r = _g6[_g5];
-				++_g5;
-				let n = menu_Menu.save.items.h[r.item];
-				let c = n == null ? 0 : n;
-				let cell = menu_Menu.el("span","req" + (c >= r.qty ? " ok" : ""));
-				cell.appendChild(menu_Menu.itemIcon(r.item,36,c == 0));
-				cell.appendChild(menu_Menu.el("span","qty","" + (Math.min(c,r.qty) | 0) + "/" + r.qty));
-				req.appendChild(cell);
-			}
-			card.appendChild(req);
-			if(t != null && (complete || all)) {
-				card.appendChild(menu_Menu.el("p","reward",t.desc));
-			}
-			(complete ? listDone : listOpen).appendChild(card);
 		}
-		p.appendChild(menu_Menu.el("p","intro","" + done + " quête" + (done > 1 ? "s" : "") + " terminée" + (done > 1 ? "s" : "") + ", " + started + " en cours, " + hidden + " encore secrète" + (hidden > 1 ? "s" : "") + "." + " Les objets ramassés s'additionnent d'une partie à l'autre."));
+		let table = function(head,list,empty,complete) {
+			let t = menu_Menu.el("table","qtable");
+			let tr = menu_Menu.el("tr");
+			tr.appendChild(menu_Menu.el("th",null,head));
+			tr.appendChild(menu_Menu.el("th","st","Statut"));
+			t.appendChild(tr);
+			if(list.length == 0) {
+				let r = menu_Menu.el("tr");
+				let td = menu_Menu.el("td","empty",empty);
+				td.setAttribute("colspan","2");
+				r.appendChild(td);
+				t.appendChild(r);
+			}
+			let _g = 0;
+			while(_g < list.length) {
+				let q = list[_g];
+				++_g;
+				let txt = menu_Menu.questTexts.h[q.id];
+				let r = menu_Menu.el("tr");
+				let td = menu_Menu.el("td");
+				td.appendChild(menu_Menu.el("div","qname",txt != null ? txt.title : "Quête " + q.id));
+				let req = menu_Menu.el("div","reqs");
+				let have = 0;
+				let need = 0;
+				let _g1 = 0;
+				let _g2 = q.require;
+				while(_g1 < _g2.length) {
+					let rq = _g2[_g1];
+					++_g1;
+					let n = menu_Menu.save.items.h[rq.item];
+					let c = n == null ? 0 : n;
+					have += Math.min(c,rq.qty) | 0;
+					need += rq.qty;
+					let cell = menu_Menu.el("span","req" + (c >= rq.qty ? " ok" : ""));
+					cell.appendChild(menu_Menu.itemIcon(rq.item,32,c == 0));
+					cell.appendChild(menu_Menu.el("span","qty","" + (Math.min(c,rq.qty) | 0) + "/" + rq.qty));
+					req.appendChild(cell);
+				}
+				td.appendChild(req);
+				if(txt != null && (complete || all)) {
+					td.appendChild(menu_Menu.el("div","reward",txt.desc));
+				}
+				r.appendChild(td);
+				r.appendChild(menu_Menu.el("td","st",complete ? "Complétée !" : Math.floor(have * 100 / need) + " %"));
+				t.appendChild(r);
+			}
+			page.appendChild(t);
+		};
+		table("Quêtes en cours",open,"Vous n'avez pas encore initié de quêtes !",false);
+		table("Quêtes complétées",done,"Aucune quête complétée ! N'abandonnez pas vos recherches !",true);
 		let toggle = menu_Menu.doc.createElement("input");
 		toggle.type = "checkbox";
 		toggle.checked = all;
@@ -1665,17 +1714,310 @@ class menu_Menu {
 		};
 		let lab = menu_Menu.el("label","spoil");
 		lab.appendChild(toggle);
-		lab.appendChild(menu_Menu.doc.createTextNode(" Montrer aussi les quêtes secrètes et leurs récompenses"));
-		p.appendChild(lab);
-		if(listOpen.childElementCount > 0) {
-			p.appendChild(menu_Menu.el("h2","sub","En cours"));
-			p.appendChild(listOpen);
+		lab.appendChild(menu_Menu.doc.createTextNode(" Montrer aussi les " + hidden + " quêtes encore secrètes et leurs récompenses"));
+		page.appendChild(lab);
+		main.appendChild(page);
+	}
+	static pyramidSvg(hl,size) {
+		let svg = "<svg viewBox=\"0 0 200 170\" width=\"" + size + "\" height=\"" + (size * 0.85 | 0) + "\" aria-hidden=\"true\">";
+		let ys_0 = 0;
+		let ys_1 = 34;
+		let ys_2 = 68;
+		let ys_3 = 102;
+		let ys_4 = 136;
+		let ys_5 = 166;
+		let y0 = ys_0;
+		let y1 = ys_1;
+		let x0 = 100 - y0 * 0.6;
+		let x1 = 100 - y1 * 0.6;
+		let col = menu_Menu.FLOOR_COLORS[0];
+		let op = hl < 0 || hl == 0 ? 1 : 0.45;
+		svg += "<polygon points=\"" + x0 + "," + y0 + " " + (200 - x0) + "," + y0 + " " + (200 - x1) + "," + y1 + " " + x1 + "," + y1 + "\" fill=\"" + col + "\" opacity=\"" + op + "\" stroke=\"#fff\" stroke-opacity=\".5\" stroke-width=\"" + (hl == 0 ? 3 : 1) + "\"/>";
+		let y01 = ys_1;
+		let y11 = ys_2;
+		let x01 = 100 - y01 * 0.6;
+		let x11 = 100 - y11 * 0.6;
+		let col1 = menu_Menu.FLOOR_COLORS[1];
+		let op1 = hl < 0 || hl == 1 ? 1 : 0.45;
+		svg += "<polygon points=\"" + x01 + "," + y01 + " " + (200 - x01) + "," + y01 + " " + (200 - x11) + "," + y11 + " " + x11 + "," + y11 + "\" fill=\"" + col1 + "\" opacity=\"" + op1 + "\" stroke=\"#fff\" stroke-opacity=\".5\" stroke-width=\"" + (hl == 1 ? 3 : 1) + "\"/>";
+		let y02 = ys_2;
+		let y12 = ys_3;
+		let x02 = 100 - y02 * 0.6;
+		let x12 = 100 - y12 * 0.6;
+		let col2 = menu_Menu.FLOOR_COLORS[2];
+		let op2 = hl < 0 || hl == 2 ? 1 : 0.45;
+		svg += "<polygon points=\"" + x02 + "," + y02 + " " + (200 - x02) + "," + y02 + " " + (200 - x12) + "," + y12 + " " + x12 + "," + y12 + "\" fill=\"" + col2 + "\" opacity=\"" + op2 + "\" stroke=\"#fff\" stroke-opacity=\".5\" stroke-width=\"" + (hl == 2 ? 3 : 1) + "\"/>";
+		let y03 = ys_3;
+		let y13 = ys_4;
+		let x03 = 100 - y03 * 0.6;
+		let x13 = 100 - y13 * 0.6;
+		let col3 = menu_Menu.FLOOR_COLORS[3];
+		let op3 = hl < 0 || hl == 3 ? 1 : 0.45;
+		svg += "<polygon points=\"" + x03 + "," + y03 + " " + (200 - x03) + "," + y03 + " " + (200 - x13) + "," + y13 + " " + x13 + "," + y13 + "\" fill=\"" + col3 + "\" opacity=\"" + op3 + "\" stroke=\"#fff\" stroke-opacity=\".5\" stroke-width=\"" + (hl == 3 ? 3 : 1) + "\"/>";
+		let y04 = ys_4;
+		let y14 = ys_5;
+		let x04 = 100 - y04 * 0.6;
+		let x14 = 100 - y14 * 0.6;
+		let col4 = menu_Menu.FLOOR_COLORS[4];
+		let op4 = hl < 0 || hl == 4 ? 1 : 0.45;
+		svg += "<polygon points=\"" + x04 + "," + y04 + " " + (200 - x04) + "," + y04 + " " + (200 - x14) + "," + y14 + " " + x14 + "," + y14 + "\" fill=\"" + col4 + "\" opacity=\"" + op4 + "\" stroke=\"#fff\" stroke-opacity=\".5\" stroke-width=\"" + (hl == 4 ? 3 : 1) + "\"/>";
+		svg += "<rect x=\"0\" y=\"164\" width=\"200\" height=\"6\" rx=\"2\" fill=\"#f08a2c\"/>";
+		return svg + "</svg>";
+	}
+	static lastHero() {
+		let _g = [];
+		let _g1 = 0;
+		let _g2 = menu_Menu.save.heroes;
+		while(_g1 < _g2.length) {
+			let v = _g2[_g1];
+			++_g1;
+			if(v.msg != null) {
+				_g.push(v);
+			}
 		}
-		if(listDone.childElementCount > 0) {
-			p.appendChild(menu_Menu.el("h2","sub","Terminées"));
-			p.appendChild(listDone);
+		let mine = _g;
+		if(mine.length > 0) {
+			let h = mine[mine.length - 1];
+			return { d : h.d, msg : h.msg, name : h.name};
 		}
-		main.appendChild(p);
+		if(menu_Menu.oldHeroes.length > 0) {
+			return { d : menu_Menu.oldHeroes[0].d, msg : menu_Menu.oldHeroes[0].msg, name : null};
+		} else {
+			return null;
+		}
+	}
+	static quote(h) {
+		let q = menu_Menu.el("div","quote");
+		q.appendChild(menu_Menu.el("p",null,h.msg));
+		q.appendChild(menu_Menu.el("div","sig",h.d + (h.name != null ? "  " + h.name : "")));
+		return q;
+	}
+	static heroForm(page) {
+		let _g = 0;
+		let _g1 = menu_Menu.save.heroes;
+		while(_g < _g1.length) {
+			let h = _g1[_g];
+			++_g;
+			if(h.msg != null) {
+				continue;
+			}
+			let box = menu_Menu.el("div","heroform");
+			box.appendChild(menu_Menu.el("h3",null,"Bravo " + h.name + " ! Avec " + menu_Menu.fmt(h.score) + " points, vous entrez au Panthéon."));
+			box.appendChild(menu_Menu.el("p",null,"Laissez quelques paroles pleines de sagesse pour l'éternité :"));
+			let ta = menu_Menu.doc.createElement("textarea");
+			ta.maxLength = 600;
+			box.appendChild(ta);
+			let b = menu_Menu.el("a","button","Graver dans la pierre");
+			b.onclick = function() {
+				let m = StringTools.trim(ta.value);
+				h.msg = m == "" ? "----" : m;
+				menu_Menu.save.store();
+				menu_Menu.show(HxOverrides.substr($global.location.hash,1,null));
+			};
+			box.appendChild(b);
+			page.appendChild(box);
+			return;
+		}
+	}
+	static fmt(n) {
+		let s = n == null ? "null" : "" + n;
+		let r = "";
+		while(s.length > 3) {
+			r = "." + HxOverrides.substr(s,s.length - 3,null) + r;
+			s = HxOverrides.substr(s,0,s.length - 3);
+		}
+		return s + r;
+	}
+	static showRanking(main) {
+		let page = menu_Menu.el("div","page");
+		let top = menu_Menu.el("div","pyramid");
+		top.innerHTML = menu_Menu.pyramidSvg(meta_Save.floorOf(menu_Menu.save.best),240);
+		page.appendChild(top);
+		menu_Menu.heroForm(page);
+		let h = menu_Menu.lastHero();
+		if(h != null) {
+			page.appendChild(menu_Menu.el("p","said",(h.name != null ? "Le dernier héros de Kikifest" : "Le dernier héros d'Hammerfest") + ", a dit :"));
+			page.appendChild(menu_Menu.quote(h));
+		}
+		let link = menu_Menu.el("p","center");
+		let a = menu_Menu.el("a",null,"[ Voir le panthéon ]");
+		a.setAttribute("href","#pantheon");
+		link.appendChild(a);
+		page.appendChild(link);
+		let best_h = Object.create(null);
+		let _g = 0;
+		let _g1 = menu_Menu.save.history;
+		while(_g < _g1.length) {
+			let r = _g1[_g];
+			++_g;
+			let b = best_h[r.name];
+			if(b == null || r.score > b.score || r.score == b.score && r.level > b.level) {
+				best_h[r.name] = r;
+			}
+		}
+		let _g2 = [];
+		let h1 = best_h;
+		let r_h = h1;
+		let r_keys = Object.keys(h1);
+		let r_length = r_keys.length;
+		let r_current = 0;
+		while(r_current < r_length) {
+			let r = r_h[r_keys[r_current++]];
+			_g2.push(r);
+		}
+		let rows = _g2;
+		rows.sort(function(x,y) {
+			return y.score - x.score;
+		});
+		let any = false;
+		let _g3 = 0;
+		let _g4 = [4,3,2,1];
+		while(_g3 < _g4.length) {
+			let f = _g4[_g3];
+			++_g3;
+			let _g = [];
+			let _g1 = 0;
+			let _g2 = rows;
+			while(_g1 < _g2.length) {
+				let v = _g2[_g1];
+				++_g1;
+				if(meta_Save.floorOf(v.score) == f) {
+					_g.push(v);
+				}
+			}
+			let list = _g;
+			page.appendChild(menu_Menu.el("h2","floor","Classement de l'étage " + f + " :"));
+			let t = menu_Menu.el("table","rank");
+			let tr = menu_Menu.el("tr");
+			let c = "Position";
+			tr.appendChild(menu_Menu.el("th",null,c));
+			let c1 = "Joueur";
+			tr.appendChild(menu_Menu.el("th",null,c1));
+			let c2 = "Niveau atteint";
+			tr.appendChild(menu_Menu.el("th",null,c2));
+			let c3 = "Score";
+			tr.appendChild(menu_Menu.el("th",null,c3));
+			t.appendChild(tr);
+			if(list.length == 0) {
+				let r = menu_Menu.el("tr");
+				let td = menu_Menu.el("td","empty",f == 4 && !any ? "Personne n'a encore terminé de partie. À vous de jouer !" : "Personne à cet étage pour l'instant.");
+				td.setAttribute("colspan","4");
+				r.appendChild(td);
+				t.appendChild(r);
+			}
+			let _g5 = 0;
+			let _g6 = list.length;
+			while(_g5 < _g6) {
+				let i = _g5++;
+				any = true;
+				let r = menu_Menu.el("tr");
+				r.appendChild(menu_Menu.el("td","num",Std.string(i + 1)));
+				r.appendChild(menu_Menu.el("td","who",list[i].name));
+				r.appendChild(menu_Menu.el("td","num",Std.string(list[i].level)));
+				r.appendChild(menu_Menu.el("td","num",menu_Menu.fmt(list[i].score)));
+				t.appendChild(r);
+			}
+			page.appendChild(t);
+			let next = menu_Menu.el("p","next","Score à atteindre pour la prochaine montée : ");
+			next.appendChild(menu_Menu.el("b",null,menu_Menu.fmt(meta_Save.FLOORS[4 - f]) + " points"));
+			page.appendChild(next);
+		}
+		if(menu_Menu.save.history.length > 0) {
+			page.appendChild(menu_Menu.el("h2","floor","Vos dernières parties :"));
+			let t = menu_Menu.el("table","rank");
+			let tr = menu_Menu.el("tr");
+			let c = "Date";
+			tr.appendChild(menu_Menu.el("th",null,c));
+			let c1 = "Joueur";
+			tr.appendChild(menu_Menu.el("th",null,c1));
+			let c2 = "Mode";
+			tr.appendChild(menu_Menu.el("th",null,c2));
+			let c3 = "Niveau atteint";
+			tr.appendChild(menu_Menu.el("th",null,c3));
+			let c4 = "Score";
+			tr.appendChild(menu_Menu.el("th",null,c4));
+			t.appendChild(tr);
+			let h = menu_Menu.save.history.slice();
+			h.reverse();
+			let _g = 0;
+			let _g1 = h.slice(0,20);
+			while(_g < _g1.length) {
+				let g = _g1[_g];
+				++_g;
+				let r = menu_Menu.el("tr");
+				r.appendChild(menu_Menu.el("td",null,g.d));
+				r.appendChild(menu_Menu.el("td","who",g.name));
+				r.appendChild(menu_Menu.el("td",null,g.mode == "multicoop" ? "À deux" : "Aventure"));
+				r.appendChild(menu_Menu.el("td","num",g.level == null ? "null" : "" + g.level));
+				r.appendChild(menu_Menu.el("td","num",menu_Menu.fmt(g.score)));
+				t.appendChild(r);
+			}
+			page.appendChild(t);
+		}
+		main.appendChild(page);
+	}
+	static showPantheon(main) {
+		let page = menu_Menu.el("div","page");
+		let top = menu_Menu.el("div","pyramid");
+		top.innerHTML = menu_Menu.pyramidSvg(0,200);
+		page.appendChild(top);
+		menu_Menu.pageTitle(page,"le","panthéon");
+		page.appendChild(menu_Menu.el("p",null,"Les plus courageux et plus talentueux joueurs ont leur place pour l'éternité au Panthéon ! Vous aussi devenez une légende de Kikifest ! Il faut pour cela dépasser " + menu_Menu.fmt(meta_Save.FLOORS[3]) + " points en une partie d'Aventure."));
+		menu_Menu.heroForm(page);
+		let h = menu_Menu.lastHero();
+		if(h != null) {
+			page.appendChild(menu_Menu.el("p","said","Le nouveau héros" + (h.name != null ? " " + h.name : "") + ", les mains gelées d'avoir trop joué, a dit :"));
+			page.appendChild(menu_Menu.quote(h));
+		}
+		let hall = function(title,list) {
+			page.appendChild(menu_Menu.el("h2","hall",title));
+			let t = menu_Menu.el("table","rank heroes");
+			let tr = menu_Menu.el("tr");
+			let c = "Date";
+			tr.appendChild(menu_Menu.el("th",null,c));
+			let c1 = "Joueur";
+			tr.appendChild(menu_Menu.el("th",null,c1));
+			let c2 = "Paroles pleines de sagesse";
+			tr.appendChild(menu_Menu.el("th",null,c2));
+			t.appendChild(tr);
+			let _g = 0;
+			while(_g < list.length) {
+				let x = list[_g];
+				++_g;
+				let r = menu_Menu.el("tr");
+				r.appendChild(menu_Menu.el("td","date",x.d));
+				r.appendChild(menu_Menu.el("td",x.name != null ? "who" : "who anon",x.name != null ? x.name : "un héros"));
+				r.appendChild(menu_Menu.el("td","words",x.msg));
+				t.appendChild(r);
+			}
+			page.appendChild(t);
+		};
+		let _g = [];
+		let _g1 = 0;
+		let _g2 = menu_Menu.save.heroes;
+		while(_g1 < _g2.length) {
+			let x = _g2[_g1];
+			++_g1;
+			if(x.msg != null) {
+				_g.push({ d : x.d, msg : x.msg, name : x.name});
+			}
+		}
+		let mine = _g;
+		mine.reverse();
+		if(mine.length > 0) {
+			hall("Le hall des Héros de Kikifest",mine);
+		}
+		let hall1 = hall;
+		let _g3 = [];
+		let _g4 = 0;
+		let _g5 = menu_Menu.oldHeroes;
+		while(_g4 < _g5.length) {
+			let x = _g5[_g4];
+			++_g4;
+			_g3.push({ d : x.d, msg : x.msg, name : null});
+		}
+		hall1("Les anciens Héros d'Hammerfest",_g3);
+		main.appendChild(page);
 	}
 }
 menu_Menu.__name__ = "menu.Menu";
@@ -1837,9 +2179,31 @@ Object.assign(meta_Quests.prototype, {
 });
 class meta_Save {
 	constructor() {
+		this.heroes = [];
+		this.history = [];
 		this.best = 0;
 		this.games = 0;
 		this.items = new haxe_ds_IntMap();
+	}
+	store() {
+		let it = { };
+		let map = this.items;
+		let _g_map = map;
+		let _g_keys = map.keys();
+		while(_g_keys.hasNext()) {
+			let key = _g_keys.next();
+			let _g_value = _g_map.get(key);
+			let _g_key = key;
+			let k = _g_key;
+			let v = _g_value;
+			it[k == null ? "null" : "" + k] = v;
+		}
+		try {
+			window.localStorage.setItem("kikifest.collection",JSON.stringify({ v : 1, items : it, games : this.games, best : this.best, history : this.history, heroes : this.heroes}));
+		} catch( _g ) {
+			let e = haxe_Exception.caught(_g).unwrap();
+			$global.console.warn("Sauvegarde impossible",e);
+		}
 	}
 	totalItems() {
 		let t = 0;
@@ -1849,6 +2213,19 @@ class meta_Save {
 			t += v1;
 		}
 		return t;
+	}
+	static floorOf(score) {
+		let f = 4;
+		let _g = 0;
+		let _g1 = meta_Save.FLOORS;
+		while(_g < _g1.length) {
+			let t = _g1[_g];
+			++_g;
+			if(score >= t) {
+				--f;
+			}
+		}
+		return f;
 	}
 	static load() {
 		let s = new meta_Save();
@@ -1876,6 +2253,12 @@ class meta_Save {
 				}
 				if(d.best != null) {
 					s.best = d.best;
+				}
+				if(d.history != null) {
+					s.history = d.history;
+				}
+				if(d.heroes != null) {
+					s.heroes = d.heroes;
 				}
 			}
 		} catch( _g ) {
@@ -3165,6 +3548,7 @@ menu_Menu.uniq = 1;
 menu_Menu.itemNames = new haxe_ds_IntMap();
 menu_Menu.familyNames = new haxe_ds_IntMap();
 menu_Menu.questTexts = new haxe_ds_IntMap();
+menu_Menu.oldHeroes = [];
 menu_Menu.MODES = [{ id : "solo", name : "Aventure", desc : "Jouez la vraie Aventure ! Libérez les fruits ! (avec les Dimensions parallèles)", icon : 1000, options : ["mirror","nightmare","ninja","bombexpert"]},{ id : "tutorial", name : "Apprentissage", desc : "Découvrez le jeu pas à pas, avec des vies illimitées. Ce mode est gratuit et illimité !", icon : 1, options : []},{ id : "multicoop", name : "Aventure à deux", desc : "Igor et Sandy repartent ensemble dans la grande aventure, sur le même clavier.\nIgor : flèches + Entrée · Sandy : R D F G + A", icon : 1027, options : ["mirrormulti","nightmaremulti","lifesharing"]},{ id : "timeattack", name : "Time Attack", desc : "Traversez les niveaux le plus vite possible !", icon : 1236, unlock : "timeattack", options : []},{ id : "soccer", name : "Soccerfest", desc : "Un match de football à deux, à coups de bombes.\nIgor : flèches + Entrée · Sandy : R D F G + A", icon : 1043, options : ["kickcontrol","soccerbomb"]}];
 menu_Menu.OPTION_NAMES = (function($this) {
 	var $r;
@@ -3183,6 +3567,8 @@ menu_Menu.OPTION_NAMES = (function($this) {
 }(this));
 menu_Menu.PASSIVE = ["boost","set_ta_0","set_ta_1","set_ta_2","set_mta_0","set_mta_1","set_mta_2"];
 menu_Menu.iconCache = new haxe_ds_StringMap();
+menu_Menu.FLOOR_COLORS = ["#f2c230","#c9a3ec","#a777d6","#c64fa0","#e2445f"];
+meta_Save.FLOORS = [369920,737965,3508030,11152196];
 mtlib_Rand.seed = 625341585;
 swf_DisplayObject._hx_skip_constructor = false;
 swf_FrameScripts.GLOBALS = ["Math","random","_global","_root","undefined","NaN","Infinity","Number","String","Array","Boolean","Object","isNaN","parseInt","parseFloat","int","trace","console","eval"];

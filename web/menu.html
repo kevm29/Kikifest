@@ -28,7 +28,7 @@
   .bar { margin: 12px 16px 0; padding: 4px 12px; border-radius: 10px; color: #fff; font-weight: bold;
     background: repeating-linear-gradient(-45deg, #a68bd0 0 8px, #b79ddd 8px 16px); text-align: center; }
   .bar input { font: inherit; color: #fff; background: transparent; border: 0; border-bottom: 1px dashed #fff;
-    width: 7em; text-align: center; }
+    width: 6.5em; text-align: center; }
   .layout { display: flex; gap: 18px; padding: 24px 16px 40px; }
   nav { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; margin-left: -10px; }
   .cube { width: 92px; height: 86px; border-radius: 10px; cursor: pointer; position: relative;
@@ -76,6 +76,43 @@
   .quest.done { background: rgba(200,255,190,.18); }
   .reward { margin: 8px 0 0; font-style: italic; }
   .spoil { display: block; font-size: 13px; cursor: pointer; opacity: .9; }
+  .page { flex: 1; min-width: 0; color: var(--ink); }
+  .ptitle { text-align: right; font-weight: normal; font-size: 30px; margin: 0 0 18px; color: var(--violet-dark);
+    border-bottom: 1px solid var(--violet); padding-bottom: 4px; }
+  .qtable { width: 100%; max-width: 640px; margin: 18px auto 28px; border-collapse: collapse; }
+  .qtable th { text-align: left; font-size: 13px; text-transform: uppercase; color: var(--violet-dark);
+    padding: 4px 10px; border-bottom: 2px solid #b9cfe8; }
+  .qtable th:first-child { text-align: right; }
+  .qtable td { background: #cadcf0; padding: 8px 12px; border-bottom: 2px solid var(--page); vertical-align: top; }
+  .qtable td.empty { text-align: center; font-size: 17px; }
+  .qtable .st { width: 110px; text-align: center; font-weight: bold; color: var(--violet-dark); vertical-align: middle; }
+  .qname { font-weight: bold; margin-bottom: 4px; }
+  .qtable .reqs { gap: 8px; }
+  .qtable .reward { margin-top: 6px; font-style: italic; }
+  .qtable .req.ok .qty { color: #2f8a2f; }
+  .page .spoil { text-align: center; color: var(--violet-dark); }
+  .pyramid { text-align: center; position: relative; margin: 6px 0 10px; }
+  .pyramid::before, .pyramid::after { content: ""; position: absolute; top: 70%; width: 26%; border-top: 1px solid #8f86b3; }
+  .pyramid::before { left: 2%; } .pyramid::after { right: 2%; }
+  .said { font-size: 20px; color: var(--violet-dark); margin: 14px 0 4px; }
+  .quote { margin: 0 auto 6px; max-width: 640px; background: #c3b3e6; border: 1px solid #a48fd6; border-radius: 8px;
+    padding: 8px 14px; font-style: italic; color: #3a2a63; }
+  .quote p { margin: 0; } .quote .sig { text-align: right; font-style: normal; font-size: 13px; }
+  .center { text-align: center; } .page a { color: #3b3b9e; }
+  .floor, .hall { font-weight: normal; color: var(--violet-dark); font-size: 22px; margin: 26px 0 6px; }
+  .hall { text-align: right; }
+  .rank { width: 100%; max-width: 620px; margin: 0 auto; border-collapse: collapse; background: #dce8f6; }
+  .rank th { background: #b9cfe8; color: var(--ink); padding: 3px 10px; border: 2px solid var(--page); }
+  .rank td { padding: 4px 10px; border-bottom: 1px dotted #b9cfe8; }
+  .rank td.num { text-align: right; } .rank td.who { text-align: center; color: #3b3b9e; text-decoration: underline; }
+  .rank td.who.anon { text-decoration: none; color: inherit; white-space: nowrap; font-style: italic; }
+  .rank td.empty { text-align: center; font-style: italic; }
+  .rank.heroes td { border-bottom: 1px solid #b9cfe8; vertical-align: middle; }
+  .rank.heroes td.date { white-space: nowrap; } .rank.heroes td.words { text-align: justify; }
+  .next { text-align: center; font-size: 13px; margin: 4px 0; } .next b { color: #c0283d; }
+  .heroform { max-width: 640px; margin: 10px auto; padding: 10px 14px; border-radius: 10px; background: #fff6cf; border: 2px solid #f2c230; }
+  .heroform h3 { margin: 0 0 4px; } .heroform textarea { width: 100%; min-height: 70px; font: inherit; }
+  .heroform .button { margin-top: 8px; }
   footer { text-align: center; font-size: 12px; opacity: .7; padding: 0 16px 20px; }
   #status { text-align: center; padding: 30px; }
   @media (max-width: 640px) {
@@ -92,13 +129,14 @@
   <header>
     <h1>Kikifest</h1>
     <div class="sub">Les Cavernes, à deux</div>
-    <div class="bar"><input id="player" aria-label="Nom du joueur"> ~ <span id="count">0</span> objets</div>
+    <div class="bar"><input id="name" aria-label="Nom du joueur 1 (Igor)"> &amp; <input id="name2" aria-label="Nom du joueur 2 (Sandy)"> ~ <span id="count">0</span> objets</div>
   </header>
   <div class="layout">
     <nav>
       <div class="cube" data-view="jouer" data-item="36"><div class="ico"></div><span class="lbl">Jouer</span></div>
       <div class="cube" data-view="frigo" data-item="1003"><div class="ico"></div><span class="lbl">Frigo</span></div>
       <div class="cube" data-view="quetes" data-item="1027"><div class="ico"></div><span class="lbl">Quêtes</span></div>
+      <div class="cube" data-view="classement"><div class="ico" id="pyr"></div><span class="lbl">Classement</span></div>
     </nav>
     <main id="main"><div id="status">Chargement…</div></main>
   </div>
