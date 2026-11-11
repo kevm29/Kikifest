@@ -26,6 +26,8 @@ function translate(as) {
   // AS2 est insensible à la casse pour les propriétés de clip
   s = s.replace(/\b_X\b/g, "_x").replace(/\b_Y\b/g, "_y");
   s = s.replace(/\band\b/g, "&&").replace(/\bor\b/g, "||");
+  // fonction globale AS2 duplicateMovieClip(cible, nom, profondeur) -> méthode du clip cible
+  s = s.replace(/(^|[^.\w])duplicateMovieClip\(\s*"([^"]+)"\s*,/g, '$1this["$2"].duplicateMovieClip(');
   // les fonctions définies sur la timeline deviennent des variables du clip
   s = s.replace(/^(\s*)function\s+([A-Za-z_$][\w$]*)\s*\(/gm, "$1$2 = function(");
   return s;

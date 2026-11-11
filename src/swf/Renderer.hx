@@ -154,8 +154,22 @@ class Renderer {
 				lg.clearRect(0, 0, layer.width, layer.height);
 				for (mo in masked)
 					drawObject(lg, mo, m, __cx, null);
+				// le masque est d'abord dessiné normalement dans son propre calque, puis appliqué d'un coup
+				// sur toute la surface : certains navigateurs (Firefox) ne composent "destination-in"
+				// que dans l'emprise de l'image dessinée, ce qui laissait passer tout le reste
+				var maskLayer = acquireLayer();
+				var mg = maskLayer.getContext2d();
+				mg.setTransform(1, 0, 0, 1, 0, 0);
+				mg.globalCompositeOperation = "source-over";
+				mg.globalAlpha = 1;
+				mg.clearRect(0, 0, maskLayer.width, maskLayer.height);
+				drawObject(mg, c, m, [1, 1, 1, 1, 0, 0, 0, 0], null);
+				layerIndex--;
+				lg.setTransform(1, 0, 0, 1, 0, 0);
+				lg.globalAlpha = 1;
 				lg.globalCompositeOperation = "destination-in";
-				drawObject(lg, c, m, [1, 1, 1, 1, 0, 0, 0, 0], "destination-in");
+				lg.drawImage(maskLayer, 0, 0);
+				lg.globalCompositeOperation = "source-over";
 				g.setTransform(1, 0, 0, 1, 0, 0);
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = op != null ? op : "source-over";
