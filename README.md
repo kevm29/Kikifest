@@ -8,4 +8,9 @@ CC BY-NC-SA 4.0 : https://github.com/motion-twin/WebGamesArchives/tree/main/Hamm
 Kikifest reste sous la même licence (voir [LICENSE.txt](LICENSE.txt)) : pas d'usage commercial,
 crédit à Motion Twin, partage dans les mêmes conditions.
 
+## Jouer à deux
+
+L'hôte double-clique sur `Heberger-Windows.bat` (ou `Heberger-Mac.command`, ou lance `node server/serve.mjs`),
+crée une partie et envoie le lien à l'autre joueur. Détails : [docs/HEBERGER.md](docs/HEBERGER.md).
+
 Le plan technique est dans [docs/PLAN.md](docs/PLAN.md).
