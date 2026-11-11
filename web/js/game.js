@@ -1496,6 +1496,18 @@ class swf_MovieClip extends swf_DisplayObject {
 			}
 		}
 	}
+	lineStyle(a,b,c) {
+	}
+	lineTo(x,y) {
+	}
+	curveTo(a,b,c,d) {
+	}
+	beginFill(c,a) {
+	}
+	endFill() {
+	}
+	clear() {
+	}
 	__localBounds() {
 		let r = null;
 		let _g = 0;
@@ -25623,6 +25635,9 @@ class mtflash_filters_GlowFilter {
 	}
 }
 mtflash_filters_GlowFilter.__name__ = true;
+class mtlib_ArrayExt {
+}
+mtlib_ArrayExt.__name__ = true;
 class mtlib_BitCodec {
 	constructor() {
 		this.setData("");
@@ -28194,6 +28209,9 @@ class swf_TextField extends swf_DisplayObject {
 		this.__def = Reflect.field(swf_Library.inst.data.chars,__charId == null ? "null" : "" + __charId);
 		if(this.__def != null) {
 			this.text = this.__def.text != null ? this.__def.text : "";
+			if(this.__def.variable != null) {
+				this.variable = this.__def.variable;
+			}
 			this.html = this.__def.html == true;
 			if(this.__def.color != null) {
 				let c = this.__def.color;
@@ -28279,6 +28297,26 @@ class swf_TextField extends swf_DisplayObject {
 		}
 		return t;
 	}
+	__advance(queue) {
+		if(this.variable == null || this._parent == null) {
+			return;
+		}
+		let parts = this.variable.split(".");
+		let o = this._parent;
+		let _g = 0;
+		let _g1 = parts.length - 1;
+		while(_g < _g1) {
+			let p = parts[_g++];
+			o = p == "_root" ? swf_MtStdRoot.root : Reflect.field(o,p);
+			if(o == null) {
+				return;
+			}
+		}
+		let v = Reflect.field(o,parts[parts.length - 1]);
+		if(v != null) {
+			this.text = Std.string(v);
+		}
+	}
 }
 swf_TextField.__name__ = true;
 Object.assign(swf_TextField.prototype, {
@@ -28298,6 +28336,13 @@ if( String.fromCodePoint == null ) String.fromCodePoint = function(c) { return c
 	var Int = { };
 }
 js_Boot.__toStr = ({ }).toString;
+
+			var def = function(n, f) { if (!Array.prototype[n]) Object.defineProperty(Array.prototype, n, { value: f, writable: true, configurable: true, enumerable: false }); };
+			def('insert', function(i, x) { this.splice(i, 0, x); });
+			def('remove', function(x) { var i = this.indexOf(x); if (i < 0) return false; this.splice(i, 1); return true; });
+			def('duplicate', function() { return this.slice(); });
+			def('copy', function() { return this.slice(); });
+		;
 swf_DisplayObject.__exposeProps(swf_TextField,["htmlText","textWidth","textHeight","length"]);
 Boot.SETS = ["adventure","tutorial","shareware","timeAttack","multiTime","soccer","hof","deepnight","hiko","ayame","hk"];
 Boot.SET_VARS = (function($this) {

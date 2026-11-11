@@ -33,6 +33,8 @@ class TextField extends DisplayObject {
 		__def = Library.inst.char(__charId);
 		if (__def != null) {
 			text = __def.text != null ? __def.text : "";
+			if (__def.variable != null)
+				variable = __def.variable;
 			html = __def.html == true;
 			if (__def.color != null) {
 				var c:Array<Int> = __def.color;
@@ -97,5 +99,22 @@ class TextField extends DisplayObject {
 			t = StringTools.htmlUnescape(t);
 		}
 		return t;
+	}
+
+	/** Champ lié à une variable (ex. "_parent.label") : affiche sa valeur, comme Flash. */
+	override public function __advance(queue:Array<Void->Void>) {
+		if (variable == null || _parent == null)
+			return;
+		var parts = variable.split(".");
+		var o:Dynamic = _parent;
+		for (i in 0...parts.length - 1) {
+			var p = parts[i];
+			o = p == "_root" ? swf.FrameScripts.MtStdRoot.root : Reflect.field(o, p);
+			if (o == null)
+				return;
+		}
+		var v:Dynamic = Reflect.field(o, parts[parts.length - 1]);
+		if (v != null)
+			text = Std.string(v);
 	}
 }

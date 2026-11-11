@@ -2,6 +2,7 @@ package;
 
 import js.Browser;
 import swf.Library;
+import mtlib.ArrayExt;
 import swf.MovieClip;
 import swf.Renderer;
 import mtlib.*;

@@ -428,6 +428,14 @@ class MovieClip extends DisplayObject {
 		}
 	}
 
+	// API de dessin Flash : seulement utilisée par la mini-carte des niveaux, pas encore rendue
+	public function lineStyle(?a:Dynamic, ?b:Dynamic, ?c:Dynamic) {}
+	public function lineTo(x:Dynamic, y:Dynamic) {}
+	public function curveTo(a:Dynamic, b:Dynamic, c:Dynamic, d:Dynamic) {}
+	public function beginFill(?c:Dynamic, ?a:Dynamic) {}
+	public function endFill() {}
+	public function clear() {}
+
 	public var __isRoot:Bool = false;
 
 	override public function __localBounds():Null<Rect> {
