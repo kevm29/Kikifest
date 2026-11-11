@@ -47,7 +47,19 @@ const firstLevel = Number(process.argv[5] || 0);
     const held = new Set();
     window.__step = (n, drawEvery) => {
       const B = window.kiki.boot;
+      const t0 = performance.now();
       for (let i = 0; i < n; i++) {
+        let many = false;
+        if (i % 3 === 0) { let c = 0; const w = (o) => { c++; if (c > 15000) return; if (o.__children) for (const x of o.__children) w(x); }; w(window.kiki.root); many = c > 15000; }
+        if (many || performance.now() - t0 > 4000) {
+          // jeu anormalement lent : on relève le nombre d'objets affichés et les noms les plus fréquents
+          let count = 0; const names = {};
+          const walk = (o) => { count++; if (o.__children) for (const c of o.__children) { const k = (c._name || "?") + "@" + (o._name || "?"); names[k] = (names[k] || 0) + 1; walk(c); } };
+          walk(window.kiki.root);
+          const top = Object.entries(names).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => k + " x" + v).join(", ");
+          window.__errs.push("LENTEUR : " + count + " objets affichés\n" + top);
+          break;
+        }
         if (i % 6 === 0) {
           // entrées au hasard pour les deux joueurs
           for (const c of [K.left, K.right, K.up, K.down, K.bomb, K.l2, K.r2, K.u2, K.d2, K.b2]) {
@@ -70,6 +82,8 @@ const firstLevel = Number(process.argv[5] || 0);
     };
     window.__spawn = (lid) => {
       const g = window.kiki.manager.current, out = [];
+      // pendant une transition de niveau (jeu verrouillé), le vrai jeu ne fait apparaître personne
+      if (g.fl_lock) return [];
       const pl = g.getPlayerList();
       const p = pl[0];
       if (!p) return ["pas de joueur"];
@@ -141,7 +155,10 @@ const firstLevel = Number(process.argv[5] || 0);
         errs.push(...(await ev(([d, lid]) => {
           const g = window.kiki.manager.current; const out = [];
           try {
+            for (let k = 0; k < 400 && g.fl_lock; k++) window.kiki.boot.tick();
             if (g.currentDim !== d) g.switchDimensionById(d, lid, 0); else g.forcedGoto(lid);
+            // attend la fin de la transition (défilement vers le niveau)
+            for (let k = 0; k < 400 && g.fl_lock; k++) window.kiki.boot.tick();
           } catch (e) { out.push("GOTO " + e + "\n" + (e.stack || "").split("\n").slice(1, 4).join("\n")); }
           return out;
         }, [d, lid])));

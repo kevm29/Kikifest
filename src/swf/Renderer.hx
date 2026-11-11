@@ -7,7 +7,8 @@ import js.html.CanvasRenderingContext2D;
 /**
 	Rendu Canvas 2D d'une arborescence de MovieClip.
 	Les formes sont pré-pixellisées par Library ; les transformations de
-	couleur passent par des filtres SVG feColorMatrix (ctx.filter = url(#...)).
+	couleur sont appliquées pixel par pixel sur une copie de l'image, gardée en cache
+	(les filtres SVG via ctx.filter étaient très lents, surtout sous Firefox).
 **/
 class Renderer {
 	public var canvas:CanvasElement;
@@ -17,22 +18,14 @@ class Renderer {
 
 	var layers:Array<CanvasElement> = [];
 	var layerIndex = 0;
-	var svgDefs:js.html.Element;
-	var filterIds:Map<String, String> = new Map();
-	var filterCount = 0;
+	var tintCache:Map<String, CanvasElement> = new Map();
+	var tintCount = 0;
 
 	static var IDENT:Array<Float> = [1, 1, 1, 1, 0, 0, 0, 0];
 
 	public function new(canvas:CanvasElement) {
 		this.canvas = canvas;
 		this.ctx = canvas.getContext2d();
-		var svg = Browser.document.createElementNS("http://www.w3.org/2000/svg", "svg");
-		svg.setAttribute("width", "0");
-		svg.setAttribute("height", "0");
-		svg.setAttribute("style", "position:absolute;width:0;height:0");
-		svgDefs = Browser.document.createElementNS("http://www.w3.org/2000/svg", "defs");
-		svg.appendChild(svgDefs);
-		Browser.document.body.appendChild(svg);
 	}
 
 	static var offscreen:Renderer;
@@ -117,9 +110,11 @@ class Renderer {
 			if (bo.bitmap != null && bo.bitmap.canvas != null) {
 				g.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				applyColor(g, __cx);
-				g.drawImage(bo.bitmap.canvas, 0, 0);
-				g.filter = "none";
+				var bc = bo.bitmap.canvas;
+				if (applyColor(g, __cx))
+					g.drawImage(tint(bc, 0, 0, bc.width, bc.height, __cx, null), 0, 0);
+				else
+					g.drawImage(bc, 0, 0);
 				g.globalAlpha = 1;
 			}
 			return;
@@ -206,9 +201,11 @@ class Renderer {
 		if (reg != null) {
 			g.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
 			g.globalCompositeOperation = op != null ? op : "source-over";
-			applyColor(g, __cx);
-			g.drawImage(Library.inst.atlasPage(Std.int(reg[0])), reg[1], reg[2], reg[3], reg[4], b[0], b[1], b[2] - b[0], b[3] - b[1]);
-			g.filter = "none";
+			var page = Library.inst.atlasPage(Std.int(reg[0]));
+			if (applyColor(g, __cx))
+				g.drawImage(tint(page, Std.int(reg[1]), Std.int(reg[2]), Std.int(reg[3]), Std.int(reg[4]), __cx, "a" + id), b[0], b[1], b[2] - b[0], b[3] - b[1]);
+			else
+				g.drawImage(page, reg[1], reg[2], reg[3], reg[4], b[0], b[1], b[2] - b[0], b[3] - b[1]);
 			g.globalAlpha = 1;
 			return;
 		}
@@ -218,9 +215,10 @@ class Renderer {
 			return;
 		g.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
 		g.globalCompositeOperation = op != null ? op : "source-over";
-		applyColor(g, __cx);
-		g.drawImage(img, b[0], b[1], b[2] - b[0], b[3] - b[1]);
-		g.filter = "none";
+		if (applyColor(g, __cx))
+			g.drawImage(tint(img, 0, 0, img.width, img.height, __cx, "r" + id + "@" + img.width), b[0], b[1], b[2] - b[0], b[3] - b[1]);
+		else
+			g.drawImage(img, b[0], b[1], b[2] - b[0], b[3] - b[1]);
 		g.globalAlpha = 1;
 	}
 
@@ -263,37 +261,59 @@ class Renderer {
 
 	static inline function clamp(v:Float):Int return Std.int(Math.max(0, Math.min(255, v)));
 
-	function applyColor(g:CanvasRenderingContext2D, __cx:Array<Float>) {
+	/** Règle l'opacité ; renvoie vrai si l'image doit être teintée (voir tint). */
+	function applyColor(g:CanvasRenderingContext2D, __cx:Array<Float>):Bool {
 		var tinted = __cx[0] != 1 || __cx[1] != 1 || __cx[2] != 1 || __cx[4] != 0 || __cx[5] != 0 || __cx[6] != 0 || __cx[7] != 0;
-		if (!tinted) {
-			g.globalAlpha = Math.max(0, Math.min(1, __cx[3]));
-			return;
-		}
-		g.globalAlpha = 1;
-		g.filter = "url(#" + colorFilter(__cx) + ")";
+		// l'opacité multiplicative passe par globalAlpha ; seul un décalage d'alpha reste dans les pixels
+		g.globalAlpha = Math.max(0, Math.min(1, __cx[3]));
+		if (tinted && __cx[7] != 0)
+			g.globalAlpha = 1;
+		return tinted;
 	}
 
-	function colorFilter(__cx:Array<Float>):String {
-		var key = [for (v in __cx) Math.round(v * 1000) / 1000].join(",");
-		var id = filterIds.get(key);
-		if (id != null)
-			return id;
-		id = "kcx" + (filterCount++);
-		var ns = "http://www.w3.org/2000/svg";
-		var f = Browser.document.createElementNS(ns, "filter");
-		f.setAttribute("id", id);
-		f.setAttribute("color-interpolation-filters", "sRGB");
-		var cm = Browser.document.createElementNS(ns, "feColorMatrix");
-		cm.setAttribute("type", "matrix");
-		cm.setAttribute("values", [
-			__cx[0], 0, 0, 0, __cx[4] / 255,
-			0, __cx[1], 0, 0, __cx[5] / 255,
-			0, 0, __cx[2], 0, __cx[6] / 255,
-			0, 0, 0, __cx[3], __cx[7] / 255
-		].join(" "));
-		f.appendChild(cm);
-		svgDefs.appendChild(f);
-		filterIds.set(key, id);
-		return id;
+	/** Copie teintée d'une zone d'image ; mise en cache quand key est donnée (images fixes). */
+	function tint(src:Dynamic, sx:Int, sy:Int, sw:Int, sh:Int, __cx:Array<Float>, key:Null<String>):CanvasElement {
+		var withAlpha = __cx[7] != 0;
+		var q = function(v:Float) return Math.round(v * 64) / 64;
+		var k:String = null;
+		if (key != null) {
+			k = key + "|" + q(__cx[0]) + "," + q(__cx[1]) + "," + q(__cx[2]) + "," + Math.round(__cx[4]) + "," + Math.round(__cx[5]) + ","
+				+ Math.round(__cx[6]) + (withAlpha ? "," + q(__cx[3]) + "," + Math.round(__cx[7]) : "");
+			var c = tintCache.get(k);
+			if (c != null)
+				return c;
+		}
+		var c = Browser.document.createCanvasElement();
+		c.width = sw > 0 ? sw : 1;
+		c.height = sh > 0 ? sh : 1;
+		var g = c.getContext2d();
+		if (sw > 0 && sh > 0) {
+			g.drawImage(src, sx, sy, sw, sh, 0, 0, sw, sh);
+			var d = g.getImageData(0, 0, sw, sh);
+			var p = d.data;
+			var ra = __cx[0], ga = __cx[1], ba = __cx[2], rb = __cx[4], gb = __cx[5], bb = __cx[6];
+			var aa = withAlpha ? __cx[3] : 1.0, ab = withAlpha ? __cx[7] : 0.0;
+			var i = 0, n = p.length;
+			while (i < n) {
+				if (p[i + 3] != 0) {
+					p[i] = clamp(p[i] * ra + rb);
+					p[i + 1] = clamp(p[i + 1] * ga + gb);
+					p[i + 2] = clamp(p[i + 2] * ba + bb);
+					if (withAlpha)
+						p[i + 3] = clamp(p[i + 3] * aa + ab);
+				}
+				i += 4;
+			}
+			g.putImageData(d, 0, 0);
+		}
+		if (k != null) {
+			if (tintCount >= 1500) {
+				tintCache.clear();
+				tintCount = 0;
+			}
+			tintCache.set(k, c);
+			tintCount++;
+		}
+		return c;
 	}
 }

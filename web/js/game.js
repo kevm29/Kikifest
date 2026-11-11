@@ -28156,21 +28156,14 @@ class swf_Rect {
 swf_Rect.__name__ = true;
 class swf_Renderer {
 	constructor(canvas) {
-		this.filterCount = 0;
-		this.filterIds = new haxe_ds_StringMap();
+		this.tintCount = 0;
+		this.tintCache = new haxe_ds_StringMap();
 		this.layerIndex = 0;
 		this.layers = [];
 		this.background = "#000";
 		this.scale = 1;
 		this.canvas = canvas;
 		this.ctx = canvas.getContext("2d",null);
-		let svg = window.document.createElementNS("http://www.w3.org/2000/svg","svg");
-		svg.setAttribute("width","0");
-		svg.setAttribute("height","0");
-		svg.setAttribute("style","position:absolute;width:0;height:0");
-		this.svgDefs = window.document.createElementNS("http://www.w3.org/2000/svg","defs");
-		svg.appendChild(this.svgDefs);
-		window.document.body.appendChild(svg);
 	}
 	render(root) {
 		this.ctx.setTransform(1,0,0,1,0,0);
@@ -28222,9 +28215,12 @@ class swf_Renderer {
 			if(bo.bitmap != null && bo.bitmap.canvas != null) {
 				g.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				this.applyColor(g,__cx);
-				g.drawImage(bo.bitmap.canvas,0,0);
-				g.filter = "none";
+				let bc = bo.bitmap.canvas;
+				if(this.applyColor(g,__cx)) {
+					g.drawImage(this.tint(bc,0,0,bc.width,bc.height,__cx,null),0,0);
+				} else {
+					g.drawImage(bc,0,0);
+				}
 				g.globalAlpha = 1;
 			}
 			return;
@@ -28313,9 +28309,12 @@ class swf_Renderer {
 		if(reg != null) {
 			g.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
 			g.globalCompositeOperation = op != null ? op : "source-over";
-			this.applyColor(g,__cx);
-			g.drawImage(swf_Library.inst.atlasPages[reg[0] | 0],reg[1],reg[2],reg[3],reg[4],b[0],b[1],b[2] - b[0],b[3] - b[1]);
-			g.filter = "none";
+			let page = swf_Library.inst.atlasPages[reg[0] | 0];
+			if(this.applyColor(g,__cx)) {
+				g.drawImage(this.tint(page,reg[1] | 0,reg[2] | 0,reg[3] | 0,reg[4] | 0,__cx,"a" + id),b[0],b[1],b[2] - b[0],b[3] - b[1]);
+			} else {
+				g.drawImage(page,reg[1],reg[2],reg[3],reg[4],b[0],b[1],b[2] - b[0],b[3] - b[1]);
+			}
 			g.globalAlpha = 1;
 			return;
 		}
@@ -28325,9 +28324,11 @@ class swf_Renderer {
 		}
 		g.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
 		g.globalCompositeOperation = op != null ? op : "source-over";
-		this.applyColor(g,__cx);
-		g.drawImage(img,b[0],b[1],b[2] - b[0],b[3] - b[1]);
-		g.filter = "none";
+		if(this.applyColor(g,__cx)) {
+			g.drawImage(this.tint(img,0,0,img.width,img.height,__cx,"r" + id + "@" + img.width),b[0],b[1],b[2] - b[0],b[3] - b[1]);
+		} else {
+			g.drawImage(img,b[0],b[1],b[2] - b[0],b[3] - b[1]);
+		}
 		g.globalAlpha = 1;
 	}
 	drawText(g,t,m,__cx,op) {
@@ -28371,33 +28372,66 @@ class swf_Renderer {
 		g.globalAlpha = 1;
 	}
 	applyColor(g,__cx) {
-		if(!(__cx[0] != 1 || __cx[1] != 1 || __cx[2] != 1 || __cx[4] != 0 || __cx[5] != 0 || __cx[6] != 0 || __cx[7] != 0)) {
-			g.globalAlpha = Math.max(0,Math.min(1,__cx[3]));
-			return;
+		let tinted = __cx[0] != 1 || __cx[1] != 1 || __cx[2] != 1 || __cx[4] != 0 || __cx[5] != 0 || __cx[6] != 0 || __cx[7] != 0;
+		g.globalAlpha = Math.max(0,Math.min(1,__cx[3]));
+		if(tinted && __cx[7] != 0) {
+			g.globalAlpha = 1;
 		}
-		g.globalAlpha = 1;
-		g.filter = "url(#" + this.colorFilter(__cx) + ")";
+		return tinted;
 	}
-	colorFilter(__cx) {
-		let _g = [];
-		let _g1 = 0;
-		while(_g1 < __cx.length) _g.push(Math.round(__cx[_g1++] * 1000) / 1000);
-		let key = _g.join(",");
-		let id = this.filterIds.h[key];
-		if(id != null) {
-			return id;
+	tint(src,sx,sy,sw,sh,__cx,key) {
+		let withAlpha = __cx[7] != 0;
+		let q = function(v) {
+			return Math.round(v * 64) / 64;
+		};
+		let k = null;
+		if(key != null) {
+			k = key + "|" + q(__cx[0]) + "," + q(__cx[1]) + "," + q(__cx[2]) + "," + Math.round(__cx[4]) + "," + Math.round(__cx[5]) + "," + Math.round(__cx[6]) + (withAlpha ? "," + q(__cx[3]) + "," + Math.round(__cx[7]) : "");
+			let c = this.tintCache.h[k];
+			if(c != null) {
+				return c;
+			}
 		}
-		id = "kcx" + this.filterCount++;
-		let f = window.document.createElementNS("http://www.w3.org/2000/svg","filter");
-		f.setAttribute("id",id);
-		f.setAttribute("color-interpolation-filters","sRGB");
-		let cm = window.document.createElementNS("http://www.w3.org/2000/svg","feColorMatrix");
-		cm.setAttribute("type","matrix");
-		cm.setAttribute("values",[__cx[0],0,0,0,__cx[4] / 255,0,__cx[1],0,0,__cx[5] / 255,0,0,__cx[2],0,__cx[6] / 255,0,0,0,__cx[3],__cx[7] / 255].join(" "));
-		f.appendChild(cm);
-		this.svgDefs.appendChild(f);
-		this.filterIds.h[key] = id;
-		return id;
+		let c = window.document.createElement("canvas");
+		c.width = sw > 0 ? sw : 1;
+		c.height = sh > 0 ? sh : 1;
+		let g = c.getContext("2d",null);
+		if(sw > 0 && sh > 0) {
+			g.drawImage(src,sx,sy,sw,sh,0,0,sw,sh);
+			let d = g.getImageData(0,0,sw,sh);
+			let p = d.data;
+			let ra = __cx[0];
+			let ga = __cx[1];
+			let ba = __cx[2];
+			let rb = __cx[4];
+			let gb = __cx[5];
+			let bb = __cx[6];
+			let aa = withAlpha ? __cx[3] : 1.0;
+			let ab = withAlpha ? __cx[7] : 0.0;
+			let i = 0;
+			let n = p.length;
+			while(i < n) {
+				if(p[i + 3] != 0) {
+					p[i] = Math.max(0,Math.min(255,p[i] * ra + rb)) | 0;
+					p[i + 1] = Math.max(0,Math.min(255,p[i + 1] * ga + gb)) | 0;
+					p[i + 2] = Math.max(0,Math.min(255,p[i + 2] * ba + bb)) | 0;
+					if(withAlpha) {
+						p[i + 3] = Math.max(0,Math.min(255,p[i + 3] * aa + ab)) | 0;
+					}
+				}
+				i += 4;
+			}
+			g.putImageData(d,0,0);
+		}
+		if(k != null) {
+			if(this.tintCount >= 1500) {
+				this.tintCache.h = Object.create(null);
+				this.tintCount = 0;
+			}
+			this.tintCache.h[k] = c;
+			this.tintCount++;
+		}
+		return c;
 	}
 	static drawInto(target,mc,x,y) {
 		if(swf_Renderer.offscreen == null) {
