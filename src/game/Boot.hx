@@ -49,6 +49,8 @@ class Boot {
 		// fonctions que la page Flash d'origine fournissait au jeu (envoi du score, sortie)
 		MtStd.setGlobal("gameOver", function(score:Dynamic, ?a:Dynamic, ?data:Dynamic) {
 			status("Partie terminée ! Appuie sur Échap pour rejouer.");
+			if (!gameEnded)
+				recordGame(score, data);
 			gameEnded = true;
 		});
 		MtStd.setGlobal("exitGame", function(?url:Dynamic, ?params:Dynamic) {
@@ -64,6 +66,9 @@ class Boot {
 			jobs.push(fetchText("assets/data/" + k + ".xml").then(t -> Reflect.setField(root, v, t)));
 		var lang:String = null;
 		jobs.push(fetchText("assets/data/lang/fr.xml").then(t -> lang = t));
+		// les quêtes ont besoin des listes d'objets (familles) en plus de quests.xml
+		for (k in ["specialItems", "scoreItems", "quests"])
+			jobs.push(fetchText("assets/data/" + k + ".xml").then(t -> rawData.set(k, t)));
 		js.lib.Promise.all(jobs).then(_ -> {
 			start(lang);
 			return null;
@@ -94,7 +99,7 @@ class Boot {
 				m;
 			}],
 			rawLang: lang,
-			families: null,
+			families: families(params),
 			options: params.get("options") != null ? params.get("options") : "",
 		};
 		untyped js.Browser.window.kiki = {root: root, boot: Boot, Data: Data, SpecialItem: entity.item.SpecialItem, ScoreItem: entity.item.ScoreItem}; // accès pour les tests automatiques
@@ -136,6 +141,42 @@ class Boot {
 			}
 		}
 		Browser.window.requestAnimationFrame(loop);
+	}
+
+	static var rawData = new Map<String, String>();
+	static var quests:meta.Quests;
+
+	/**
+		Familles d'objets débloquées, que le serveur Motion Twin envoyait au chargeur (`$families`).
+		Elles viennent des quêtes terminées (sauvegarde locale), ou de l'adresse : `?families=0,7,1000`.
+	**/
+	static function families(params:js.html.URLSearchParams):String {
+		quests = new meta.Quests(rawData.get("quests"), [rawData.get("specialItems"), rawData.get("scoreItems")]);
+		// sans adresse de serveur, GameManager remplace les familles par sa liste de secours
+		Loader.BASE_SCRIPT_URL = "local";
+		if (params.get("families") != null)
+			return params.get("families");
+		return quests.compute(meta.Save.load().items).families.join(",");
+	}
+
+	/** Fin de partie : ajoute les objets ramassés à la collection (ce que faisait le serveur). */
+	static function recordGame(score:Dynamic, data:Dynamic) {
+		if (data == null || Browser.location.search.indexOf("nosave") >= 0)
+			return;
+		var picks:Array<Null<Int>> = Reflect.field(data, "__S_item2");
+		if (picks == null)
+			return;
+		var save = meta.Save.load();
+		var before = quests.compute(save.items).done;
+		save.addPicks(picks);
+		save.games++;
+		var sc = Std.parseInt(Std.string(score));
+		if (sc != null && sc > save.best)
+			save.best = sc;
+		save.store();
+		var fresh = quests.compute(save.items).done.filter(q -> before.indexOf(q) < 0);
+		if (fresh.length > 0)
+			status("Partie terminée ! Nouvelle quête accomplie (" + fresh.length + ") : va voir le menu Quêtes. Échap pour rejouer.");
 	}
 
 	static var errors = 0;

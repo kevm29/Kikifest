@@ -87,7 +87,10 @@ class Animation {
 		}
 	}
 }
-Animation.__name__ = true;
+Animation.__name__ = "Animation";
+Object.assign(Animation.prototype, {
+	__class__: Animation
+});
 class Boot {
 	static main() {
 		swf_Library.load("assets",function(lib) {
@@ -115,6 +118,9 @@ class Boot {
 		mtlib_MtStd.root = Boot.root;
 		mtlib_MtStd.setGlobal("gameOver",function(score,a,data) {
 			Boot.status("Partie terminée ! Appuie sur Échap pour rejouer.");
+			if(!Boot.gameEnded) {
+				Boot.recordGame(score,data);
+			}
 			Boot.gameEnded = true;
 		});
 		mtlib_MtStd.setGlobal("exitGame",function(url,params) {
@@ -151,6 +157,18 @@ class Boot {
 		jobs.push(Boot.fetchText("assets/data/lang/fr.xml").then(function(t) {
 			lang = t;
 			return lang;
+		}));
+		let k = "specialItems";
+		jobs.push(Boot.fetchText("assets/data/" + k + ".xml").then(function(t) {
+			Boot.rawData.h[k] = t;
+		}));
+		let k1 = "scoreItems";
+		jobs.push(Boot.fetchText("assets/data/" + k1 + ".xml").then(function(t) {
+			Boot.rawData.h[k1] = t;
+		}));
+		let k2 = "quests";
+		jobs.push(Boot.fetchText("assets/data/" + k2 + ".xml").then(function(t) {
+			Boot.rawData.h[k2] = t;
 		}));
 		Promise.all(jobs).then(function(_) {
 			Boot.start(lang);
@@ -193,7 +211,7 @@ class Boot {
 		let m2 = new mtlib_Sound();
 		m2.loadSound(f2,false);
 		_g2.push(m2);
-		let init = { fl_local : true, musics : _g2, rawLang : lang, families : null, options : params.get("options") != null ? params.get("options") : ""};
+		let init = { fl_local : true, musics : _g2, rawLang : lang, families : Boot.families(params), options : params.get("options") != null ? params.get("options") : ""};
 		window.kiki = { root : Boot.root, boot : Boot, Data : Data, SpecialItem : entity_item_SpecialItem, ScoreItem : entity_item_ScoreItem};
 		Boot.manager = new GameManager(Boot.root,init);
 		window.kiki.manager = Boot.manager;
@@ -239,6 +257,46 @@ class Boot {
 		};
 		window.requestAnimationFrame(loop);
 	}
+	static families(params) {
+		Boot.quests = new meta_Quests(Boot.rawData.h["quests"],[Boot.rawData.h["specialItems"],Boot.rawData.h["scoreItems"]]);
+		Loader.BASE_SCRIPT_URL = "local";
+		if(params.get("families") != null) {
+			return params.get("families");
+		}
+		return Boot.quests.compute(meta_Save.load().items).families.join(",");
+	}
+	static recordGame(score,data) {
+		if(data == null || $global.location.search.indexOf("nosave") >= 0) {
+			return;
+		}
+		let picks = Reflect.field(data,"$item2");
+		if(picks == null) {
+			return;
+		}
+		let save = meta_Save.load();
+		let before = Boot.quests.compute(save.items).done;
+		save.addPicks(picks);
+		save.games++;
+		let sc = Std.parseInt(Std.string(score));
+		if(sc != null && sc > save.best) {
+			save.best = sc;
+		}
+		save.store();
+		let _g = [];
+		let _g1 = 0;
+		let _g2 = Boot.quests.compute(save.items).done;
+		while(_g1 < _g2.length) {
+			let v = _g2[_g1];
+			++_g1;
+			if(before.indexOf(v) < 0) {
+				_g.push(v);
+			}
+		}
+		let fresh = _g;
+		if(fresh.length > 0) {
+			Boot.status("Partie terminée ! Nouvelle quête accomplie (" + fresh.length + ") : va voir le menu Quêtes. Échap pour rejouer.");
+		}
+	}
 	static reportError(e) {
 		if(Boot.errors++ < 5) {
 			$global.console.error(e);
@@ -263,7 +321,7 @@ class Boot {
 		Boot.renderer.render(Boot.root);
 	}
 }
-Boot.__name__ = true;
+Boot.__name__ = "Boot";
 class Chrono {
 	constructor() {
 		this.suspendTimer = null;
@@ -336,7 +394,10 @@ class Chrono {
 		this.frameTimer = mtlib_MtStd.getTimer();
 	}
 }
-Chrono.__name__ = true;
+Chrono.__name__ = "Chrono";
+Object.assign(Chrono.prototype, {
+	__class__: Chrono
+});
 class Cookie {
 	constructor(m) {
 		this.manager = m;
@@ -390,7 +451,10 @@ class Cookie {
 		return mtlib_MtStd.getVar(this.data,name);
 	}
 }
-Cookie.__name__ = true;
+Cookie.__name__ = "Cookie";
+Object.assign(Cookie.prototype, {
+	__class__: Cookie
+});
 class Data {
 	static initLinkages() {
 		let tab = [];
@@ -811,7 +875,7 @@ class Data {
 		return link;
 	}
 }
-Data.__name__ = true;
+Data.__name__ = "Data";
 class swf_DisplayObject {
 	constructor(__charId) {
 		if(swf_DisplayObject._hx_skip_constructor) {
@@ -1094,9 +1158,10 @@ class swf_DisplayObject {
 		return [a,b,c,d,-(a * m[4] + c * m[5]),-(b * m[4] + d * m[5])];
 	}
 }
-swf_DisplayObject.__name__ = true;
+swf_DisplayObject.__name__ = "swf.DisplayObject";
 Object.assign(swf_DisplayObject.prototype, {
-	__properties__: {set_blendMode: "set_blendMode",get_blendMode: "get_blendMode",set_filters: "set_filters",get_filters: "get_filters",set__height: "set__height",get__height: "get__height",set__width: "set__width",get__width: "get__width",set__alpha: "set__alpha",get__alpha: "get__alpha",set__rotation: "set__rotation",get__rotation: "get__rotation",set__yscale: "set__yscale",get__yscale: "get__yscale",set__xscale: "set__xscale",get__xscale: "get__xscale",set__y: "set__y",get__y: "get__y",set__x: "set__x",get__x: "get__x",set__visible: "set__visible"}
+	__class__: swf_DisplayObject
+	,__properties__: {set_blendMode: "set_blendMode",get_blendMode: "get_blendMode",set_filters: "set_filters",get_filters: "get_filters",set__height: "set__height",get__height: "get__height",set__width: "set__width",get__width: "get__width",set__alpha: "set__alpha",get__alpha: "get__alpha",set__rotation: "set__rotation",get__rotation: "get__rotation",set__yscale: "set__yscale",get__yscale: "get__yscale",set__xscale: "set__xscale",get__xscale: "get__xscale",set__y: "set__y",get__y: "get__y",set__x: "set__x",get__x: "get__x",set__visible: "set__visible"}
 });
 class swf_MovieClip extends swf_DisplayObject {
 	constructor(__charId) {
@@ -1632,7 +1697,10 @@ class swf_MovieClip extends swf_DisplayObject {
 		while(swf_MovieClip.queue.length > 0 && guard++ < 10000) (swf_MovieClip.queue.shift())();
 	}
 }
-swf_MovieClip.__name__ = true;
+swf_MovieClip.__name__ = "swf.MovieClip";
+Object.assign(swf_MovieClip.prototype, {
+	__class__: swf_MovieClip
+});
 class Entity extends swf_MovieClip {
 	constructor() {
 		super();
@@ -2000,7 +2068,10 @@ class Entity extends swf_MovieClip {
 		return n * Data.CASE_HEIGHT + Data.CASE_HEIGHT;
 	}
 }
-Entity.__name__ = true;
+Entity.__name__ = "Entity";
+Object.assign(Entity.prototype, {
+	__class__: Entity
+});
 class FxManager {
 	constructor(g) {
 		this.game = g;
@@ -2563,7 +2634,10 @@ class FxManager {
 		}
 	}
 }
-FxManager.__name__ = true;
+FxManager.__name__ = "FxManager";
+Object.assign(FxManager.prototype, {
+	__class__: FxManager
+});
 class mtlib_Hash {
 	constructor() {
 		this.h = new haxe_ds_StringMap();
@@ -2596,7 +2670,10 @@ class mtlib_Hash {
 		}
 	}
 }
-mtlib_Hash.__name__ = true;
+mtlib_Hash.__name__ = "mtlib.Hash";
+Object.assign(mtlib_Hash.prototype, {
+	__class__: mtlib_Hash
+});
 class mtlib_MtStd {
 	static attachMC(mc,link,depth) {
 		return mc.attachMovie(link,"mc" + depth,depth);
@@ -2699,7 +2776,7 @@ class mtlib_MtStd {
 		for (var k in o) f(k);
 	}
 }
-mtlib_MtStd.__name__ = true;
+mtlib_MtStd.__name__ = "mtlib.MtStd";
 class mtlib_Rand {
 	static setSeed(s) {
 		mtlib_Rand.seed = s == 0 ? 625341585 : s;
@@ -2719,7 +2796,7 @@ class mtlib_Rand {
 		return (mtlib_Rand.next() >>> 1) % n | 0;
 	}
 }
-mtlib_Rand.__name__ = true;
+mtlib_Rand.__name__ = "mtlib.Rand";
 class GameManager {
 	constructor(mc,initObj) {
 		this.root = mc;
@@ -3135,7 +3212,10 @@ class GameManager {
 		mtlib_Log.trace("* WARNING * " + msg);
 	}
 }
-GameManager.__name__ = true;
+GameManager.__name__ = "GameManager";
+Object.assign(GameManager.prototype, {
+	__class__: GameManager
+});
 class GameParameters {
 	constructor(mc,man,f,opt) {
 		this.root = mc;
@@ -3259,7 +3339,10 @@ class GameParameters {
 		return (tmp != null ? tmp.musics[0] : null) != null;
 	}
 }
-GameParameters.__name__ = true;
+GameParameters.__name__ = "GameParameters";
+Object.assign(GameParameters.prototype, {
+	__class__: GameParameters
+});
 class HxOverrides {
 	static cca(s,index) {
 		let x = s.charCodeAt(index);
@@ -3292,7 +3375,7 @@ class HxOverrides {
 		return Date.now();
 	}
 }
-HxOverrides.__name__ = true;
+HxOverrides.__name__ = "HxOverrides";
 class Lang {
 	static init(raw) {
 		let docXml = new mtlib_MtXml(raw);
@@ -3412,11 +3495,11 @@ class Lang {
 		return Lang.keyNames[kid];
 	}
 }
-Lang.__name__ = true;
+Lang.__name__ = "Lang";
 class Loader {
 }
-Loader.__name__ = true;
-Math.__name__ = true;
+Loader.__name__ = "Loader";
+Math.__name__ = "Math";
 class Mode {
 	constructor(m) {
 		this.manager = m;
@@ -3559,7 +3642,10 @@ class Mode {
 		this.updateConstants();
 	}
 }
-Mode.__name__ = true;
+Mode.__name__ = "Mode";
+Object.assign(Mode.prototype, {
+	__class__: Mode
+});
 class RandomManager {
 	constructor() {
 		this.bulks = [];
@@ -3643,7 +3729,10 @@ class RandomManager {
 	drawSpecial() {
 	}
 }
-RandomManager.__name__ = true;
+RandomManager.__name__ = "RandomManager";
+Object.assign(RandomManager.prototype, {
+	__class__: RandomManager
+});
 class Reflect {
 	static field(o,field) {
 		try {
@@ -3687,7 +3776,7 @@ class Reflect {
 		return true;
 	}
 }
-Reflect.__name__ = true;
+Reflect.__name__ = "Reflect";
 class SpecialManager {
 	constructor(g,p) {
 		this.game = g;
@@ -5561,7 +5650,10 @@ class SpecialManager {
 		}
 	}
 }
-SpecialManager.__name__ = true;
+SpecialManager.__name__ = "SpecialManager";
+Object.assign(SpecialManager.prototype, {
+	__class__: SpecialManager
+});
 class Stat {
 	constructor() {
 		this.current = 0;
@@ -5575,7 +5667,10 @@ class Stat {
 		this.current = 0;
 	}
 }
-Stat.__name__ = true;
+Stat.__name__ = "Stat";
+Object.assign(Stat.prototype, {
+	__class__: Stat
+});
 class StatsManager {
 	constructor(g) {
 		this.game = g;
@@ -5678,7 +5773,10 @@ class StatsManager {
 		return mc;
 	}
 }
-StatsManager.__name__ = true;
+StatsManager.__name__ = "StatsManager";
+Object.assign(StatsManager.prototype, {
+	__class__: StatsManager
+});
 class Std {
 	static string(s) {
 		return js_Boot.__string_rec(s,"");
@@ -5691,8 +5789,63 @@ class Std {
 		return v;
 	}
 }
-Std.__name__ = true;
+Std.__name__ = "Std";
+class StringBuf {
+	constructor() {
+		this.b = "";
+	}
+}
+StringBuf.__name__ = "StringBuf";
+Object.assign(StringBuf.prototype, {
+	__class__: StringBuf
+});
 class StringTools {
+	static htmlEscape(s,quotes) {
+		let buf_b = "";
+		let _g_offset = 0;
+		let _g_s = s;
+		while(_g_offset < _g_s.length) {
+			let s = _g_s;
+			let index = _g_offset++;
+			let c = s.charCodeAt(index);
+			if(c >= 55296 && c <= 56319) {
+				c = c - 55232 << 10 | s.charCodeAt(index + 1) & 1023;
+			}
+			let c1 = c;
+			if(c1 >= 65536) {
+				++_g_offset;
+			}
+			let code = c1;
+			switch(code) {
+			case 34:
+				if(quotes) {
+					buf_b += "&quot;";
+				} else {
+					buf_b += String.fromCodePoint(code);
+				}
+				break;
+			case 38:
+				buf_b += "&amp;";
+				break;
+			case 39:
+				if(quotes) {
+					buf_b += "&#039;";
+				} else {
+					buf_b += String.fromCodePoint(code);
+				}
+				break;
+			case 60:
+				buf_b += "&lt;";
+				break;
+			case 62:
+				buf_b += "&gt;";
+				break;
+			default:
+				buf_b += String.fromCodePoint(code);
+			}
+		}
+		return buf_b;
+	}
 	static htmlUnescape(s) {
 		return s.split("&gt;").join(">").split("&lt;").join("<").split("&quot;").join("\"").split("&#039;").join("'").split("&amp;").join("&");
 	}
@@ -5731,14 +5884,186 @@ class StringTools {
 		return s.split(sub).join(by);
 	}
 }
-StringTools.__name__ = true;
+StringTools.__name__ = "StringTools";
 class Type {
 	static createInstance(cl,args) {
 		let ctor = Function.prototype.bind.apply(cl,[null].concat(args));
 		return new (ctor);
 	}
 }
-Type.__name__ = true;
+Type.__name__ = "Type";
+class XmlType {
+	static toString(this1) {
+		switch(this1) {
+		case 0:
+			return "Element";
+		case 1:
+			return "PCData";
+		case 2:
+			return "CData";
+		case 3:
+			return "Comment";
+		case 4:
+			return "DocType";
+		case 5:
+			return "ProcessingInstruction";
+		case 6:
+			return "Document";
+		}
+	}
+}
+class Xml {
+	constructor(nodeType) {
+		this.nodeType = nodeType;
+		this.children = [];
+		this.attributeMap = new haxe_ds_StringMap();
+	}
+	get(att) {
+		if(this.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element but found " + (this.nodeType == null ? "null" : XmlType.toString(this.nodeType)));
+		}
+		return this.attributeMap.h[att];
+	}
+	set(att,value) {
+		if(this.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element but found " + (this.nodeType == null ? "null" : XmlType.toString(this.nodeType)));
+		}
+		this.attributeMap.h[att] = value;
+	}
+	exists(att) {
+		if(this.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element but found " + (this.nodeType == null ? "null" : XmlType.toString(this.nodeType)));
+		}
+		return Object.prototype.hasOwnProperty.call(this.attributeMap.h,att);
+	}
+	attributes() {
+		if(this.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element but found " + (this.nodeType == null ? "null" : XmlType.toString(this.nodeType)));
+		}
+		return new haxe_ds__$StringMap_StringMapKeyIterator(this.attributeMap.h);
+	}
+	elementsNamed(name) {
+		if(this.nodeType != Xml.Document && this.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element or Document but found " + (this.nodeType == null ? "null" : XmlType.toString(this.nodeType)));
+		}
+		let _g = [];
+		let _g1 = 0;
+		let _g2 = this.children;
+		while(_g1 < _g2.length) {
+			let child = _g2[_g1];
+			++_g1;
+			let tmp;
+			if(child.nodeType == Xml.Element) {
+				if(child.nodeType != Xml.Element) {
+					throw haxe_Exception.thrown("Bad node type, expected Element but found " + (child.nodeType == null ? "null" : XmlType.toString(child.nodeType)));
+				}
+				tmp = child.nodeName == name;
+			} else {
+				tmp = false;
+			}
+			if(tmp) {
+				_g.push(child);
+			}
+		}
+		return new haxe_iterators_ArrayIterator(_g);
+	}
+	firstElement() {
+		if(this.nodeType != Xml.Document && this.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element or Document but found " + (this.nodeType == null ? "null" : XmlType.toString(this.nodeType)));
+		}
+		let _g = 0;
+		let _g1 = this.children;
+		while(_g < _g1.length) {
+			let child = _g1[_g];
+			++_g;
+			if(child.nodeType == Xml.Element) {
+				return child;
+			}
+		}
+		return null;
+	}
+	addChild(x) {
+		if(this.nodeType != Xml.Document && this.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element or Document but found " + (this.nodeType == null ? "null" : XmlType.toString(this.nodeType)));
+		}
+		if(x.parent != null) {
+			x.parent.removeChild(x);
+		}
+		this.children.push(x);
+		x.parent = this;
+	}
+	removeChild(x) {
+		if(this.nodeType != Xml.Document && this.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element or Document but found " + (this.nodeType == null ? "null" : XmlType.toString(this.nodeType)));
+		}
+		if(HxOverrides.remove(this.children,x)) {
+			x.parent = null;
+			return true;
+		}
+		return false;
+	}
+	toString() {
+		return haxe_xml_Printer.print(this);
+	}
+	static parse(str) {
+		return haxe_xml_Parser.parse(str);
+	}
+	static createElement(name) {
+		let xml = new Xml(Xml.Element);
+		if(xml.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element but found " + (xml.nodeType == null ? "null" : XmlType.toString(xml.nodeType)));
+		}
+		xml.nodeName = name;
+		return xml;
+	}
+	static createPCData(data) {
+		let xml = new Xml(Xml.PCData);
+		if(xml.nodeType == Xml.Document || xml.nodeType == Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, unexpected " + (xml.nodeType == null ? "null" : XmlType.toString(xml.nodeType)));
+		}
+		xml.nodeValue = data;
+		return xml;
+	}
+	static createCData(data) {
+		let xml = new Xml(Xml.CData);
+		if(xml.nodeType == Xml.Document || xml.nodeType == Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, unexpected " + (xml.nodeType == null ? "null" : XmlType.toString(xml.nodeType)));
+		}
+		xml.nodeValue = data;
+		return xml;
+	}
+	static createComment(data) {
+		let xml = new Xml(Xml.Comment);
+		if(xml.nodeType == Xml.Document || xml.nodeType == Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, unexpected " + (xml.nodeType == null ? "null" : XmlType.toString(xml.nodeType)));
+		}
+		xml.nodeValue = data;
+		return xml;
+	}
+	static createDocType(data) {
+		let xml = new Xml(Xml.DocType);
+		if(xml.nodeType == Xml.Document || xml.nodeType == Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, unexpected " + (xml.nodeType == null ? "null" : XmlType.toString(xml.nodeType)));
+		}
+		xml.nodeValue = data;
+		return xml;
+	}
+	static createProcessingInstruction(data) {
+		let xml = new Xml(Xml.ProcessingInstruction);
+		if(xml.nodeType == Xml.Document || xml.nodeType == Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, unexpected " + (xml.nodeType == null ? "null" : XmlType.toString(xml.nodeType)));
+		}
+		xml.nodeValue = data;
+		return xml;
+	}
+	static createDocument() {
+		return new Xml(Xml.Document);
+	}
+}
+Xml.__name__ = "Xml";
+Object.assign(Xml.prototype, {
+	__class__: Xml
+});
 class entity_Trigger extends Entity {
 	constructor() {
 		super();
@@ -5825,7 +6150,10 @@ class entity_Trigger extends Entity {
 		return out;
 	}
 }
-entity_Trigger.__name__ = true;
+entity_Trigger.__name__ = "entity.Trigger";
+Object.assign(entity_Trigger.prototype, {
+	__class__: entity_Trigger
+});
 class entity_Animator extends entity_Trigger {
 	constructor() {
 		super();
@@ -5979,7 +6307,10 @@ class entity_Animator extends entity_Trigger {
 		}
 	}
 }
-entity_Animator.__name__ = true;
+entity_Animator.__name__ = "entity.Animator";
+Object.assign(entity_Animator.prototype, {
+	__class__: entity_Animator
+});
 class entity_Physics extends entity_Animator {
 	constructor() {
 		super();
@@ -6596,7 +6927,10 @@ class entity_Physics extends entity_Animator {
 		}
 	}
 }
-entity_Physics.__name__ = true;
+entity_Physics.__name__ = "entity.Physics";
+Object.assign(entity_Physics.prototype, {
+	__class__: entity_Physics
+});
 class entity_Mover extends entity_Physics {
 	constructor() {
 		super();
@@ -6656,7 +6990,10 @@ class entity_Mover extends entity_Physics {
 		super.update();
 	}
 }
-entity_Mover.__name__ = true;
+entity_Mover.__name__ = "entity.Mover";
+Object.assign(entity_Mover.prototype, {
+	__class__: entity_Mover
+});
 class entity_Bad extends entity_Mover {
 	constructor() {
 		super();
@@ -7209,7 +7546,10 @@ class entity_Bad extends entity_Mover {
 		}
 	}
 }
-entity_Bad.__name__ = true;
+entity_Bad.__name__ = "entity.Bad";
+Object.assign(entity_Bad.prototype, {
+	__class__: entity_Bad
+});
 class entity_Bomb extends entity_Mover {
 	constructor() {
 		super();
@@ -7326,7 +7666,10 @@ class entity_Bomb extends entity_Mover {
 		return null;
 	}
 }
-entity_Bomb.__name__ = true;
+entity_Bomb.__name__ = "entity.Bomb";
+Object.assign(entity_Bomb.prototype, {
+	__class__: entity_Bomb
+});
 class entity_Item extends entity_Physics {
 	constructor() {
 		super();
@@ -7396,7 +7739,10 @@ class entity_Item extends entity_Physics {
 		super.update();
 	}
 }
-entity_Item.__name__ = true;
+entity_Item.__name__ = "entity.Item";
+Object.assign(entity_Item.prototype, {
+	__class__: entity_Item
+});
 class entity_Player extends entity_Physics {
 	constructor() {
 		super();
@@ -8938,7 +9284,10 @@ class entity_Player extends entity_Physics {
 		return mc;
 	}
 }
-entity_Player.__name__ = true;
+entity_Player.__name__ = "entity.Player";
+Object.assign(entity_Player.prototype, {
+	__class__: entity_Player
+});
 class entity_PlayerController {
 	constructor(p) {
 		this.lastKeys = [];
@@ -9306,7 +9655,10 @@ class entity_PlayerController {
 		this.getControls();
 	}
 }
-entity_PlayerController.__name__ = true;
+entity_PlayerController.__name__ = "entity.PlayerController";
+Object.assign(entity_PlayerController.prototype, {
+	__class__: entity_PlayerController
+});
 class entity_Shoot extends entity_Physics {
 	constructor() {
 		super();
@@ -9374,7 +9726,10 @@ class entity_Shoot extends entity_Physics {
 		}
 	}
 }
-entity_Shoot.__name__ = true;
+entity_Shoot.__name__ = "entity.Shoot";
+Object.assign(entity_Shoot.prototype, {
+	__class__: entity_Shoot
+});
 class entity_Supa extends entity_Mover {
 	constructor() {
 		super();
@@ -9406,7 +9761,10 @@ class entity_Supa extends entity_Mover {
 	tRem(cx,cy) {
 	}
 }
-entity_Supa.__name__ = true;
+entity_Supa.__name__ = "entity.Supa";
+Object.assign(entity_Supa.prototype, {
+	__class__: entity_Supa
+});
 class entity_WalkingBomb extends entity_Physics {
 	constructor() {
 		super();
@@ -9626,7 +9984,10 @@ class entity_WalkingBomb extends entity_Physics {
 		return mc;
 	}
 }
-entity_WalkingBomb.__name__ = true;
+entity_WalkingBomb.__name__ = "entity.WalkingBomb";
+Object.assign(entity_WalkingBomb.prototype, {
+	__class__: entity_WalkingBomb
+});
 class entity_bad_FireBall extends entity_Bad {
 	constructor() {
 		super();
@@ -9791,7 +10152,10 @@ class entity_bad_FireBall extends entity_Bad {
 		return mc;
 	}
 }
-entity_bad_FireBall.__name__ = true;
+entity_bad_FireBall.__name__ = "entity.bad.FireBall";
+Object.assign(entity_bad_FireBall.prototype, {
+	__class__: entity_bad_FireBall
+});
 class entity_bad_Flyer extends entity_Bad {
 	constructor() {
 		super();
@@ -9930,7 +10294,10 @@ class entity_bad_Flyer extends entity_Bad {
 		this.set__xscale(this.dir * Math.abs(this.get__xscale()));
 	}
 }
-entity_bad_Flyer.__name__ = true;
+entity_bad_Flyer.__name__ = "entity.bad.Flyer";
+Object.assign(entity_bad_Flyer.prototype, {
+	__class__: entity_bad_Flyer
+});
 class entity_bad_Walker extends entity_Bad {
 	constructor() {
 		super();
@@ -10191,7 +10558,10 @@ class entity_bad_Walker extends entity_Bad {
 		super.update();
 	}
 }
-entity_bad_Walker.__name__ = true;
+entity_bad_Walker.__name__ = "entity.bad.Walker";
+Object.assign(entity_bad_Walker.prototype, {
+	__class__: entity_bad_Walker
+});
 class entity_bad_Jumper extends entity_bad_Walker {
 	constructor() {
 		super();
@@ -10507,7 +10877,10 @@ class entity_bad_Jumper extends entity_bad_Walker {
 		}
 	}
 }
-entity_bad_Jumper.__name__ = true;
+entity_bad_Jumper.__name__ = "entity.bad.Jumper";
+Object.assign(entity_bad_Jumper.prototype, {
+	__class__: entity_bad_Jumper
+});
 class entity_bad_Shooter extends entity_bad_Jumper {
 	constructor() {
 		super();
@@ -10571,7 +10944,10 @@ class entity_bad_Shooter extends entity_bad_Jumper {
 		super.update();
 	}
 }
-entity_bad_Shooter.__name__ = true;
+entity_bad_Shooter.__name__ = "entity.bad.Shooter";
+Object.assign(entity_bad_Shooter.prototype, {
+	__class__: entity_bad_Shooter
+});
 class entity_bad_Spear extends entity_Bad {
 	constructor() {
 		super();
@@ -10662,7 +11038,10 @@ class entity_bad_Spear extends entity_Bad {
 		return mc;
 	}
 }
-entity_bad_Spear.__name__ = true;
+entity_bad_Spear.__name__ = "entity.bad.Spear";
+Object.assign(entity_bad_Spear.prototype, {
+	__class__: entity_bad_Spear
+});
 class entity_bad_WallWalker extends entity_Bad {
 	constructor() {
 		super();
@@ -10999,7 +11378,10 @@ class entity_bad_WallWalker extends entity_Bad {
 		}
 	}
 }
-entity_bad_WallWalker.__name__ = true;
+entity_bad_WallWalker.__name__ = "entity.bad.WallWalker";
+Object.assign(entity_bad_WallWalker.prototype, {
+	__class__: entity_bad_WallWalker
+});
 class entity_bad_flyer_Baleine extends entity_bad_Flyer {
 	constructor() {
 		super();
@@ -11014,7 +11396,10 @@ class entity_bad_flyer_Baleine extends entity_bad_Flyer {
 		return mc;
 	}
 }
-entity_bad_flyer_Baleine.__name__ = true;
+entity_bad_flyer_Baleine.__name__ = "entity.bad.flyer.Baleine";
+Object.assign(entity_bad_flyer_Baleine.prototype, {
+	__class__: entity_bad_flyer_Baleine
+});
 class entity_bad_flyer_Tzongre extends entity_bad_Flyer {
 	constructor() {
 		super();
@@ -11062,7 +11447,10 @@ class entity_bad_flyer_Tzongre extends entity_bad_Flyer {
 		return mc;
 	}
 }
-entity_bad_flyer_Tzongre.__name__ = true;
+entity_bad_flyer_Tzongre.__name__ = "entity.bad.flyer.Tzongre";
+Object.assign(entity_bad_flyer_Tzongre.prototype, {
+	__class__: entity_bad_flyer_Tzongre
+});
 class entity_bad_walker_Abricot extends entity_bad_Jumper {
 	constructor() {
 		super();
@@ -11105,7 +11493,10 @@ class entity_bad_walker_Abricot extends entity_bad_Jumper {
 		return mc;
 	}
 }
-entity_bad_walker_Abricot.__name__ = true;
+entity_bad_walker_Abricot.__name__ = "entity.bad.walker.Abricot";
+Object.assign(entity_bad_walker_Abricot.prototype, {
+	__class__: entity_bad_walker_Abricot
+});
 class entity_bad_walker_Ananas extends entity_bad_Jumper {
 	constructor() {
 		super();
@@ -11292,7 +11683,10 @@ class entity_bad_walker_Ananas extends entity_bad_Jumper {
 		return mc;
 	}
 }
-entity_bad_walker_Ananas.__name__ = true;
+entity_bad_walker_Ananas.__name__ = "entity.bad.walker.Ananas";
+Object.assign(entity_bad_walker_Ananas.prototype, {
+	__class__: entity_bad_walker_Ananas
+});
 class entity_bad_walker_Banane extends entity_bad_Jumper {
 	constructor() {
 		super();
@@ -11315,7 +11709,10 @@ class entity_bad_walker_Banane extends entity_bad_Jumper {
 		return mc;
 	}
 }
-entity_bad_walker_Banane.__name__ = true;
+entity_bad_walker_Banane.__name__ = "entity.bad.walker.Banane";
+Object.assign(entity_bad_walker_Banane.prototype, {
+	__class__: entity_bad_walker_Banane
+});
 class entity_bad_walker_Bombe extends entity_bad_Jumper {
 	constructor() {
 		super();
@@ -11434,7 +11831,10 @@ class entity_bad_walker_Bombe extends entity_bad_Jumper {
 		return mc;
 	}
 }
-entity_bad_walker_Bombe.__name__ = true;
+entity_bad_walker_Bombe.__name__ = "entity.bad.walker.Bombe";
+Object.assign(entity_bad_walker_Bombe.prototype, {
+	__class__: entity_bad_walker_Bombe
+});
 class entity_bad_walker_Cerise extends entity_bad_Walker {
 	constructor() {
 		super();
@@ -11450,7 +11850,10 @@ class entity_bad_walker_Cerise extends entity_bad_Walker {
 		return mc;
 	}
 }
-entity_bad_walker_Cerise.__name__ = true;
+entity_bad_walker_Cerise.__name__ = "entity.bad.walker.Cerise";
+Object.assign(entity_bad_walker_Cerise.prototype, {
+	__class__: entity_bad_walker_Cerise
+});
 class entity_bad_walker_Citron extends entity_bad_Shooter {
 	constructor() {
 		super();
@@ -11480,7 +11883,10 @@ class entity_bad_walker_Citron extends entity_bad_Shooter {
 		return mc;
 	}
 }
-entity_bad_walker_Citron.__name__ = true;
+entity_bad_walker_Citron.__name__ = "entity.bad.walker.Citron";
+Object.assign(entity_bad_walker_Citron.prototype, {
+	__class__: entity_bad_walker_Citron
+});
 class entity_bad_walker_Fraise extends entity_bad_Shooter {
 	constructor() {
 		super();
@@ -11664,7 +12070,10 @@ class entity_bad_walker_Fraise extends entity_bad_Shooter {
 		return mc;
 	}
 }
-entity_bad_walker_Fraise.__name__ = true;
+entity_bad_walker_Fraise.__name__ = "entity.bad.walker.Fraise";
+Object.assign(entity_bad_walker_Fraise.prototype, {
+	__class__: entity_bad_walker_Fraise
+});
 class entity_bad_walker_Framboise extends entity_bad_Shooter {
 	constructor() {
 		super();
@@ -11910,7 +12319,10 @@ class entity_bad_walker_Framboise extends entity_bad_Shooter {
 		return mc;
 	}
 }
-entity_bad_walker_Framboise.__name__ = true;
+entity_bad_walker_Framboise.__name__ = "entity.bad.walker.Framboise";
+Object.assign(entity_bad_walker_Framboise.prototype, {
+	__class__: entity_bad_walker_Framboise
+});
 class entity_bad_walker_Kiwi extends entity_bad_Shooter {
 	constructor() {
 		super();
@@ -11960,7 +12372,10 @@ class entity_bad_walker_Kiwi extends entity_bad_Shooter {
 		return mc;
 	}
 }
-entity_bad_walker_Kiwi.__name__ = true;
+entity_bad_walker_Kiwi.__name__ = "entity.bad.walker.Kiwi";
+Object.assign(entity_bad_walker_Kiwi.prototype, {
+	__class__: entity_bad_walker_Kiwi
+});
 class entity_bad_walker_Litchi extends entity_bad_Jumper {
 	constructor() {
 		super();
@@ -12045,7 +12460,10 @@ class entity_bad_walker_Litchi extends entity_bad_Jumper {
 		return mc;
 	}
 }
-entity_bad_walker_Litchi.__name__ = true;
+entity_bad_walker_Litchi.__name__ = "entity.bad.walker.Litchi";
+Object.assign(entity_bad_walker_Litchi.prototype, {
+	__class__: entity_bad_walker_Litchi
+});
 class entity_bad_walker_LitchiWeak extends entity_bad_Jumper {
 	constructor() {
 		super();
@@ -12077,7 +12495,10 @@ class entity_bad_walker_LitchiWeak extends entity_bad_Jumper {
 		return mc;
 	}
 }
-entity_bad_walker_LitchiWeak.__name__ = true;
+entity_bad_walker_LitchiWeak.__name__ = "entity.bad.walker.LitchiWeak";
+Object.assign(entity_bad_walker_LitchiWeak.prototype, {
+	__class__: entity_bad_walker_LitchiWeak
+});
 class entity_bad_walker_Orange extends entity_bad_Jumper {
 	constructor() {
 		super();
@@ -12093,7 +12514,10 @@ class entity_bad_walker_Orange extends entity_bad_Jumper {
 		return mc;
 	}
 }
-entity_bad_walker_Orange.__name__ = true;
+entity_bad_walker_Orange.__name__ = "entity.bad.walker.Orange";
+Object.assign(entity_bad_walker_Orange.prototype, {
+	__class__: entity_bad_walker_Orange
+});
 class entity_bad_walker_Poire extends entity_bad_Shooter {
 	constructor() {
 		super();
@@ -12124,7 +12548,10 @@ class entity_bad_walker_Poire extends entity_bad_Shooter {
 		return mc;
 	}
 }
-entity_bad_walker_Poire.__name__ = true;
+entity_bad_walker_Poire.__name__ = "entity.bad.walker.Poire";
+Object.assign(entity_bad_walker_Poire.prototype, {
+	__class__: entity_bad_walker_Poire
+});
 class entity_bad_walker_Pomme extends entity_bad_Shooter {
 	constructor() {
 		super();
@@ -12158,7 +12585,10 @@ class entity_bad_walker_Pomme extends entity_bad_Shooter {
 		return mc;
 	}
 }
-entity_bad_walker_Pomme.__name__ = true;
+entity_bad_walker_Pomme.__name__ = "entity.bad.walker.Pomme";
+Object.assign(entity_bad_walker_Pomme.prototype, {
+	__class__: entity_bad_walker_Pomme
+});
 class entity_bad_ww_Crawler extends entity_bad_WallWalker {
 	constructor() {
 		super();
@@ -12447,7 +12877,10 @@ class entity_bad_ww_Crawler extends entity_bad_WallWalker {
 		return mc;
 	}
 }
-entity_bad_ww_Crawler.__name__ = true;
+entity_bad_ww_Crawler.__name__ = "entity.bad.ww.Crawler";
+Object.assign(entity_bad_ww_Crawler.prototype, {
+	__class__: entity_bad_ww_Crawler
+});
 class entity_bad_ww_Saw extends entity_bad_WallWalker {
 	constructor() {
 		super();
@@ -12682,7 +13115,10 @@ class entity_bad_ww_Saw extends entity_bad_WallWalker {
 		return mc;
 	}
 }
-entity_bad_ww_Saw.__name__ = true;
+entity_bad_ww_Saw.__name__ = "entity.bad.ww.Saw";
+Object.assign(entity_bad_ww_Saw.prototype, {
+	__class__: entity_bad_ww_Saw
+});
 class entity_bomb_BadBomb extends entity_Bomb {
 	constructor() {
 		super();
@@ -12720,7 +13156,10 @@ class entity_bomb_BadBomb extends entity_Bomb {
 		this.dx *= 3;
 	}
 }
-entity_bomb_BadBomb.__name__ = true;
+entity_bomb_BadBomb.__name__ = "entity.bomb.BadBomb";
+Object.assign(entity_bomb_BadBomb.prototype, {
+	__class__: entity_bomb_BadBomb
+});
 class entity_bomb_PlayerBomb extends entity_Bomb {
 	constructor() {
 		super();
@@ -12849,7 +13288,10 @@ class entity_bomb_PlayerBomb extends entity_Bomb {
 		}
 	}
 }
-entity_bomb_PlayerBomb.__name__ = true;
+entity_bomb_PlayerBomb.__name__ = "entity.bomb.PlayerBomb";
+Object.assign(entity_bomb_PlayerBomb.prototype, {
+	__class__: entity_bomb_PlayerBomb
+});
 class entity_bomb_bad_BossBomb extends entity_bomb_BadBomb {
 	constructor() {
 		super();
@@ -12907,7 +13349,10 @@ class entity_bomb_bad_BossBomb extends entity_bomb_BadBomb {
 		return mc;
 	}
 }
-entity_bomb_bad_BossBomb.__name__ = true;
+entity_bomb_bad_BossBomb.__name__ = "entity.bomb.bad.BossBomb";
+Object.assign(entity_bomb_bad_BossBomb.prototype, {
+	__class__: entity_bomb_bad_BossBomb
+});
 class entity_bomb_bad_Mine extends entity_bomb_BadBomb {
 	constructor() {
 		super();
@@ -13034,7 +13479,10 @@ class entity_bomb_bad_Mine extends entity_bomb_BadBomb {
 		return mc;
 	}
 }
-entity_bomb_bad_Mine.__name__ = true;
+entity_bomb_bad_Mine.__name__ = "entity.bomb.bad.Mine";
+Object.assign(entity_bomb_bad_Mine.prototype, {
+	__class__: entity_bomb_bad_Mine
+});
 class entity_bomb_bad_PoireBomb extends entity_bomb_BadBomb {
 	constructor() {
 		super();
@@ -13083,7 +13531,10 @@ class entity_bomb_bad_PoireBomb extends entity_bomb_BadBomb {
 		return mc;
 	}
 }
-entity_bomb_bad_PoireBomb.__name__ = true;
+entity_bomb_bad_PoireBomb.__name__ = "entity.bomb.bad.PoireBomb";
+Object.assign(entity_bomb_bad_PoireBomb.prototype, {
+	__class__: entity_bomb_bad_PoireBomb
+});
 class entity_bomb_player_Black extends entity_bomb_PlayerBomb {
 	constructor() {
 		super();
@@ -13132,7 +13583,10 @@ class entity_bomb_player_Black extends entity_bomb_PlayerBomb {
 		return mc;
 	}
 }
-entity_bomb_player_Black.__name__ = true;
+entity_bomb_player_Black.__name__ = "entity.bomb.player.Black";
+Object.assign(entity_bomb_player_Black.prototype, {
+	__class__: entity_bomb_player_Black
+});
 class entity_bomb_player_Blue extends entity_bomb_PlayerBomb {
 	constructor() {
 		super();
@@ -13181,7 +13635,10 @@ class entity_bomb_player_Blue extends entity_bomb_PlayerBomb {
 		return mc;
 	}
 }
-entity_bomb_player_Blue.__name__ = true;
+entity_bomb_player_Blue.__name__ = "entity.bomb.player.Blue";
+Object.assign(entity_bomb_player_Blue.prototype, {
+	__class__: entity_bomb_player_Blue
+});
 class entity_bomb_player_Classic extends entity_bomb_PlayerBomb {
 	constructor() {
 		super();
@@ -13243,7 +13700,10 @@ class entity_bomb_player_Classic extends entity_bomb_PlayerBomb {
 		return mc;
 	}
 }
-entity_bomb_player_Classic.__name__ = true;
+entity_bomb_player_Classic.__name__ = "entity.bomb.player.Classic";
+Object.assign(entity_bomb_player_Classic.prototype, {
+	__class__: entity_bomb_player_Classic
+});
 class entity_bomb_player_Green extends entity_bomb_PlayerBomb {
 	constructor() {
 		super();
@@ -13316,7 +13776,10 @@ class entity_bomb_player_Green extends entity_bomb_PlayerBomb {
 		return mc;
 	}
 }
-entity_bomb_player_Green.__name__ = true;
+entity_bomb_player_Green.__name__ = "entity.bomb.player.Green";
+Object.assign(entity_bomb_player_Green.prototype, {
+	__class__: entity_bomb_player_Green
+});
 class entity_bomb_player_MineFrozen extends entity_bomb_PlayerBomb {
 	constructor() {
 		super();
@@ -13375,7 +13838,10 @@ class entity_bomb_player_MineFrozen extends entity_bomb_PlayerBomb {
 		return mc;
 	}
 }
-entity_bomb_player_MineFrozen.__name__ = true;
+entity_bomb_player_MineFrozen.__name__ = "entity.bomb.player.MineFrozen";
+Object.assign(entity_bomb_player_MineFrozen.prototype, {
+	__class__: entity_bomb_player_MineFrozen
+});
 class entity_bomb_player_PoireBombFrozen extends entity_bomb_PlayerBomb {
 	constructor() {
 		super();
@@ -13434,7 +13900,10 @@ class entity_bomb_player_PoireBombFrozen extends entity_bomb_PlayerBomb {
 		return mc;
 	}
 }
-entity_bomb_player_PoireBombFrozen.__name__ = true;
+entity_bomb_player_PoireBombFrozen.__name__ = "entity.bomb.player.PoireBombFrozen";
+Object.assign(entity_bomb_player_PoireBombFrozen.prototype, {
+	__class__: entity_bomb_player_PoireBombFrozen
+});
 class entity_bomb_player_Red extends entity_bomb_PlayerBomb {
 	constructor() {
 		super();
@@ -13544,7 +14013,10 @@ class entity_bomb_player_Red extends entity_bomb_PlayerBomb {
 		return mc;
 	}
 }
-entity_bomb_player_Red.__name__ = true;
+entity_bomb_player_Red.__name__ = "entity.bomb.player.Red";
+Object.assign(entity_bomb_player_Red.prototype, {
+	__class__: entity_bomb_player_Red
+});
 class entity_bomb_player_RepelBomb extends entity_bomb_PlayerBomb {
 	constructor() {
 		super();
@@ -13639,7 +14111,10 @@ class entity_bomb_player_RepelBomb extends entity_bomb_PlayerBomb {
 		return mc;
 	}
 }
-entity_bomb_player_RepelBomb.__name__ = true;
+entity_bomb_player_RepelBomb.__name__ = "entity.bomb.player.RepelBomb";
+Object.assign(entity_bomb_player_RepelBomb.prototype, {
+	__class__: entity_bomb_player_RepelBomb
+});
 class entity_bomb_player_SoccerBall extends entity_bomb_PlayerBomb {
 	constructor() {
 		super();
@@ -13766,7 +14241,10 @@ class entity_bomb_player_SoccerBall extends entity_bomb_PlayerBomb {
 		return mc;
 	}
 }
-entity_bomb_player_SoccerBall.__name__ = true;
+entity_bomb_player_SoccerBall.__name__ = "entity.bomb.player.SoccerBall";
+Object.assign(entity_bomb_player_SoccerBall.prototype, {
+	__class__: entity_bomb_player_SoccerBall
+});
 class entity_boss_Bat extends entity_Mover {
 	constructor() {
 		super();
@@ -14197,7 +14675,10 @@ class entity_boss_Bat extends entity_Mover {
 		return mc;
 	}
 }
-entity_boss_Bat.__name__ = true;
+entity_boss_Bat.__name__ = "entity.boss.Bat";
+Object.assign(entity_boss_Bat.prototype, {
+	__class__: entity_boss_Bat
+});
 class entity_boss_Tuberculoz extends entity_Mover {
 	constructor() {
 		super();
@@ -15166,7 +15647,10 @@ class entity_boss_Tuberculoz extends entity_Mover {
 		return mc;
 	}
 }
-entity_boss_Tuberculoz.__name__ = true;
+entity_boss_Tuberculoz.__name__ = "entity.boss.Tuberculoz";
+Object.assign(entity_boss_Tuberculoz.prototype, {
+	__class__: entity_boss_Tuberculoz
+});
 class entity_fx_Particle extends entity_Mover {
 	constructor() {
 		super();
@@ -15347,7 +15831,10 @@ class entity_fx_Particle extends entity_Mover {
 		return mc;
 	}
 }
-entity_fx_Particle.__name__ = true;
+entity_fx_Particle.__name__ = "entity.fx.Particle";
+Object.assign(entity_fx_Particle.prototype, {
+	__class__: entity_fx_Particle
+});
 class entity_item_ScoreItem extends entity_Item {
 	constructor() {
 		super();
@@ -15434,7 +15921,10 @@ class entity_item_ScoreItem extends entity_Item {
 		return mc;
 	}
 }
-entity_item_ScoreItem.__name__ = true;
+entity_item_ScoreItem.__name__ = "entity.item.ScoreItem";
+Object.assign(entity_item_ScoreItem.prototype, {
+	__class__: entity_item_ScoreItem
+});
 class entity_item_SpecialItem extends entity_Item {
 	constructor() {
 		super();
@@ -15502,7 +15992,10 @@ class entity_item_SpecialItem extends entity_Item {
 		return mc;
 	}
 }
-entity_item_SpecialItem.__name__ = true;
+entity_item_SpecialItem.__name__ = "entity.item.SpecialItem";
+Object.assign(entity_item_SpecialItem.prototype, {
+	__class__: entity_item_SpecialItem
+});
 class entity_shoot_Ball extends entity_Shoot {
 	constructor() {
 		super();
@@ -15552,7 +16045,10 @@ class entity_shoot_Ball extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_Ball.__name__ = true;
+entity_shoot_Ball.__name__ = "entity.shoot.Ball";
+Object.assign(entity_shoot_Ball.prototype, {
+	__class__: entity_shoot_Ball
+});
 class entity_shoot_BossFireBall extends entity_Shoot {
 	constructor() {
 		super();
@@ -15636,7 +16132,10 @@ class entity_shoot_BossFireBall extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_BossFireBall.__name__ = true;
+entity_shoot_BossFireBall.__name__ = "entity.shoot.BossFireBall";
+Object.assign(entity_shoot_BossFireBall.prototype, {
+	__class__: entity_shoot_BossFireBall
+});
 class entity_shoot_FireBall extends entity_Shoot {
 	constructor() {
 		super();
@@ -15681,7 +16180,10 @@ class entity_shoot_FireBall extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_FireBall.__name__ = true;
+entity_shoot_FireBall.__name__ = "entity.shoot.FireBall";
+Object.assign(entity_shoot_FireBall.prototype, {
+	__class__: entity_shoot_FireBall
+});
 class entity_shoot_FireRain extends entity_Shoot {
 	constructor() {
 		super();
@@ -15747,7 +16249,10 @@ class entity_shoot_FireRain extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_FireRain.__name__ = true;
+entity_shoot_FireRain.__name__ = "entity.shoot.FireRain";
+Object.assign(entity_shoot_FireRain.prototype, {
+	__class__: entity_shoot_FireRain
+});
 class entity_shoot_FramBall extends entity_Shoot {
 	constructor() {
 		super();
@@ -15859,7 +16364,10 @@ class entity_shoot_FramBall extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_FramBall.__name__ = true;
+entity_shoot_FramBall.__name__ = "entity.shoot.FramBall";
+Object.assign(entity_shoot_FramBall.prototype, {
+	__class__: entity_shoot_FramBall
+});
 class entity_shoot_Hammer extends entity_Shoot {
 	constructor() {
 		super();
@@ -15949,7 +16457,10 @@ class entity_shoot_Hammer extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_Hammer.__name__ = true;
+entity_shoot_Hammer.__name__ = "entity.shoot.Hammer";
+Object.assign(entity_shoot_Hammer.prototype, {
+	__class__: entity_shoot_Hammer
+});
 class entity_shoot_Pepin extends entity_Shoot {
 	constructor() {
 		super();
@@ -15974,7 +16485,10 @@ class entity_shoot_Pepin extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_Pepin.__name__ = true;
+entity_shoot_Pepin.__name__ = "entity.shoot.Pepin";
+Object.assign(entity_shoot_Pepin.prototype, {
+	__class__: entity_shoot_Pepin
+});
 class entity_shoot_PlayerArrow extends entity_Shoot {
 	constructor() {
 		super();
@@ -16041,7 +16555,10 @@ class entity_shoot_PlayerArrow extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_PlayerArrow.__name__ = true;
+entity_shoot_PlayerArrow.__name__ = "entity.shoot.PlayerArrow";
+Object.assign(entity_shoot_PlayerArrow.prototype, {
+	__class__: entity_shoot_PlayerArrow
+});
 class entity_shoot_PlayerFireBall extends entity_Shoot {
 	constructor() {
 		super();
@@ -16096,7 +16613,10 @@ class entity_shoot_PlayerFireBall extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_PlayerFireBall.__name__ = true;
+entity_shoot_PlayerFireBall.__name__ = "entity.shoot.PlayerFireBall";
+Object.assign(entity_shoot_PlayerFireBall.prototype, {
+	__class__: entity_shoot_PlayerFireBall
+});
 class entity_shoot_PlayerPearl extends entity_Shoot {
 	constructor() {
 		super();
@@ -16206,7 +16726,10 @@ class entity_shoot_PlayerPearl extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_PlayerPearl.__name__ = true;
+entity_shoot_PlayerPearl.__name__ = "entity.shoot.PlayerPearl";
+Object.assign(entity_shoot_PlayerPearl.prototype, {
+	__class__: entity_shoot_PlayerPearl
+});
 class entity_shoot_Zeste extends entity_Shoot {
 	constructor() {
 		super();
@@ -16242,7 +16765,10 @@ class entity_shoot_Zeste extends entity_Shoot {
 		return s;
 	}
 }
-entity_shoot_Zeste.__name__ = true;
+entity_shoot_Zeste.__name__ = "entity.shoot.Zeste";
+Object.assign(entity_shoot_Zeste.prototype, {
+	__class__: entity_shoot_Zeste
+});
 class entity_supa_Arrow extends entity_Supa {
 	constructor() {
 		super();
@@ -16287,7 +16813,10 @@ class entity_supa_Arrow extends entity_Supa {
 		return mc;
 	}
 }
-entity_supa_Arrow.__name__ = true;
+entity_supa_Arrow.__name__ = "entity.supa.Arrow";
+Object.assign(entity_supa_Arrow.prototype, {
+	__class__: entity_supa_Arrow
+});
 class entity_supa_Ball extends entity_Supa {
 	constructor() {
 		super();
@@ -16347,7 +16876,10 @@ class entity_supa_Ball extends entity_Supa {
 		return mc;
 	}
 }
-entity_supa_Ball.__name__ = true;
+entity_supa_Ball.__name__ = "entity.supa.Ball";
+Object.assign(entity_supa_Ball.prototype, {
+	__class__: entity_supa_Ball
+});
 class entity_supa_Bubble extends entity_Supa {
 	constructor() {
 		super();
@@ -16413,7 +16945,10 @@ class entity_supa_Bubble extends entity_Supa {
 		return mc;
 	}
 }
-entity_supa_Bubble.__name__ = true;
+entity_supa_Bubble.__name__ = "entity.supa.Bubble";
+Object.assign(entity_supa_Bubble.prototype, {
+	__class__: entity_supa_Bubble
+});
 class entity_supa_IceMeteor extends entity_Supa {
 	constructor() {
 		super();
@@ -16464,7 +16999,10 @@ class entity_supa_IceMeteor extends entity_Supa {
 		return mc;
 	}
 }
-entity_supa_IceMeteor.__name__ = true;
+entity_supa_IceMeteor.__name__ = "entity.supa.IceMeteor";
+Object.assign(entity_supa_IceMeteor.prototype, {
+	__class__: entity_supa_IceMeteor
+});
 class entity_supa_Smoke extends entity_Supa {
 	constructor() {
 		super();
@@ -16485,7 +17023,10 @@ class entity_supa_Smoke extends entity_Supa {
 		return mc;
 	}
 }
-entity_supa_Smoke.__name__ = true;
+entity_supa_Smoke.__name__ = "entity.supa.Smoke";
+Object.assign(entity_supa_Smoke.prototype, {
+	__class__: entity_supa_Smoke
+});
 class entity_supa_SupaItem extends entity_Supa {
 	constructor() {
 		super();
@@ -16581,7 +17122,10 @@ class entity_supa_SupaItem extends entity_Supa {
 		return mc;
 	}
 }
-entity_supa_SupaItem.__name__ = true;
+entity_supa_SupaItem.__name__ = "entity.supa.SupaItem";
+Object.assign(entity_supa_SupaItem.prototype, {
+	__class__: entity_supa_SupaItem
+});
 class entity_supa_Tons extends entity_Supa {
 	constructor() {
 		super();
@@ -16644,7 +17188,10 @@ class entity_supa_Tons extends entity_Supa {
 		return mc;
 	}
 }
-entity_supa_Tons.__name__ = true;
+entity_supa_Tons.__name__ = "entity.supa.Tons";
+Object.assign(entity_supa_Tons.prototype, {
+	__class__: entity_supa_Tons
+});
 class gui_Container {
 	constructor(m,x,y,wid) {
 		this.mode = m;
@@ -16711,7 +17258,10 @@ class gui_Container {
 		}
 	}
 }
-gui_Container.__name__ = true;
+gui_Container.__name__ = "gui.Container";
+Object.assign(gui_Container.prototype, {
+	__class__: gui_Container
+});
 class gui_Item extends swf_MovieClip {
 	constructor() {
 		super();
@@ -16738,7 +17288,10 @@ class gui_Item extends swf_MovieClip {
 	update() {
 	}
 }
-gui_Item.__name__ = true;
+gui_Item.__name__ = "gui.Item";
+Object.assign(gui_Item.prototype, {
+	__class__: gui_Item
+});
 class gui_Field extends gui_Item {
 	constructor() {
 		super();
@@ -16785,7 +17338,10 @@ class gui_Field extends gui_Item {
 		return mc;
 	}
 }
-gui_Field.__name__ = true;
+gui_Field.__name__ = "gui.Field";
+Object.assign(gui_Field.prototype, {
+	__class__: gui_Field
+});
 class gui_GameInterface {
 	constructor(game) {
 		this.game = game;
@@ -17244,7 +17800,10 @@ class gui_GameInterface {
 		}
 	}
 }
-gui_GameInterface.__name__ = true;
+gui_GameInterface.__name__ = "gui.GameInterface";
+Object.assign(gui_GameInterface.prototype, {
+	__class__: gui_GameInterface
+});
 class gui_Label extends gui_Item {
 	constructor() {
 		super();
@@ -17258,7 +17817,10 @@ class gui_Label extends gui_Item {
 		return b;
 	}
 }
-gui_Label.__name__ = true;
+gui_Label.__name__ = "gui.Label";
+Object.assign(gui_Label.prototype, {
+	__class__: gui_Label
+});
 class gui_SimpleButton extends gui_Item {
 	constructor() {
 		super();
@@ -17424,7 +17986,10 @@ class gui_SimpleButton extends gui_Item {
 		return b;
 	}
 }
-gui_SimpleButton.__name__ = true;
+gui_SimpleButton.__name__ = "gui.SimpleButton";
+Object.assign(gui_SimpleButton.prototype, {
+	__class__: gui_SimpleButton
+});
 class gui_SoccerInterface {
 	constructor(game) {
 		this.game = game;
@@ -17478,7 +18043,10 @@ class gui_SoccerInterface {
 	update() {
 	}
 }
-gui_SoccerInterface.__name__ = true;
+gui_SoccerInterface.__name__ = "gui.SoccerInterface";
+Object.assign(gui_SoccerInterface.prototype, {
+	__class__: gui_SoccerInterface
+});
 class haxe_Exception extends Error {
 	constructor(message,previous,native) {
 		super(message);
@@ -17487,6 +18055,9 @@ class haxe_Exception extends Error {
 		this.__nativeException = native != null ? native : this;
 	}
 	unwrap() {
+		return this.__nativeException;
+	}
+	get_native() {
 		return this.__nativeException;
 	}
 	static caught(value) {
@@ -17498,8 +18069,22 @@ class haxe_Exception extends Error {
 			return new haxe_ValueException(value,null,value);
 		}
 	}
+	static thrown(value) {
+		if(((value) instanceof haxe_Exception)) {
+			return value.get_native();
+		} else if(((value) instanceof Error)) {
+			return value;
+		} else {
+			let e = new haxe_ValueException(value);
+			return e;
+		}
+	}
 }
-haxe_Exception.__name__ = true;
+haxe_Exception.__name__ = "haxe.Exception";
+Object.assign(haxe_Exception.prototype, {
+	__class__: haxe_Exception
+	,__properties__: {get_native: "get_native"}
+});
 class haxe_ValueException extends haxe_Exception {
 	constructor(value,previous,native) {
 		super(String(value),previous,native);
@@ -17509,7 +18094,10 @@ class haxe_ValueException extends haxe_Exception {
 		return this.value;
 	}
 }
-haxe_ValueException.__name__ = true;
+haxe_ValueException.__name__ = "haxe.ValueException";
+Object.assign(haxe_ValueException.prototype, {
+	__class__: haxe_ValueException
+});
 class haxe_ds_IntMap {
 	constructor() {
 		this.h = { };
@@ -17529,8 +18117,19 @@ class haxe_ds_IntMap {
 		for( var key in this.h ) if(this.h.hasOwnProperty(key)) a.push(+key);
 		return new haxe_iterators_ArrayIterator(a);
 	}
+	iterator() {
+		return { ref : this.h, it : this.keys(), hasNext : function() {
+			return this.it.hasNext();
+		}, next : function() {
+			let i = this.it.next();
+			return this.ref[i];
+		}};
+	}
 }
-haxe_ds_IntMap.__name__ = true;
+haxe_ds_IntMap.__name__ = "haxe.ds.IntMap";
+Object.assign(haxe_ds_IntMap.prototype, {
+	__class__: haxe_ds_IntMap
+});
 class haxe_ds_StringMap {
 	constructor() {
 		this.h = Object.create(null);
@@ -17542,7 +18141,10 @@ class haxe_ds_StringMap {
 		return new haxe_ds__$StringMap_StringMapKeyIterator(this.h);
 	}
 }
-haxe_ds_StringMap.__name__ = true;
+haxe_ds_StringMap.__name__ = "haxe.ds.StringMap";
+Object.assign(haxe_ds_StringMap.prototype, {
+	__class__: haxe_ds_StringMap
+});
 class haxe_ds__$StringMap_StringMapKeyIterator {
 	constructor(h) {
 		this.h = h;
@@ -17557,7 +18159,10 @@ class haxe_ds__$StringMap_StringMapKeyIterator {
 		return this.keys[this.current++];
 	}
 }
-haxe_ds__$StringMap_StringMapKeyIterator.__name__ = true;
+haxe_ds__$StringMap_StringMapKeyIterator.__name__ = "haxe.ds._StringMap.StringMapKeyIterator";
+Object.assign(haxe_ds__$StringMap_StringMapKeyIterator.prototype, {
+	__class__: haxe_ds__$StringMap_StringMapKeyIterator
+});
 class haxe_iterators_ArrayIterator {
 	constructor(array) {
 		this.current = 0;
@@ -17570,8 +18175,550 @@ class haxe_iterators_ArrayIterator {
 		return this.array[this.current++];
 	}
 }
-haxe_iterators_ArrayIterator.__name__ = true;
+haxe_iterators_ArrayIterator.__name__ = "haxe.iterators.ArrayIterator";
+Object.assign(haxe_iterators_ArrayIterator.prototype, {
+	__class__: haxe_iterators_ArrayIterator
+});
+class haxe_xml_XmlParserException {
+	constructor(message,xml,position) {
+		this.xml = xml;
+		this.message = message;
+		this.position = position;
+		this.lineNumber = 1;
+		this.positionAtLine = 0;
+		let _g = 0;
+		while(_g < position) {
+			let c = xml.charCodeAt(_g++);
+			if(c == 10) {
+				this.lineNumber++;
+				this.positionAtLine = 0;
+			} else if(c != 13) {
+				this.positionAtLine++;
+			}
+		}
+	}
+	toString() {
+		let c = js_Boot.getClass(this);
+		return c.__name__ + ": " + this.message + " at line " + this.lineNumber + " char " + this.positionAtLine;
+	}
+}
+haxe_xml_XmlParserException.__name__ = "haxe.xml.XmlParserException";
+Object.assign(haxe_xml_XmlParserException.prototype, {
+	__class__: haxe_xml_XmlParserException
+});
+class haxe_xml_Parser {
+	static parse(str,strict) {
+		if(strict == null) {
+			strict = false;
+		}
+		let doc = Xml.createDocument();
+		haxe_xml_Parser.doParse(str,strict,0,doc);
+		return doc;
+	}
+	static doParse(str,strict,p,parent) {
+		if(p == null) {
+			p = 0;
+		}
+		let xml = null;
+		let state = 1;
+		let next = 1;
+		let aname = null;
+		let start = 0;
+		let nsubs = 0;
+		let nbrackets = 0;
+		let buf = new StringBuf();
+		let escapeNext = 1;
+		let attrValQuote = -1;
+		while(p < str.length) {
+			let c = str.charCodeAt(p);
+			switch(state) {
+			case 0:
+				switch(c) {
+				case 9:case 10:case 13:case 32:
+					break;
+				default:
+					state = next;
+					continue;
+				}
+				break;
+			case 1:
+				if(c == 60) {
+					state = 0;
+					next = 2;
+				} else {
+					start = p;
+					state = 13;
+					continue;
+				}
+				break;
+			case 2:
+				switch(c) {
+				case 33:
+					if(str.charCodeAt(p + 1) == 91) {
+						p += 2;
+						if(HxOverrides.substr(str,p,6).toUpperCase() != "CDATA[") {
+							throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected <![CDATA[",str,p));
+						}
+						p += 5;
+						state = 17;
+						start = p + 1;
+					} else if(str.charCodeAt(p + 1) == 68 || str.charCodeAt(p + 1) == 100) {
+						if(HxOverrides.substr(str,p + 2,6).toUpperCase() != "OCTYPE") {
+							throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected <!DOCTYPE",str,p));
+						}
+						p += 8;
+						state = 16;
+						start = p + 1;
+					} else if(str.charCodeAt(p + 1) != 45 || str.charCodeAt(p + 2) != 45) {
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected <!--",str,p));
+					} else {
+						p += 2;
+						state = 15;
+						start = p + 1;
+					}
+					break;
+				case 47:
+					if(parent == null) {
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected node name",str,p));
+					}
+					start = p + 1;
+					state = 0;
+					next = 10;
+					break;
+				case 63:
+					state = 14;
+					start = p;
+					break;
+				default:
+					state = 3;
+					start = p;
+					continue;
+				}
+				break;
+			case 3:
+				if(!(c >= 97 && c <= 122 || c >= 65 && c <= 90 || c >= 48 && c <= 57 || c == 58 || c == 46 || c == 95 || c == 45)) {
+					if(p == start) {
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected node name",str,p));
+					}
+					xml = Xml.createElement(HxOverrides.substr(str,start,p - start));
+					parent.addChild(xml);
+					++nsubs;
+					state = 0;
+					next = 4;
+					continue;
+				}
+				break;
+			case 4:
+				switch(c) {
+				case 47:
+					state = 11;
+					break;
+				case 62:
+					state = 9;
+					break;
+				default:
+					state = 5;
+					start = p;
+					continue;
+				}
+				break;
+			case 5:
+				if(!(c >= 97 && c <= 122 || c >= 65 && c <= 90 || c >= 48 && c <= 57 || c == 58 || c == 46 || c == 95 || c == 45)) {
+					if(start == p) {
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected attribute name",str,p));
+					}
+					aname = HxOverrides.substr(str,start,p - start);
+					if(xml.exists(aname)) {
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Duplicate attribute [" + aname + "]",str,p));
+					}
+					state = 0;
+					next = 6;
+					continue;
+				}
+				break;
+			case 6:
+				if(c == 61) {
+					state = 0;
+					next = 7;
+				} else {
+					throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected =",str,p));
+				}
+				break;
+			case 7:
+				switch(c) {
+				case 34:case 39:
+					buf = new StringBuf();
+					state = 8;
+					start = p + 1;
+					attrValQuote = c;
+					break;
+				default:
+					throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected \"",str,p));
+				}
+				break;
+			case 8:
+				switch(c) {
+				case 38:
+					let len = p - start;
+					buf.b += len == null ? HxOverrides.substr(str,start,null) : HxOverrides.substr(str,start,len);
+					state = 18;
+					escapeNext = 8;
+					start = p + 1;
+					break;
+				case 60:case 62:
+					if(strict) {
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Invalid unescaped " + String.fromCodePoint(c) + " in attribute value",str,p));
+					} else if(c == attrValQuote) {
+						let len = p - start;
+						buf.b += len == null ? HxOverrides.substr(str,start,null) : HxOverrides.substr(str,start,len);
+						let val = buf.b;
+						buf = new StringBuf();
+						xml.set(aname,val);
+						state = 0;
+						next = 4;
+					}
+					break;
+				default:
+					if(c == attrValQuote) {
+						let len = p - start;
+						buf.b += len == null ? HxOverrides.substr(str,start,null) : HxOverrides.substr(str,start,len);
+						let val = buf.b;
+						buf = new StringBuf();
+						xml.set(aname,val);
+						state = 0;
+						next = 4;
+					}
+				}
+				break;
+			case 9:
+				p = haxe_xml_Parser.doParse(str,strict,p,xml);
+				start = p;
+				state = 1;
+				break;
+			case 10:
+				if(!(c >= 97 && c <= 122 || c >= 65 && c <= 90 || c >= 48 && c <= 57 || c == 58 || c == 46 || c == 95 || c == 45)) {
+					if(start == p) {
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected node name",str,p));
+					}
+					let v = HxOverrides.substr(str,start,p - start);
+					if(parent == null || parent.nodeType != 0) {
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Unexpected </" + v + ">, tag is not open",str,p));
+					}
+					if(parent.nodeType != Xml.Element) {
+						throw haxe_Exception.thrown("Bad node type, expected Element but found " + (parent.nodeType == null ? "null" : XmlType.toString(parent.nodeType)));
+					}
+					if(v != parent.nodeName) {
+						if(parent.nodeType != Xml.Element) {
+							throw haxe_Exception.thrown("Bad node type, expected Element but found " + (parent.nodeType == null ? "null" : XmlType.toString(parent.nodeType)));
+						}
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected </" + parent.nodeName + ">",str,p));
+					}
+					state = 0;
+					next = 12;
+					continue;
+				}
+				break;
+			case 11:
+				if(c == 62) {
+					state = 1;
+				} else {
+					throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected >",str,p));
+				}
+				break;
+			case 12:
+				if(c == 62) {
+					if(nsubs == 0) {
+						parent.addChild(Xml.createPCData(""));
+					}
+					return p;
+				} else {
+					throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Expected >",str,p));
+				}
+				break;
+			case 13:
+				if(c == 60) {
+					let len = p - start;
+					buf.b += len == null ? HxOverrides.substr(str,start,null) : HxOverrides.substr(str,start,len);
+					let child = Xml.createPCData(buf.b);
+					buf = new StringBuf();
+					parent.addChild(child);
+					++nsubs;
+					state = 0;
+					next = 2;
+				} else if(c == 38) {
+					let len = p - start;
+					buf.b += len == null ? HxOverrides.substr(str,start,null) : HxOverrides.substr(str,start,len);
+					state = 18;
+					escapeNext = 13;
+					start = p + 1;
+				}
+				break;
+			case 14:
+				if(c == 63 && str.charCodeAt(p + 1) == 62) {
+					++p;
+					parent.addChild(Xml.createProcessingInstruction(HxOverrides.substr(str,start + 1,p - start - 2)));
+					++nsubs;
+					state = 1;
+				}
+				break;
+			case 15:
+				if(c == 45 && str.charCodeAt(p + 1) == 45 && str.charCodeAt(p + 2) == 62) {
+					parent.addChild(Xml.createComment(HxOverrides.substr(str,start,p - start)));
+					++nsubs;
+					p += 2;
+					state = 1;
+				}
+				break;
+			case 16:
+				if(c == 91) {
+					++nbrackets;
+				} else if(c == 93) {
+					--nbrackets;
+				} else if(c == 62 && nbrackets == 0) {
+					parent.addChild(Xml.createDocType(HxOverrides.substr(str,start,p - start)));
+					++nsubs;
+					state = 1;
+				}
+				break;
+			case 17:
+				if(c == 93 && str.charCodeAt(p + 1) == 93 && str.charCodeAt(p + 2) == 62) {
+					parent.addChild(Xml.createCData(HxOverrides.substr(str,start,p - start)));
+					++nsubs;
+					p += 2;
+					state = 1;
+				}
+				break;
+			case 18:
+				if(c == 59) {
+					let s = HxOverrides.substr(str,start,p - start);
+					if(s.charCodeAt(0) == 35) {
+						let c = s.charCodeAt(1) == 120 ? Std.parseInt("0" + HxOverrides.substr(s,1,s.length - 1)) : Std.parseInt(HxOverrides.substr(s,1,s.length - 1));
+						buf.b += String.fromCodePoint(c);
+					} else if(!Object.prototype.hasOwnProperty.call(haxe_xml_Parser.escapes.h,s)) {
+						if(strict) {
+							throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Undefined entity: " + s,str,p));
+						}
+						buf.b += Std.string("&" + s + ";");
+					} else {
+						buf.b += Std.string(haxe_xml_Parser.escapes.h[s]);
+					}
+					start = p + 1;
+					state = escapeNext;
+				} else if(!(c >= 97 && c <= 122 || c >= 65 && c <= 90 || c >= 48 && c <= 57 || c == 58 || c == 46 || c == 95 || c == 45) && c != 35) {
+					if(strict) {
+						throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Invalid character in entity: " + String.fromCodePoint(c),str,p));
+					}
+					buf.b += String.fromCodePoint(38);
+					let len = p - start;
+					buf.b += len == null ? HxOverrides.substr(str,start,null) : HxOverrides.substr(str,start,len);
+					--p;
+					start = p + 1;
+					state = escapeNext;
+				}
+				break;
+			}
+			++p;
+		}
+		if(state == 1) {
+			start = p;
+			state = 13;
+		}
+		if(state == 13) {
+			if(parent.nodeType == 0) {
+				if(parent.nodeType != Xml.Element) {
+					throw haxe_Exception.thrown("Bad node type, expected Element but found " + (parent.nodeType == null ? "null" : XmlType.toString(parent.nodeType)));
+				}
+				throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Unclosed node <" + parent.nodeName + ">",str,p));
+			}
+			if(p != start || nsubs == 0) {
+				let len = p - start;
+				buf.b += len == null ? HxOverrides.substr(str,start,null) : HxOverrides.substr(str,start,len);
+				parent.addChild(Xml.createPCData(buf.b));
+				++nsubs;
+			}
+			return p;
+		}
+		if(!strict && state == 18 && escapeNext == 13) {
+			buf.b += String.fromCodePoint(38);
+			let len = p - start;
+			buf.b += len == null ? HxOverrides.substr(str,start,null) : HxOverrides.substr(str,start,len);
+			parent.addChild(Xml.createPCData(buf.b));
+			++nsubs;
+			return p;
+		}
+		throw haxe_Exception.thrown(new haxe_xml_XmlParserException("Unexpected end",str,p));
+	}
+}
+haxe_xml_Parser.__name__ = "haxe.xml.Parser";
+class haxe_xml_Printer {
+	constructor(pretty) {
+		this.output = new StringBuf();
+		this.pretty = pretty;
+	}
+	writeNode(value,tabs) {
+		switch(value.nodeType) {
+		case 0:
+			this.output.b += Std.string(tabs + "<");
+			if(value.nodeType != Xml.Element) {
+				throw haxe_Exception.thrown("Bad node type, expected Element but found " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+			}
+			this.output.b += Std.string(value.nodeName);
+			let attribute = value.attributes();
+			while(attribute.hasNext()) {
+				let attribute1 = attribute.next();
+				this.output.b += Std.string(" " + attribute1 + "=\"");
+				let input = StringTools.htmlEscape(value.get(attribute1),true);
+				this.output.b += Std.string(input);
+				this.output.b += "\"";
+			}
+			if(this.hasChildren(value)) {
+				this.output.b += ">";
+				if(this.pretty) {
+					this.output.b += "\n";
+				}
+				if(value.nodeType != Xml.Document && value.nodeType != Xml.Element) {
+					throw haxe_Exception.thrown("Bad node type, expected Element or Document but found " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+				}
+				let _this = value.children;
+				let _g_current = 0;
+				while(_g_current < _this.length) this.writeNode(_this[_g_current++],this.pretty ? tabs + "\t" : tabs);
+				this.output.b += Std.string(tabs + "</");
+				if(value.nodeType != Xml.Element) {
+					throw haxe_Exception.thrown("Bad node type, expected Element but found " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+				}
+				this.output.b += Std.string(value.nodeName);
+				this.output.b += ">";
+				if(this.pretty) {
+					this.output.b += "\n";
+				}
+			} else {
+				this.output.b += "/>";
+				if(this.pretty) {
+					this.output.b += "\n";
+				}
+			}
+			break;
+		case 1:
+			if(value.nodeType == Xml.Document || value.nodeType == Xml.Element) {
+				throw haxe_Exception.thrown("Bad node type, unexpected " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+			}
+			let nodeValue = value.nodeValue;
+			if(nodeValue.length != 0) {
+				let input = tabs + StringTools.htmlEscape(nodeValue);
+				this.output.b += Std.string(input);
+				if(this.pretty) {
+					this.output.b += "\n";
+				}
+			}
+			break;
+		case 2:
+			this.output.b += Std.string(tabs + "<![CDATA[");
+			if(value.nodeType == Xml.Document || value.nodeType == Xml.Element) {
+				throw haxe_Exception.thrown("Bad node type, unexpected " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+			}
+			this.output.b += Std.string(value.nodeValue);
+			this.output.b += "]]>";
+			if(this.pretty) {
+				this.output.b += "\n";
+			}
+			break;
+		case 3:
+			if(value.nodeType == Xml.Document || value.nodeType == Xml.Element) {
+				throw haxe_Exception.thrown("Bad node type, unexpected " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+			}
+			let commentContent = value.nodeValue;
+			let _this_r = new RegExp("[\n\r\t]+","g".split("u").join(""));
+			commentContent = commentContent.replace(_this_r,"");
+			commentContent = "<!--" + commentContent + "-->";
+			this.output.b += tabs == null ? "null" : "" + tabs;
+			this.output.b += Std.string(StringTools.trim(commentContent));
+			if(this.pretty) {
+				this.output.b += "\n";
+			}
+			break;
+		case 4:
+			if(value.nodeType == Xml.Document || value.nodeType == Xml.Element) {
+				throw haxe_Exception.thrown("Bad node type, unexpected " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+			}
+			this.output.b += Std.string("<!DOCTYPE " + value.nodeValue + ">");
+			if(this.pretty) {
+				this.output.b += "\n";
+			}
+			break;
+		case 5:
+			if(value.nodeType == Xml.Document || value.nodeType == Xml.Element) {
+				throw haxe_Exception.thrown("Bad node type, unexpected " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+			}
+			this.output.b += Std.string("<?" + value.nodeValue + "?>");
+			if(this.pretty) {
+				this.output.b += "\n";
+			}
+			break;
+		case 6:
+			if(value.nodeType != Xml.Document && value.nodeType != Xml.Element) {
+				throw haxe_Exception.thrown("Bad node type, expected Element or Document but found " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+			}
+			let _this = value.children;
+			let _g_current = 0;
+			while(_g_current < _this.length) this.writeNode(_this[_g_current++],tabs);
+			break;
+		}
+	}
+	hasChildren(value) {
+		if(value.nodeType != Xml.Document && value.nodeType != Xml.Element) {
+			throw haxe_Exception.thrown("Bad node type, expected Element or Document but found " + (value.nodeType == null ? "null" : XmlType.toString(value.nodeType)));
+		}
+		let _this = value.children;
+		let _g_current = 0;
+		while(_g_current < _this.length) {
+			let child = _this[_g_current++];
+			switch(child.nodeType) {
+			case 0:case 1:
+				return true;
+			case 2:case 3:
+				if(child.nodeType == Xml.Document || child.nodeType == Xml.Element) {
+					throw haxe_Exception.thrown("Bad node type, unexpected " + (child.nodeType == null ? "null" : XmlType.toString(child.nodeType)));
+				}
+				if(StringTools.ltrim(child.nodeValue).length != 0) {
+					return true;
+				}
+				break;
+			default:
+			}
+		}
+		return false;
+	}
+	static print(xml,pretty) {
+		if(pretty == null) {
+			pretty = false;
+		}
+		let printer = new haxe_xml_Printer(pretty);
+		printer.writeNode(xml,"");
+		return printer.output.b;
+	}
+}
+haxe_xml_Printer.__name__ = "haxe.xml.Printer";
+Object.assign(haxe_xml_Printer.prototype, {
+	__class__: haxe_xml_Printer
+});
 class js_Boot {
+	static getClass(o) {
+		if(o == null) {
+			return null;
+		} else if(((o) instanceof Array)) {
+			return Array;
+		} else {
+			let cl = o.__class__;
+			if(cl != null) {
+				return cl;
+			}
+			let name = js_Boot.__nativeClassName(o);
+			if(name != null) {
+				return js_Boot.__resolveNativeClass(name);
+			}
+			return null;
+		}
+	}
 	static __string_rec(o,s) {
 		if(o == null) {
 			return "null";
@@ -17636,8 +18783,18 @@ class js_Boot {
 			return String(o);
 		}
 	}
+	static __nativeClassName(o) {
+		let name = js_Boot.__toStr.call(o).slice(8,-1);
+		if(name == "Object" || name == "Function" || name == "Math" || name == "JSON") {
+			return null;
+		}
+		return name;
+	}
+	static __resolveNativeClass(name) {
+		return $global[name];
+	}
 }
-js_Boot.__name__ = true;
+js_Boot.__name__ = "js.Boot";
 class levels_BadData {
 	constructor(x,y,id) {
 		this.$id = id;
@@ -17645,7 +18802,10 @@ class levels_BadData {
 		this.$y = y;
 	}
 }
-levels_BadData.__name__ = true;
+levels_BadData.__name__ = "levels.BadData";
+Object.assign(levels_BadData.prototype, {
+	__class__: levels_BadData
+});
 class levels_Data {
 	constructor() {
 		this.$map = [];
@@ -17669,7 +18829,10 @@ class levels_Data {
 		this.$script = "";
 	}
 }
-levels_Data.__name__ = true;
+levels_Data.__name__ = "levels.Data";
+Object.assign(levels_Data.prototype, {
+	__class__: levels_Data
+});
 class levels_SetManager {
 	constructor(m,s) {
 		this.manager = m;
@@ -18130,7 +19293,10 @@ class levels_SetManager {
 	update() {
 	}
 }
-levels_SetManager.__name__ = true;
+levels_SetManager.__name__ = "levels.SetManager";
+Object.assign(levels_SetManager.prototype, {
+	__class__: levels_SetManager
+});
 class levels_ViewManager extends levels_SetManager {
 	constructor(m,setName) {
 		super(m,setName);
@@ -18381,7 +19547,10 @@ class levels_ViewManager extends levels_SetManager {
 		}
 	}
 }
-levels_ViewManager.__name__ = true;
+levels_ViewManager.__name__ = "levels.ViewManager";
+Object.assign(levels_ViewManager.prototype, {
+	__class__: levels_ViewManager
+});
 class levels_GameMechanics extends levels_ViewManager {
 	constructor(m,s) {
 		super(m,s);
@@ -18926,7 +20095,10 @@ class levels_GameMechanics extends levels_ViewManager {
 		}
 	}
 }
-levels_GameMechanics.__name__ = true;
+levels_GameMechanics.__name__ = "levels.GameMechanics";
+Object.assign(levels_GameMechanics.prototype, {
+	__class__: levels_GameMechanics
+});
 class levels_PortalData {
 	constructor(mc,cx,cy) {
 		this.mc = mc;
@@ -18937,7 +20109,10 @@ class levels_PortalData {
 		this.cpt = 0;
 	}
 }
-levels_PortalData.__name__ = true;
+levels_PortalData.__name__ = "levels.PortalData";
+Object.assign(levels_PortalData.prototype, {
+	__class__: levels_PortalData
+});
 class levels_PortalLink {
 	constructor() {
 	}
@@ -18953,7 +20128,10 @@ class levels_PortalLink {
 		mtlib_Log.trace("link: " + this.from_did + "," + this.from_lid + "(" + this.from_pid + ")  > " + this.to_did + "," + this.to_lid + "(" + this.to_pid + ")");
 	}
 }
-levels_PortalLink.__name__ = true;
+levels_PortalLink.__name__ = "levels.PortalLink";
+Object.assign(levels_PortalLink.prototype, {
+	__class__: levels_PortalLink
+});
 class levels_ScriptEngine {
 	constructor(g,d) {
 		this.game = g;
@@ -20134,7 +21312,10 @@ class levels_ScriptEngine {
 		this.fl_firstTorch = false;
 	}
 }
-levels_ScriptEngine.__name__ = true;
+levels_ScriptEngine.__name__ = "levels.ScriptEngine";
+Object.assign(levels_ScriptEngine.prototype, {
+	__class__: levels_ScriptEngine
+});
 class levels_TeleporterData {
 	constructor(x,y,len,dir) {
 		this.cx = x;
@@ -20163,13 +21344,19 @@ class levels_TeleporterData {
 		}
 	}
 }
-levels_TeleporterData.__name__ = true;
+levels_TeleporterData.__name__ = "levels.TeleporterData";
+Object.assign(levels_TeleporterData.prototype, {
+	__class__: levels_TeleporterData
+});
 class levels_TileMC extends swf_MovieClip {
 	constructor(__charId) {
 		super(__charId);
 	}
 }
-levels_TileMC.__name__ = true;
+levels_TileMC.__name__ = "levels.TileMC";
+Object.assign(levels_TileMC.prototype, {
+	__class__: levels_TileMC
+});
 class levels_View {
 	constructor(world,dm) {
 		this.world = world;
@@ -21134,7 +22321,246 @@ class levels_View {
 		}
 	}
 }
-levels_View.__name__ = true;
+levels_View.__name__ = "levels.View";
+Object.assign(levels_View.prototype, {
+	__class__: levels_View
+});
+class meta_Quests {
+	constructor(questsXml,itemXmls) {
+		this.familyOrder = [];
+		this.familyItems = new haxe_ds_IntMap();
+		this.itemFamily = new haxe_ds_IntMap();
+		this.initialFamilies = [];
+		this.list = [];
+		let _g = 0;
+		while(_g < itemXmls.length) {
+			let f = meta_Quests.root(itemXmls[_g++]).elementsNamed("family");
+			while(f.hasNext()) {
+				let f1 = f.next();
+				let fid = Std.parseInt(f1.get("id"));
+				let items = [];
+				let it = f1.elementsNamed("item");
+				while(it.hasNext()) {
+					let id = Std.parseInt(it.next().get("id"));
+					items.push(id);
+					this.itemFamily.h[id] = fid;
+				}
+				this.familyItems.h[fid] = items;
+				this.familyOrder.push(fid);
+			}
+		}
+		let given_h = { };
+		let q = meta_Quests.root(questsXml).elementsNamed("quest");
+		while(q.hasNext()) {
+			let q1 = q.next();
+			let quest = { id : Std.parseInt(q1.get("id")), require : [], giveFamilies : [], removeFamilies : [], options : [], modes : []};
+			let r = q1.elementsNamed("require");
+			while(r.hasNext()) {
+				let r1 = r.next();
+				quest.require.push({ item : Std.parseInt(r1.get("item")), qty : Std.parseInt(r1.get("qty"))});
+			}
+			let g = q1.elementsNamed("give");
+			while(g.hasNext()) {
+				let g1 = g.next();
+				if(g1.exists("family")) {
+					let f = Std.parseInt(g1.get("family"));
+					quest.giveFamilies.push(f);
+					given_h[f] = true;
+				}
+				if(g1.exists("option")) {
+					quest.options.push(g1.get("option"));
+				}
+				if(g1.exists("mode")) {
+					quest.modes.push(g1.get("mode"));
+				}
+			}
+			let r1 = q1.elementsNamed("remove");
+			while(r1.hasNext()) {
+				let r = r1.next();
+				quest.removeFamilies.push(Std.parseInt(r.get("family")));
+			}
+			this.list.push(quest);
+		}
+		let _g1 = 0;
+		let _g2 = this.familyOrder;
+		while(_g1 < _g2.length) {
+			let f = _g2[_g1];
+			++_g1;
+			if(!given_h.hasOwnProperty(f)) {
+				this.initialFamilies.push(f);
+			}
+		}
+	}
+	isComplete(q,counts) {
+		let _g = 0;
+		let _g1 = q.require;
+		while(_g < _g1.length) {
+			let r = _g1[_g];
+			++_g;
+			let n = counts.h[r.item];
+			if((n == null ? 0 : n) < r.qty) {
+				return false;
+			}
+		}
+		return true;
+	}
+	compute(counts) {
+		let fams = this.initialFamilies.slice();
+		let options = [];
+		let modes = [];
+		let done = [];
+		let removed_h = { };
+		let _g = 0;
+		let _g1 = this.list;
+		while(_g < _g1.length) {
+			let q = _g1[_g];
+			++_g;
+			if(!this.isComplete(q,counts)) {
+				continue;
+			}
+			done.push(q.id);
+			let _g2 = 0;
+			let _g3 = q.giveFamilies;
+			while(_g2 < _g3.length) {
+				let f = _g3[_g2];
+				++_g2;
+				if(fams.indexOf(f) < 0) {
+					fams.push(f);
+				}
+			}
+			let _g4 = 0;
+			let _g5 = q.removeFamilies;
+			while(_g4 < _g5.length) removed_h[_g5[_g4++]] = true;
+			let _g6 = 0;
+			let _g7 = q.options;
+			while(_g6 < _g7.length) {
+				let o = _g7[_g6];
+				++_g6;
+				if(options.indexOf(o) < 0) {
+					options.push(o);
+				}
+			}
+			let _g8 = 0;
+			let _g9 = q.modes;
+			while(_g8 < _g9.length) {
+				let m = _g9[_g8];
+				++_g8;
+				if(modes.indexOf(m) < 0) {
+					modes.push(m);
+				}
+			}
+		}
+		let _g2 = [];
+		let _g3 = 0;
+		let _g4 = fams;
+		while(_g3 < _g4.length) {
+			let v = _g4[_g3];
+			++_g3;
+			if(!removed_h.hasOwnProperty(v)) {
+				_g2.push(v);
+			}
+		}
+		return { families : _g2, options : options, modes : modes, done : done};
+	}
+	static root(src) {
+		if(src.startsWith("﻿")) {
+			src = HxOverrides.substr(src,1,null);
+		}
+		return Xml.parse(src).firstElement();
+	}
+	static count(counts,item) {
+		let n = counts.h[item];
+		if(n == null) {
+			return 0;
+		} else {
+			return n;
+		}
+	}
+}
+meta_Quests.__name__ = "meta.Quests";
+Object.assign(meta_Quests.prototype, {
+	__class__: meta_Quests
+});
+class meta_Save {
+	constructor() {
+		this.best = 0;
+		this.games = 0;
+		this.items = new haxe_ds_IntMap();
+	}
+	store() {
+		let it = { };
+		let map = this.items;
+		let _g_map = map;
+		let _g_keys = map.keys();
+		while(_g_keys.hasNext()) {
+			let key = _g_keys.next();
+			let k = key;
+			let v = _g_map.get(key);
+			it[k == null ? "null" : "" + k] = v;
+		}
+		try {
+			window.localStorage.setItem("kikifest.collection",JSON.stringify({ v : 1, items : it, games : this.games, best : this.best}));
+		} catch( _g ) {
+			let _g1 = haxe_Exception.caught(_g).unwrap();
+			$global.console.warn("Sauvegarde impossible",_g1);
+		}
+	}
+	addPicks(picks) {
+		if(picks == null) {
+			return;
+		}
+		let _g = 0;
+		let _g1 = picks.length;
+		while(_g < _g1) {
+			let i = _g++;
+			let n = picks[i];
+			if(n != null && n > 0) {
+				let n1 = this.items.h[i];
+				this.items.h[i] = (n1 == null ? 0 : n1) + n;
+			}
+		}
+	}
+	totalItems() {
+		let t = 0;
+		let v = this.items.iterator();
+		while(v.hasNext()) t += v.next();
+		return t;
+	}
+	static load() {
+		let s = new meta_Save();
+		try {
+			let raw = window.localStorage.getItem("kikifest.collection");
+			if(raw != null) {
+				let d = JSON.parse(raw);
+				let it = d.items;
+				if(it != null) {
+					let access = it;
+					let _g_access = access;
+					let _g_keys = Reflect.fields(access);
+					let _g_index = 0;
+					while(_g_index < _g_keys.length) {
+						let key = _g_keys[_g_index++];
+						s.items.h[Std.parseInt(key)] = _g_access[key];
+					}
+				}
+				if(d.games != null) {
+					s.games = d.games;
+				}
+				if(d.best != null) {
+					s.best = d.best;
+				}
+			}
+		} catch( _g ) {
+			let _g1 = haxe_Exception.caught(_g).unwrap();
+			$global.console.warn("Sauvegarde illisible",_g1);
+		}
+		return s;
+	}
+}
+meta_Save.__name__ = "meta.Save";
+Object.assign(meta_Save.prototype, {
+	__class__: meta_Save
+});
 class mode_GameMode extends Mode {
 	constructor(m) {
 		super(m);
@@ -23653,7 +25079,10 @@ class mode_GameMode extends Mode {
 		}
 	}
 }
-mode_GameMode.__name__ = true;
+mode_GameMode.__name__ = "mode.GameMode";
+Object.assign(mode_GameMode.prototype, {
+	__class__: mode_GameMode
+});
 class mode_Adventure extends mode_GameMode {
 	constructor(m,id) {
 		super(m);
@@ -23857,14 +25286,7 @@ class mode_Adventure extends mode_GameMode {
 	}
 	saveScore() {
 		let tmp = this.world;
-		let tmp1 = GameManager.HH.get("$" + mtlib_Md5.encode(tmp != null ? tmp.setName : null));
-		let tmp2 = this.world;
-		if(tmp1 != "$" + mtlib_Md5.encode("" + (tmp2 != null ? tmp2.csum : null))) {
-			GameManager.fatal("argh");
-			return;
-		}
-		let tmp3 = this.world;
-		if((tmp3 != null ? tmp3.setName : null) != "xml_adventure") {
+		if((tmp != null ? tmp.setName : null) != "xml_adventure") {
 			GameManager.fatal("");
 			return;
 		}
@@ -24040,7 +25462,10 @@ class mode_Adventure extends mode_GameMode {
 		this.stopMusic();
 	}
 }
-mode_Adventure.__name__ = true;
+mode_Adventure.__name__ = "mode.Adventure";
+Object.assign(mode_Adventure.prototype, {
+	__class__: mode_Adventure
+});
 class mode_BossRush extends mode_Adventure {
 	constructor(m,id) {
 		super(m,id);
@@ -24189,7 +25614,10 @@ class mode_BossRush extends mode_Adventure {
 		super.main();
 	}
 }
-mode_BossRush.__name__ = true;
+mode_BossRush.__name__ = "mode.BossRush";
+Object.assign(mode_BossRush.prototype, {
+	__class__: mode_BossRush
+});
 class mode_Fjv extends mode_Adventure {
 	constructor(m,id) {
 		super(m,id);
@@ -24274,7 +25702,10 @@ class mode_Fjv extends mode_Adventure {
 	darknessManager() {
 	}
 }
-mode_Fjv.__name__ = true;
+mode_Fjv.__name__ = "mode.Fjv";
+Object.assign(mode_Fjv.prototype, {
+	__class__: mode_Fjv
+});
 class mode_FjvEnd extends Mode {
 	constructor(m,win) {
 		super(m);
@@ -24464,7 +25895,10 @@ class mode_FjvEnd extends Mode {
 		}
 	}
 }
-mode_FjvEnd.__name__ = true;
+mode_FjvEnd.__name__ = "mode.FjvEnd";
+Object.assign(mode_FjvEnd.prototype, {
+	__class__: mode_FjvEnd
+});
 class mode_MultiCoop extends mode_Adventure {
 	constructor(m,id) {
 		super(m,id);
@@ -24563,7 +25997,10 @@ class mode_MultiCoop extends mode_Adventure {
 		(mtlib_MtStd.getGlobal("gameOver"))(-1,null,{ $reachedLevel : this.dimensions[0].currentId, $item2 : this.getPicks2(), $data : { $s0 : this.savedScores[0], $s1 : this.savedScores[1]}});
 	}
 }
-mode_MultiCoop.__name__ = true;
+mode_MultiCoop.__name__ = "mode.MultiCoop";
+Object.assign(mode_MultiCoop.prototype, {
+	__class__: mode_MultiCoop
+});
 class mode_Shareware extends mode_Adventure {
 	constructor(m,id) {
 		super(m,id);
@@ -24626,7 +26063,10 @@ class mode_Shareware extends mode_Adventure {
 	darknessManager() {
 	}
 }
-mode_Shareware.__name__ = true;
+mode_Shareware.__name__ = "mode.Shareware";
+Object.assign(mode_Shareware.prototype, {
+	__class__: mode_Shareware
+});
 class mode_Soccer extends mode_MultiCoop {
 	constructor(m,id) {
 		id = null;
@@ -25281,7 +26721,10 @@ class mode_Soccer extends mode_MultiCoop {
 		}
 	}
 }
-mode_Soccer.__name__ = true;
+mode_Soccer.__name__ = "mode.Soccer";
+Object.assign(mode_Soccer.prototype, {
+	__class__: mode_Soccer
+});
 class mode_TimeAttack extends mode_Adventure {
 	constructor(m,id) {
 		super(m,id);
@@ -25600,7 +27043,10 @@ class mode_TimeAttack extends mode_Adventure {
 		}
 	}
 }
-mode_TimeAttack.__name__ = true;
+mode_TimeAttack.__name__ = "mode.TimeAttack";
+Object.assign(mode_TimeAttack.prototype, {
+	__class__: mode_TimeAttack
+});
 class mode_TimeAttackMulti extends mode_TimeAttack {
 	constructor(m,id) {
 		super(m,id);
@@ -25660,7 +27106,10 @@ class mode_TimeAttackMulti extends mode_TimeAttack {
 		}
 	}
 }
-mode_TimeAttackMulti.__name__ = true;
+mode_TimeAttackMulti.__name__ = "mode.TimeAttackMulti";
+Object.assign(mode_TimeAttackMulti.prototype, {
+	__class__: mode_TimeAttackMulti
+});
 class mode_Tutorial extends mode_GameMode {
 	constructor(m) {
 		super(m);
@@ -25765,12 +27214,15 @@ class mode_Tutorial extends mode_GameMode {
 		}
 	}
 }
-mode_Tutorial.__name__ = true;
+mode_Tutorial.__name__ = "mode.Tutorial";
+Object.assign(mode_Tutorial.prototype, {
+	__class__: mode_Tutorial
+});
 class mtflash_Init {
 	static init() {
 	}
 }
-mtflash_Init.__name__ = true;
+mtflash_Init.__name__ = "mtflash.Init";
 class mtflash_display_BitmapData {
 	constructor(w,h,transparent,fill) {
 		if(fill == null) {
@@ -25803,7 +27255,10 @@ class mtflash_display_BitmapData {
 		return b;
 	}
 }
-mtflash_display_BitmapData.__name__ = true;
+mtflash_display_BitmapData.__name__ = "mtflash.display.BitmapData";
+Object.assign(mtflash_display_BitmapData.prototype, {
+	__class__: mtflash_display_BitmapData
+});
 class mtflash_filters_BlurFilter {
 	constructor(blurX,blurY,quality) {
 		if(quality == null) {
@@ -25821,7 +27276,10 @@ class mtflash_filters_BlurFilter {
 		this.quality = quality;
 	}
 }
-mtflash_filters_BlurFilter.__name__ = true;
+mtflash_filters_BlurFilter.__name__ = "mtflash.filters.BlurFilter";
+Object.assign(mtflash_filters_BlurFilter.prototype, {
+	__class__: mtflash_filters_BlurFilter
+});
 class mtflash_filters_GlowFilter {
 	constructor(color,alpha,blurX,blurY,strength,quality,inner,knockout) {
 		if(knockout == null) {
@@ -25859,10 +27317,13 @@ class mtflash_filters_GlowFilter {
 		this.knockout = knockout;
 	}
 }
-mtflash_filters_GlowFilter.__name__ = true;
+mtflash_filters_GlowFilter.__name__ = "mtflash.filters.GlowFilter";
+Object.assign(mtflash_filters_GlowFilter.prototype, {
+	__class__: mtflash_filters_GlowFilter
+});
 class mtlib_ArrayExt {
 }
-mtlib_ArrayExt.__name__ = true;
+mtlib_ArrayExt.__name__ = "mtlib.ArrayExt";
 class mtlib_BitCodec {
 	constructor() {
 		this.setData("");
@@ -25979,7 +27440,10 @@ class mtlib_BitCodec {
 		return "?";
 	}
 }
-mtlib_BitCodec.__name__ = true;
+mtlib_BitCodec.__name__ = "mtlib.BitCodec";
+Object.assign(mtlib_BitCodec.prototype, {
+	__class__: mtlib_BitCodec
+});
 class mtlib_BlendMode {
 }
 class mtlib_Color {
@@ -26033,7 +27497,10 @@ class mtlib_Color {
 		return { ra : c[0] * 100, ga : c[1] * 100, ba : c[2] * 100, aa : c[3] * 100, rb : c[4], gb : c[5], bb : c[6], ab : c[7]};
 	}
 }
-mtlib_Color.__name__ = true;
+mtlib_Color.__name__ = "mtlib.Color";
+Object.assign(mtlib_Color.prototype, {
+	__class__: mtlib_Color
+});
 class mtlib_DepthManager {
 	constructor(mc) {
 		this.root_mc = mc;
@@ -26241,12 +27708,18 @@ class mtlib_DepthManager {
 		}
 	}
 }
-mtlib_DepthManager.__name__ = true;
+mtlib_DepthManager.__name__ = "mtlib.DepthManager";
+Object.assign(mtlib_DepthManager.prototype, {
+	__class__: mtlib_DepthManager
+});
 class mtlib_FileServer {
 	constructor() {
 	}
 }
-mtlib_FileServer.__name__ = true;
+mtlib_FileServer.__name__ = "mtlib.FileServer";
+Object.assign(mtlib_FileServer.prototype, {
+	__class__: mtlib_FileServer
+});
 class mtlib_Key {
 	static isDown(code) {
 		return mtlib_Key.down.h[code] == true;
@@ -26275,7 +27748,7 @@ class mtlib_Key {
 	static removeListener(l) {
 	}
 }
-mtlib_Key.__name__ = true;
+mtlib_Key.__name__ = "mtlib.Key";
 class mtlib_Log {
 	static setColor(c) {
 	}
@@ -26288,167 +27761,7 @@ class mtlib_Log {
 	static clear() {
 	}
 }
-mtlib_Log.__name__ = true;
-class mtlib_Md5 {
-	static bitOR(a,b) {
-		let lsb = a & 1 | b & 1;
-		let msb31 = a >>> 1 | b >>> 1;
-		return msb31 << 1 | lsb;
-	}
-	static bitXOR(a,b) {
-		let lsb = a & 1 ^ b & 1;
-		let msb31 = a >>> 1 ^ b >>> 1;
-		return msb31 << 1 | lsb;
-	}
-	static bitAND(a,b) {
-		let lsb = a & 1 & (b & 1);
-		let msb31 = a >>> 1 & b >>> 1;
-		return msb31 << 1 | lsb;
-	}
-	static addme(x,y) {
-		let lsw = (x & 65535) + (y & 65535);
-		let msw = (x >> 16) + (y >> 16) + (lsw >> 16);
-		return msw << 16 | lsw & 65535;
-	}
-	static rhex(num) {
-		let str = "";
-		let j = 0;
-		while(j <= 3) {
-			let tmp = mtlib_Md5.hex_chr;
-			let tmp1 = mtlib_Md5.hex_chr;
-			str = Std.string(str) + ((tmp != null ? tmp.charAt(num >> j * 8 + 4 & 15) : null) + (tmp1 != null ? tmp1.charAt(num >> j * 8 & 15) : null));
-			j += 1;
-		}
-		return str;
-	}
-	static str2blks(str) {
-		let nblk = ((str != null ? str.length : null) + 8 >> 6) + 1;
-		let blks = [];
-		let i;
-		i = 0;
-		while(i < nblk * 16) {
-			blks[i] = 0;
-			i += 1;
-		}
-		i = 0;
-		while(i < (str != null ? str.length : null)) {
-			blks[i >> 2] |= (str != null ? str.charCodeAt(i) : null) << ((str != null ? str.length : null) * 8 + i) % 4 * 8;
-			i += 1;
-		}
-		blks[i >> 2] |= 128 << ((str != null ? str.length : null) * 8 + i) % 4 * 8;
-		let l = (str != null ? str.length : null) * 8;
-		blks[nblk * 16 - 2] = l & 255;
-		blks[nblk * 16 - 2] |= (l >>> 8 & 255) << 8;
-		blks[nblk * 16 - 2] |= (l >>> 16 & 255) << 16;
-		blks[nblk * 16 - 2] |= (l >>> 24 & 255) << 24;
-		return blks;
-	}
-	static rol(num,cnt) {
-		return num << cnt | num >>> 32 - cnt;
-	}
-	static cmn(q,a,b,x,s,t) {
-		return mtlib_Md5.addme(mtlib_Md5.rol(mtlib_Md5.addme(mtlib_Md5.addme(a,q),mtlib_Md5.addme(x,t)),s),b);
-	}
-	static ff(a,b,c,d,x,s,t) {
-		return mtlib_Md5.cmn(mtlib_Md5.bitOR(mtlib_Md5.bitAND(b,c),mtlib_Md5.bitAND(~b,d)),a,b,x,s,t);
-	}
-	static gg(a,b,c,d,x,s,t) {
-		return mtlib_Md5.cmn(mtlib_Md5.bitOR(mtlib_Md5.bitAND(b,d),mtlib_Md5.bitAND(c,~d)),a,b,x,s,t);
-	}
-	static hh(a,b,c,d,x,s,t) {
-		return mtlib_Md5.cmn(mtlib_Md5.bitXOR(mtlib_Md5.bitXOR(b,c),d),a,b,x,s,t);
-	}
-	static ii(a,b,c,d,x,s,t) {
-		return mtlib_Md5.cmn(mtlib_Md5.bitXOR(c,mtlib_Md5.bitOR(b,~d)),a,b,x,s,t);
-	}
-	static encode(str) {
-		let x = mtlib_Md5.str2blks(str);
-		let a = 1732584193;
-		let b = -271733879;
-		let c = -1732584194;
-		let d = 271733878;
-		let step;
-		let i = 0;
-		while(i < (x != null ? x.length : null)) {
-			let olda = a;
-			let oldb = b;
-			let oldc = c;
-			let oldd = d;
-			step = 0;
-			a = mtlib_Md5.ff(a,b,c,d,x[i + 0],7,-680876936);
-			d = mtlib_Md5.ff(d,a,b,c,x[i + 1],12,-389564586);
-			c = mtlib_Md5.ff(c,d,a,b,x[i + 2],17,606105819);
-			b = mtlib_Md5.ff(b,c,d,a,x[i + 3],22,-1044525330);
-			a = mtlib_Md5.ff(a,b,c,d,x[i + 4],7,-176418897);
-			d = mtlib_Md5.ff(d,a,b,c,x[i + 5],12,1200080426);
-			c = mtlib_Md5.ff(c,d,a,b,x[i + 6],17,-1473231341);
-			b = mtlib_Md5.ff(b,c,d,a,x[i + 7],22,-45705983);
-			a = mtlib_Md5.ff(a,b,c,d,x[i + 8],7,1770035416);
-			d = mtlib_Md5.ff(d,a,b,c,x[i + 9],12,-1958414417);
-			c = mtlib_Md5.ff(c,d,a,b,x[i + 10],17,-42063);
-			b = mtlib_Md5.ff(b,c,d,a,x[i + 11],22,-1990404162);
-			a = mtlib_Md5.ff(a,b,c,d,x[i + 12],7,1804603682);
-			d = mtlib_Md5.ff(d,a,b,c,x[i + 13],12,-40341101);
-			c = mtlib_Md5.ff(c,d,a,b,x[i + 14],17,-1502002290);
-			b = mtlib_Md5.ff(b,c,d,a,x[i + 15],22,1236535329);
-			a = mtlib_Md5.gg(a,b,c,d,x[i + 1],5,-165796510);
-			d = mtlib_Md5.gg(d,a,b,c,x[i + 6],9,-1069501632);
-			c = mtlib_Md5.gg(c,d,a,b,x[i + 11],14,643717713);
-			b = mtlib_Md5.gg(b,c,d,a,x[i + 0],20,-373897302);
-			a = mtlib_Md5.gg(a,b,c,d,x[i + 5],5,-701558691);
-			d = mtlib_Md5.gg(d,a,b,c,x[i + 10],9,38016083);
-			c = mtlib_Md5.gg(c,d,a,b,x[i + 15],14,-660478335);
-			b = mtlib_Md5.gg(b,c,d,a,x[i + 4],20,-405537848);
-			a = mtlib_Md5.gg(a,b,c,d,x[i + 9],5,568446438);
-			d = mtlib_Md5.gg(d,a,b,c,x[i + 14],9,-1019803690);
-			c = mtlib_Md5.gg(c,d,a,b,x[i + 3],14,-187363961);
-			b = mtlib_Md5.gg(b,c,d,a,x[i + 8],20,1163531501);
-			a = mtlib_Md5.gg(a,b,c,d,x[i + 13],5,-1444681467);
-			d = mtlib_Md5.gg(d,a,b,c,x[i + 2],9,-51403784);
-			c = mtlib_Md5.gg(c,d,a,b,x[i + 7],14,1735328473);
-			b = mtlib_Md5.gg(b,c,d,a,x[i + 12],20,-1926607734);
-			a = mtlib_Md5.hh(a,b,c,d,x[i + 5],4,-378558);
-			d = mtlib_Md5.hh(d,a,b,c,x[i + 8],11,-2022574463);
-			c = mtlib_Md5.hh(c,d,a,b,x[i + 11],16,1839030562);
-			b = mtlib_Md5.hh(b,c,d,a,x[i + 14],23,-35309556);
-			a = mtlib_Md5.hh(a,b,c,d,x[i + 1],4,-1530992060);
-			d = mtlib_Md5.hh(d,a,b,c,x[i + 4],11,1272893353);
-			c = mtlib_Md5.hh(c,d,a,b,x[i + 7],16,-155497632);
-			b = mtlib_Md5.hh(b,c,d,a,x[i + 10],23,-1094730640);
-			a = mtlib_Md5.hh(a,b,c,d,x[i + 13],4,681279174);
-			d = mtlib_Md5.hh(d,a,b,c,x[i + 0],11,-358537222);
-			c = mtlib_Md5.hh(c,d,a,b,x[i + 3],16,-722521979);
-			b = mtlib_Md5.hh(b,c,d,a,x[i + 6],23,76029189);
-			a = mtlib_Md5.hh(a,b,c,d,x[i + 9],4,-640364487);
-			d = mtlib_Md5.hh(d,a,b,c,x[i + 12],11,-421815835);
-			c = mtlib_Md5.hh(c,d,a,b,x[i + 15],16,530742520);
-			b = mtlib_Md5.hh(b,c,d,a,x[i + 2],23,-995338651);
-			a = mtlib_Md5.ii(a,b,c,d,x[i + 0],6,-198630844);
-			d = mtlib_Md5.ii(d,a,b,c,x[i + 7],10,1126891415);
-			c = mtlib_Md5.ii(c,d,a,b,x[i + 14],15,-1416354905);
-			b = mtlib_Md5.ii(b,c,d,a,x[i + 5],21,-57434055);
-			a = mtlib_Md5.ii(a,b,c,d,x[i + 12],6,1700485571);
-			d = mtlib_Md5.ii(d,a,b,c,x[i + 3],10,-1894986606);
-			c = mtlib_Md5.ii(c,d,a,b,x[i + 10],15,-1051523);
-			b = mtlib_Md5.ii(b,c,d,a,x[i + 1],21,-2054922799);
-			a = mtlib_Md5.ii(a,b,c,d,x[i + 8],6,1873313359);
-			d = mtlib_Md5.ii(d,a,b,c,x[i + 15],10,-30611744);
-			c = mtlib_Md5.ii(c,d,a,b,x[i + 6],15,-1560198380);
-			b = mtlib_Md5.ii(b,c,d,a,x[i + 13],21,1309151649);
-			a = mtlib_Md5.ii(a,b,c,d,x[i + 4],6,-145523070);
-			d = mtlib_Md5.ii(d,a,b,c,x[i + 11],10,-1120210379);
-			c = mtlib_Md5.ii(c,d,a,b,x[i + 2],15,718787259);
-			b = mtlib_Md5.ii(b,c,d,a,x[i + 9],21,-343485551);
-			a = mtlib_Md5.addme(a,olda);
-			b = mtlib_Md5.addme(b,oldb);
-			c = mtlib_Md5.addme(c,oldc);
-			d = mtlib_Md5.addme(d,oldd);
-			i += 16;
-		}
-		return mtlib_Md5.rhex(a) + mtlib_Md5.rhex(b) + mtlib_Md5.rhex(c) + mtlib_Md5.rhex(d);
-	}
-}
-mtlib_Md5.__name__ = true;
+mtlib_Log.__name__ = "mtlib.Log";
 class mtlib_MtXmlNode {
 	constructor(type,nameOrValue) {
 		if(mtlib_MtXmlNode._hx_skip_constructor) {
@@ -26606,7 +27919,10 @@ class mtlib_MtXmlNode {
 		return StringTools.replace(StringTools.replace(StringTools.replace(StringTools.replace(v,"&","&amp;"),"<","&lt;"),">","&gt;"),"\"","&quot;");
 	}
 }
-mtlib_MtXmlNode.__name__ = true;
+mtlib_MtXmlNode.__name__ = "mtlib.MtXmlNode";
+Object.assign(mtlib_MtXmlNode.prototype, {
+	__class__: mtlib_MtXmlNode
+});
 class mtlib_MtXml extends mtlib_MtXmlNode {
 	constructor(src) {
 		mtlib_MtXmlNode._hx_skip_constructor = true;
@@ -26648,7 +27964,10 @@ class mtlib_MtXml extends mtlib_MtXmlNode {
 		}
 	}
 }
-mtlib_MtXml.__name__ = true;
+mtlib_MtXml.__name__ = "mtlib.MtXml";
+Object.assign(mtlib_MtXml.prototype, {
+	__class__: mtlib_MtXml
+});
 class mtlib_PersistCodec {
 	constructor() {
 		this.obfu_mode = false;
@@ -27318,7 +28637,10 @@ class mtlib_PersistCodec {
 		return this.decodeEnd();
 	}
 }
-mtlib_PersistCodec.__name__ = true;
+mtlib_PersistCodec.__name__ = "mtlib.PersistCodec";
+Object.assign(mtlib_PersistCodec.prototype, {
+	__class__: mtlib_PersistCodec
+});
 class mtlib_SharedObject {
 	constructor() {
 		this.data = { };
@@ -27333,7 +28655,10 @@ class mtlib_SharedObject {
 		return new mtlib_SharedObject();
 	}
 }
-mtlib_SharedObject.__name__ = true;
+mtlib_SharedObject.__name__ = "mtlib.SharedObject";
+Object.assign(mtlib_SharedObject.prototype, {
+	__class__: mtlib_SharedObject
+});
 class mtlib_Sound {
 	constructor(target) {
 		this.position = 0;
@@ -27399,7 +28724,10 @@ class mtlib_Sound {
 		return 1;
 	}
 }
-mtlib_Sound.__name__ = true;
+mtlib_Sound.__name__ = "mtlib.Sound";
+Object.assign(mtlib_Sound.prototype, {
+	__class__: mtlib_Sound
+});
 class mtlib_SoundBank {
 	static whenReady(linkage,f) {
 		if(Object.prototype.hasOwnProperty.call(mtlib_SoundBank.buffers.h,linkage)) {
@@ -27516,7 +28844,7 @@ class mtlib_SoundBank {
 		h.gain.gain.value = tmp;
 	}
 }
-mtlib_SoundBank.__name__ = true;
+mtlib_SoundBank.__name__ = "mtlib.SoundBank";
 class mtlib_SoundManager {
 	constructor(mc,baseDepth) {
 		this.loops = new haxe_ds_StringMap();
@@ -27619,7 +28947,10 @@ class mtlib_SoundManager {
 		}
 	}
 }
-mtlib_SoundManager.__name__ = true;
+mtlib_SoundManager.__name__ = "mtlib.SoundManager";
+Object.assign(mtlib_SoundManager.prototype, {
+	__class__: mtlib_SoundManager
+});
 class mtlib_StringExt {
 	static slice(s,start,end) {
 		return s.slice(start, end);
@@ -27628,7 +28959,7 @@ class mtlib_StringExt {
 		return s + Std.string(o);
 	}
 }
-mtlib_StringExt.__name__ = true;
+mtlib_StringExt.__name__ = "mtlib.StringExt";
 class mtlib_Timer {
 	static update() {
 		mtlib_Timer.frameCount++;
@@ -27639,7 +28970,7 @@ class mtlib_Timer {
 		return mtlib_Timer.wantedFPS / mtlib_Timer.tmod;
 	}
 }
-mtlib_Timer.__name__ = true;
+mtlib_Timer.__name__ = "mtlib.Timer";
 class mtlib_Tools {
 	static delay(f,time) {
 		window.setTimeout(f,time);
@@ -27826,7 +29157,7 @@ class mtlib_Tools {
 		}
 	}
 }
-mtlib_Tools.__name__ = true;
+mtlib_Tools.__name__ = "mtlib.Tools";
 class swf_BitmapObject extends swf_DisplayObject {
 	constructor(b) {
 		super(-2);
@@ -27840,7 +29171,10 @@ class swf_BitmapObject extends swf_DisplayObject {
 		}
 	}
 }
-swf_BitmapObject.__name__ = true;
+swf_BitmapObject.__name__ = "swf.BitmapObject";
+Object.assign(swf_BitmapObject.prototype, {
+	__class__: swf_BitmapObject
+});
 class swf_FrameScripts {
 	static register(scripts) {
 		let _g = 0;
@@ -27899,13 +29233,13 @@ class swf_FrameScripts {
 		return s;
 	}
 }
-swf_FrameScripts.__name__ = true;
+swf_FrameScripts.__name__ = "swf.FrameScripts";
 class swf_MtStdRoot {
 	static get() {
 		return swf_MtStdRoot.root;
 	}
 }
-swf_MtStdRoot.__name__ = true;
+swf_MtStdRoot.__name__ = "swf.MtStdRoot";
 class swf_Library {
 	constructor(base,data,svgs) {
 		this.atlasPages = [];
@@ -28113,7 +29447,10 @@ class swf_Library {
 		}).catch(fail);
 	}
 }
-swf_Library.__name__ = true;
+swf_Library.__name__ = "swf.Library";
+Object.assign(swf_Library.prototype, {
+	__class__: swf_Library
+});
 class swf_Rect {
 	constructor(x0,y0,x1,y1) {
 		this.xMin = x0;
@@ -28153,7 +29490,10 @@ class swf_Rect {
 		return out;
 	}
 }
-swf_Rect.__name__ = true;
+swf_Rect.__name__ = "swf.Rect";
+Object.assign(swf_Rect.prototype, {
+	__class__: swf_Rect
+});
 class swf_Renderer {
 	constructor(canvas) {
 		this.tintCount = 0;
@@ -28489,7 +29829,10 @@ class swf_Renderer {
 		return Math.max(0,Math.min(255,v)) | 0;
 	}
 }
-swf_Renderer.__name__ = true;
+swf_Renderer.__name__ = "swf.Renderer";
+Object.assign(swf_Renderer.prototype, {
+	__class__: swf_Renderer
+});
 class swf_TextField extends swf_DisplayObject {
 	constructor(__charId) {
 		swf_DisplayObject._hx_skip_constructor = true;
@@ -28627,9 +29970,10 @@ class swf_TextField extends swf_DisplayObject {
 		}
 	}
 }
-swf_TextField.__name__ = true;
+swf_TextField.__name__ = "swf.TextField";
 Object.assign(swf_TextField.prototype, {
-	__properties__: Object.assign({}, swf_DisplayObject.prototype.__properties__, {get_length: "get_length",get_textHeight: "get_textHeight",get_textWidth: "get_textWidth",set_htmlText: "set_htmlText",get_htmlText: "get_htmlText"})
+	__class__: swf_TextField
+	,__properties__: Object.assign({}, swf_DisplayObject.prototype.__properties__, {get_length: "get_length",get_textHeight: "get_textHeight",get_textWidth: "get_textWidth",set_htmlText: "set_htmlText",get_htmlText: "get_htmlText"})
 });
 var $_;
 function $bind(o,m) { if( m == null ) return null; if( m.__id__ == null ) m.__id__ = $global.$haxeUID++; var f; if( o.hx__closures__ == null ) o.hx__closures__ = {}; else f = o.hx__closures__[m.__id__]; if( f == null ) { f = m.bind(o); o.hx__closures__[m.__id__] = f; } return f; }
@@ -28640,8 +29984,9 @@ if(typeof(performance) != "undefined" ? typeof(performance.now) == "function" : 
 }
 if( String.fromCodePoint == null ) String.fromCodePoint = function(c) { return c < 0x10000 ? String.fromCharCode(c) : String.fromCharCode((c>>10)+0xD7C0)+String.fromCharCode((c&0x3FF)+0xDC00); }
 {
-	String.__name__ = true;
-	Array.__name__ = true;
+	Object.defineProperty(String.prototype,"__class__",{ value : String, enumerable : false, writable : true});
+	String.__name__ = "String";
+	Array.__name__ = "Array";
 }
 js_Boot.__toStr = ({ }).toString;
 
@@ -28670,6 +30015,7 @@ Boot.SET_VARS = (function($this) {
 	$r = _g;
 	return $r;
 }(this));
+Boot.rawData = new haxe_ds_StringMap();
 Boot.errors = 0;
 Boot.gameEnded = false;
 Cookie.NAME = "$hammerfest_data";
@@ -29072,6 +30418,13 @@ Lang.levelNames = [];
 Lang.keyNames = [];
 Lang.lang = "ERR ";
 Lang.fl_debug = false;
+Xml.Element = 0;
+Xml.PCData = 1;
+Xml.CData = 2;
+Xml.Comment = 3;
+Xml.DocType = 4;
+Xml.ProcessingInstruction = 5;
+Xml.Document = 6;
 entity_bad_WallWalker.SUB_RECAL = 0.2;
 entity_bad_walker_Ananas.CHANCE_DASH = 6;
 entity_bad_walker_Bombe.RADIUS = Data.CASE_WIDTH * 5;
@@ -29157,6 +30510,17 @@ gui_GameInterface.BASE_X_RIGHT = 300;
 gui_GameInterface.BASE_WIDTH = 20;
 gui_GameInterface.MAX_LIVES = 8;
 gui_SoccerInterface.GLOW_COLOR = gui_GameInterface.GLOW_COLOR;
+haxe_xml_Parser.escapes = (function($this) {
+	var $r;
+	let h = new haxe_ds_StringMap();
+	h.h["lt"] = "<";
+	h.h["gt"] = ">";
+	h.h["amp"] = "&";
+	h.h["quot"] = "\"";
+	h.h["apos"] = "'";
+	$r = h;
+	return $r;
+}(this));
 levels_ScriptEngine.T_TIMER = "$t_timer";
 levels_ScriptEngine.T_POS = "$t_pos";
 levels_ScriptEngine.T_ATTACH = "$attach";
@@ -29196,6 +30560,7 @@ levels_ScriptEngine.E_OPENPORTAL = "$e_openPortal";
 levels_ScriptEngine.E_DARKNESS = "$e_darkness";
 levels_ScriptEngine.E_FAKELID = "$e_fakelid";
 levels_ScriptEngine.VERBOSE_TRIGGERS = [levels_ScriptEngine.T_POS,levels_ScriptEngine.T_EXPLODE,levels_ScriptEngine.T_ENTER];
+meta_Save.KEY = "kikifest.collection";
 mode_GameMode.WATER_COLOR = 255;
 mode_Adventure.BUCKET_X = 11;
 mode_Adventure.BUCKET_Y = 19;
@@ -29244,7 +30609,6 @@ mtlib_Key.INSERT = 45;
 mtlib_Key.DELETEKEY = 46;
 mtlib_Key.down = new haxe_ds_IntMap();
 mtlib_Log.tprint = { };
-mtlib_Md5.hex_chr = "0123456789abcdef";
 mtlib_MtXmlNode._hx_skip_constructor = false;
 mtlib_SoundBank.muted = false;
 mtlib_SoundBank.base = "assets/sfx/";

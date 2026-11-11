@@ -240,7 +240,7 @@ i++; } }
 	ENVOI DU RÉSULTAT DE LA PARTIE
 	------------------------------------------------------------------------*/
 	override public function saveScore()  untyped {
-		if(GameManager.HH.get("$"+Md5.encode(world?.setName))!="$"+Md5.encode(""+world?.csum)) {GameManager.fatal("argh"); return;}
+		// test anti-triche retiré (world.csum n'est plus calculé)
 		if(world?.setName!="xml_adventure") { GameManager.fatal("");return; }
 		MtStd.getGlobal("gameOver") (
 			savedScores[0],

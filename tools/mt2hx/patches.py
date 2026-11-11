@@ -32,6 +32,9 @@ PATCHES = [
 		}
 		if (fl_lock) {"""),
     ("game/mode/GameMode.hx", "max = ( pl[i]?.lives>max ) ? pl[i]?.lives : max;", "max = ( (pl[i]?.lives:Float) > (max:Float) ) ? pl[i]?.lives : max;"),
+    # anti-triche : le calcul de world.csum est commenté dans SetManager d'origine, donc ce test
+    # échouait toujours (« argh ») et les objets de la partie n'étaient jamais envoyés
+    ("game/mode/Adventure.hx", 'if(GameManager.HH.get("$"+Md5.encode(world?.setName))!="$"+Md5.encode(""+world?.csum)) {GameManager.fatal("argh"); return;}', '// test anti-triche retiré (world.csum n\'est plus calculé)'),
 ]
 
 

@@ -16,13 +16,24 @@ Le plan technique est dans [docs/PLAN.md](docs/PLAN.md).
 node server/serve.mjs 8080
 ```
 
-Puis ouvrir http://localhost:8080/ dans le navigateur. Le jeu démarre en mode **coopération à deux
+Puis ouvrir http://localhost:8080/menu.html (menu façon site d'origine : modes de jeu, frigo, quêtes)
+ou directement http://localhost:8080/ pour le jeu. Le jeu démarre en mode **coopération à deux
 sur le même clavier** (en attendant le réseau) :
 
 - Igor : flèches pour bouger et sauter, Entrée pour poser une bombe ;
 - Sandy : R D F G pour bouger et sauter, A pour poser une bombe.
 
 Paramètres d'adresse : `?mode=` (mode de jeu, `multicoop` par défaut), `?seed=` (graine du hasard).
+`?families=` force les familles d'objets débloquées, `?nosave` n'enregistre pas la partie.
+
+### Quêtes et collection
+
+Comme sur le site d'origine, les objets ramassés s'additionnent d'une partie à l'autre et débloquent
+les quêtes de `quests.xml` (vies supplémentaires, nouvelles familles d'objets, options, modes).
+Le serveur de Motion Twin faisait ce calcul ; ici, la collection est gardée dans le navigateur
+(`localStorage`, clé `kikifest.collection`) et les quêtes sont recalculées au lancement (`src/meta`).
+Le menu (`src/menu`, `haxe menu.hxml`) affiche le frigo et les quêtes.
+
 La visionneuse des ressources est sur http://localhost:8080/viewer.html.
 
 ## Reconstruire

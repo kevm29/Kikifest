@@ -1,0 +1,5 @@
+-cp src
+-main menu.Menu
+-js web/js/menu.js
+-D js-es=6
+-dce full
