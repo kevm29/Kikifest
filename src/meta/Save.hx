@@ -62,15 +62,69 @@ class Save {
 		return s;
 	}
 
-	public function store() {
+	function toJson():String {
 		var it = new haxe.DynamicAccess<Int>();
 		for (k => v in items)
 			it.set(Std.string(k), v);
+		return haxe.Json.stringify({v: 1, items: it, games: games, best: best, history: history, heroes: heroes});
+	}
+
+	public function store() {
 		try {
-			Browser.window.localStorage.setItem(KEY, haxe.Json.stringify({v: 1, items: it, games: games, best: best, history: history, heroes: heroes}));
+			Browser.window.localStorage.setItem(KEY, toJson());
 		} catch (e:Dynamic) {
 			Browser.console.warn("Sauvegarde impossible", e);
 		}
+	}
+
+	// ---- copie chez l'hôte -------------------------------------------------
+	// Le serveur de l'hôte garde aussi la sauvegarde de chaque joueur, par pseudo (server/serve.mjs, /api/save) :
+	// l'invité garde ainsi son frigo et ses quêtes même si l'adresse du lien change d'une fois à l'autre.
+
+	static function pseudo():String {
+		try {
+			var v = Browser.window.localStorage.getItem("kikifest.name");
+			return v != null ? StringTools.trim(v) : "";
+		} catch (e:Dynamic) {
+			return "";
+		}
+	}
+
+	/** Envoie la sauvegarde au serveur (sans effet hors du serveur Kikifest ou sans pseudo). **/
+	public static function push(s:Save) {
+		var n = pseudo();
+		if (n == "")
+			return;
+		try {
+			Browser.window.fetch("api/save?name=" + StringTools.urlEncode(n), cast {method: "POST", body: s.toJson()}).catchError(_ -> null);
+		} catch (e:Dynamic) {}
+	}
+
+	/**
+		Au démarrage du menu : si le serveur connaît une sauvegarde plus avancée pour ce pseudo
+		(plus de parties), elle remplace celle du navigateur ; sinon on lui envoie la nôtre. Puis `done`.
+	**/
+	public static function sync(done:Void->Void) {
+		var n = pseudo();
+		if (n == "" || Browser.location.protocol == "file:") {
+			done();
+			return;
+		}
+		var local = load();
+		Browser.window.fetch("api/save?name=" + StringTools.urlEncode(n)).then(r -> r.ok ? r.text() : js.lib.Promise.resolve(null)).then((t:String) -> {
+			var remoteGames = -1;
+			if (t != null && t != "null")
+				try {
+					var d:Dynamic = haxe.Json.parse(t);
+					remoteGames = d.games != null ? d.games : 0;
+					if (remoteGames > local.games)
+						Browser.window.localStorage.setItem(KEY, t);
+				} catch (e:Dynamic) {}
+			if (remoteGames < local.games)
+				push(local);
+			done();
+			return null;
+		}).catchError(_ -> done());
 	}
 
 	/** Ajoute les objets d'une partie (tableau creux id -> nombre, renvoyé par `getPicks2()`). */

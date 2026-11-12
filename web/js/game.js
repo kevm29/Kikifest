@@ -142,17 +142,23 @@ class Boot {
 		Boot.root.__isRoot = true;
 		mtlib_MtStd.root = Boot.root;
 		mtlib_MtStd.setGlobal("gameOver",function(score,a,data) {
-			Boot.status("Partie terminée ! " + Boot.endHint() + "");
 			if(!Boot.gameEnded) {
-				Boot.recordGame(score,data);
+				Boot.endMessage = "Partie terminée !";
+				try {
+					Boot.recordGame(score,data);
+				} catch( _g ) {
+					Boot.reportError(haxe_Exception.caught(_g).unwrap());
+				}
+				Boot.gameEnded = true;
+				Boot.scheduleReturn();
 			}
-			Boot.gameEnded = true;
 		});
 		mtlib_MtStd.setGlobal("exitGame",function(url,params) {
 			if(!Boot.gameEnded) {
-				Boot.status("Partie terminée ! " + Boot.endHint() + "");
+				Boot.endMessage = "Partie terminée !";
+				Boot.gameEnded = true;
+				Boot.scheduleReturn();
 			}
-			Boot.gameEnded = true;
 		});
 		swf_MtStdRoot.root = Boot.root;
 		let jobs = [];
@@ -447,8 +453,29 @@ class Boot {
 			Boot.lagTransport.update(window.performance.now());
 		}
 		let m = Boot.localMask(false) & -129;
+		let t0 = window.performance.now();
 		let r = Boot.session.tick(m);
+		let dt = window.performance.now() - t0;
+		Boot.perf.ticks++;
+		Boot.perf.total += dt;
+		if(dt > Boot.perf.max) {
+			Boot.perf.max = dt;
+		}
+		if(dt > 20) {
+			Boot.perf.slow++;
+		}
 		let now = window.performance.now();
+		if(now - Boot.lastDelayCheck > 2000 && Boot.session.rttMs > 0) {
+			Boot.lastDelayCheck = now;
+			let want = Math.max(2,Math.min(4,Math.ceil((Boot.session.rttMs / 2 - 10) / 25))) | 0;
+			if(want > Boot.session.inputDelay) {
+				let fh = Boot.session;
+				fh.set_inputDelay(fh.inputDelay + 1);
+			} else if(want < Boot.session.inputDelay) {
+				let fh = Boot.session;
+				fh.set_inputDelay(fh.inputDelay - 1);
+			}
+		}
 		if(now - Boot.lastNetInfo > 1000 && !Boot.gameEnded) {
 			Boot.lastNetInfo = now;
 			let info = (Boot.netCfg.peer.transport == "webrtc" ? "Liaison directe" : "Liaison par le serveur de l'hôte") + " · ping " + Math.round(Boot.session.rttMs) + " ms";
@@ -505,10 +532,6 @@ class Boot {
 		if(Boot.gameEnded) {
 			if(code == "Escape") {
 				Boot.leave();
-			} else if(Boot.netCfg != null && !Boot.netLost && (code == "Enter" || code == "NumpadEnter") && !Boot.wantAgain && Boot.netCfg.again != null) {
-				Boot.wantAgain = true;
-				Boot.status("On rejoue ! En attente de l'autre joueur (il doit appuyer sur Entrée)…");
-				Boot.netCfg.again();
 			}
 			return;
 		}
@@ -523,11 +546,23 @@ class Boot {
 		}
 	}
 	static leave() {
-		if(Boot.netCfg != null) {
-			$global.location.href = "index.html#multi";
-		} else {
-			$global.location.reload();
+		if(Boot.stopped) {
+			return;
 		}
+		if(Boot.returnTimer >= 0) {
+			window.clearTimeout(Boot.returnTimer);
+		}
+		if(Boot.netCfg != null && !Boot.netLost && Boot.netCfg.backToLobby != null) {
+			let msg = Boot.gameEnded ? Boot.endMessage : null;
+			let stop = window.kikiStop;
+			if(stop != null) {
+				stop();
+			}
+			Boot.netCfg.backToLobby(msg);
+			return;
+		}
+		let tmp = Boot.netCfg != null ? "index.html#multi" : "index.html";
+		$global.location.href = tmp;
 	}
 	static families(params) {
 		Boot.quests = new meta_Quests(Boot.rawData.h["quests"],[Boot.rawData.h["specialItems"],Boot.rawData.h["scoreItems"]]);
@@ -552,55 +587,57 @@ class Boot {
 		let mode = Reflect.field(Boot.root,"$mode");
 		let level = Boot.toInt(Reflect.field(data,"$reachedLevel"));
 		let date = DateTools.format(new Date(),"%Y-%m-%d");
-		let heroes = [];
-		let scores = [Boot.toInt(score)];
+		let total = Boot.toInt(score);
+		let name = Boot.netCfg != null && Boot.netCfg.names != null ? Std.string(Boot.netCfg.names[0]) : Boot.pref("name","Igor");
 		let sub = Reflect.field(data,"$data");
-		if(mode == "multicoop" && sub != null) {
-			scores = [Boot.toInt(Reflect.field(sub,"$s0")),Boot.toInt(Reflect.field(sub,"$s1"))];
-		}
-		if(mode != "solo" && mode != "multicoop") {
-			scores = [];
-		}
-		let _g = 0;
-		let _g1 = scores.length;
-		while(_g < _g1) {
-			let i = _g++;
-			let name = Boot.netCfg != null && Boot.netCfg.names != null ? Std.string(Boot.netCfg.names[i]) : Boot.pref(i == 0 ? "name" : "name2",i == 0 ? "Igor" : "Sandy");
-			if(save.addRecord({ d : date, mode : mode, name : name, score : scores[i], level : level})) {
-				heroes.push(name);
+		if(mode == "multicoop") {
+			if(sub != null) {
+				total = Boot.toInt(Reflect.field(sub,"$s0")) + Boot.toInt(Reflect.field(sub,"$s1"));
 			}
+			name += " et " + (Boot.netCfg != null && Boot.netCfg.names != null ? Std.string(Boot.netCfg.names[1]) : Boot.pref("name2","Sandy"));
+		}
+		let hero = false;
+		if(mode == "solo" || mode == "multicoop") {
+			hero = save.addRecord({ d : date, mode : mode, name : name, score : total, level : level});
 		}
 		save.store();
-		let msg = "Partie terminée !";
-		let _g2 = [];
-		let _g3 = 0;
-		let _g4 = Boot.quests.compute(save.items).done;
-		while(_g3 < _g4.length) {
-			let v = _g4[_g3];
-			++_g3;
+		meta_Save.push(save);
+		let msg = "Partie terminée ! Score : " + total + ", niveau " + level + ".";
+		let _g = [];
+		let _g1 = 0;
+		let _g2 = Boot.quests.compute(save.items).done;
+		while(_g1 < _g2.length) {
+			let v = _g2[_g1];
+			++_g1;
 			if(before.indexOf(v) < 0) {
-				_g2.push(v);
+				_g.push(v);
 			}
 		}
-		let fresh = _g2;
+		let fresh = _g;
 		if(fresh.length > 0) {
 			msg += " Nouvelle quête accomplie (" + fresh.length + ") !";
 		}
-		if(heroes.length > 0) {
-			msg += " " + heroes.join(" et ") + " entre" + (heroes.length > 1 ? "nt" : "") + " au Panthéon : va écrire ta phrase dans le menu !";
+		if(hero) {
+			msg += " " + name + " entre" + (mode == "multicoop" ? "nt" : "") + " au Panthéon : écrivez votre phrase dans le menu !";
 		}
-		Boot.status(msg + " " + Boot.endHint());
+		Boot.endMessage = msg;
 	}
-	static endHint() {
-		if(Boot.netCfg != null) {
-			if(Boot.netLost) {
-				return "Échap : menu.";
-			} else {
-				return "Entrée : rejouer ensemble · Échap : quitter.";
+	static scheduleReturn() {
+		let left = 6;
+		let tickDown = null;
+		tickDown = function() {
+			if(Boot.stopped) {
+				return;
 			}
-		} else {
-			return "Échap pour rejouer.";
-		}
+			if(left <= 0) {
+				Boot.leave();
+				return;
+			}
+			Boot.status(Boot.endMessage + " Retour au " + (Boot.netCfg != null && !Boot.netLost ? "salon" : "menu") + " dans " + left + " s (Échap : tout de suite).");
+			left -= 1;
+			Boot.returnTimer = window.setTimeout(tickDown,1000);
+		};
+		tickDown();
 	}
 	static toInt(v) {
 		let n = Std.parseInt(Std.string(v));
@@ -670,7 +707,14 @@ class NetGame {
 		mtlib_SoundBank.muted = false;
 	}
 	save() {
-		return net_Snapshot.save();
+		let t0 = window.performance.now();
+		let s = net_Snapshot.save();
+		let dt = window.performance.now() - t0;
+		Boot.perf.saves++;
+		if(dt > Boot.perf.saveMax) {
+			Boot.perf.saveMax = dt;
+		}
+		return s;
 	}
 	load(s) {
 		s.restore();
@@ -23500,19 +23544,20 @@ class meta_Save {
 		this.games = 0;
 		this.items = new haxe_ds_IntMap();
 	}
-	store() {
+	toJson() {
 		let it = { };
-		let map = this.items;
-		let _g_map = map;
-		let _g_keys = map.keys();
+		let this1 = this.items;
+		let _g_keys = this1.keys();
 		while(_g_keys.hasNext()) {
 			let key = _g_keys.next();
-			let k = key;
-			let v = _g_map.get(key);
-			it[k == null ? "null" : "" + k] = v;
+			let _g_value = this1.get(key);
+			it[key == null ? "null" : "" + key] = _g_value;
 		}
+		return JSON.stringify({ v : 1, items : it, games : this.games, best : this.best, history : this.history, heroes : this.heroes});
+	}
+	store() {
 		try {
-			window.localStorage.setItem("kikifest.collection",JSON.stringify({ v : 1, items : it, games : this.games, best : this.best, history : this.history, heroes : this.heroes}));
+			window.localStorage.setItem("kikifest.collection",this.toJson());
 		} catch( _g ) {
 			let _g1 = haxe_Exception.caught(_g).unwrap();
 			$global.console.warn("Sauvegarde impossible",_g1);
@@ -23610,6 +23655,64 @@ class meta_Save {
 			$global.console.warn("Sauvegarde illisible",_g1);
 		}
 		return s;
+	}
+	static pseudo() {
+		try {
+			let v = window.localStorage.getItem("kikifest.name");
+			if(v != null) {
+				return StringTools.trim(v);
+			} else {
+				return "";
+			}
+		} catch( _g ) {
+			return "";
+		}
+	}
+	static push(s) {
+		let n = meta_Save.pseudo();
+		if(n == "") {
+			return;
+		}
+		try {
+			window.fetch("api/save?name=" + encodeURIComponent(n),{ method : "POST", body : s.toJson()}).catch(function(_) {
+				return null;
+			});
+		} catch( _g ) {
+		}
+	}
+	static sync(done) {
+		let n = meta_Save.pseudo();
+		if(n == "" || $global.location.protocol == "file:") {
+			done();
+			return;
+		}
+		let local = meta_Save.load();
+		window.fetch("api/save?name=" + encodeURIComponent(n)).then(function(r) {
+			if(r.ok) {
+				return r.text();
+			} else {
+				return Promise.resolve(null);
+			}
+		}).then(function(t) {
+			let remoteGames = -1;
+			if(t != null && t != "null") {
+				try {
+					let d = JSON.parse(t);
+					remoteGames = d.games != null ? d.games : 0;
+					if(remoteGames > local.games) {
+						window.localStorage.setItem("kikifest.collection",t);
+					}
+				} catch( _g ) {
+				}
+			}
+			if(remoteGames < local.games) {
+				meta_Save.push(local);
+			}
+			done();
+			return null;
+		}).catch(function(_) {
+			done();
+		});
 	}
 }
 $hxClasses["meta.Save"] = meta_Save;
@@ -32186,10 +32289,14 @@ Boot.localInputs = [0,0];
 Boot.netPlayer = 0;
 Boot.netLost = false;
 Boot.lastNetInfo = 0.0;
+Boot.lastDelayCheck = 0.0;
+Boot.perf = { ticks : 0, total : 0.0, max : 0.0, slow : 0, saves : 0, saveMax : 0.0};
 Boot.stopped = false;
 Boot.lastEscape = -1e9;
 Boot.wantAgain = false;
 Boot.rawData = new haxe_ds_StringMap();
+Boot.endMessage = "";
+Boot.returnTimer = -1;
 Boot.errors = 0;
 Boot.gameEnded = false;
 Cookie.NAME = "$hammerfest_data";

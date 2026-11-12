@@ -48,15 +48,22 @@ class Boot {
 		MtStd.root = root;
 		// fonctions que la page Flash d'origine fournissait au jeu (envoi du score, sortie)
 		MtStd.setGlobal("gameOver", function(score:Dynamic, ?a:Dynamic, ?data:Dynamic) {
-			status("Partie terminée ! " + endHint() + "");
-			if (!gameEnded)
-				recordGame(score, data);
-			gameEnded = true;
+			if (!gameEnded) {
+				endMessage = "Partie terminée !";
+				try
+					recordGame(score, data)
+				catch (e:Dynamic)
+					reportError(e);
+				gameEnded = true;
+				scheduleReturn();
+			}
 		});
 		MtStd.setGlobal("exitGame", function(?url:Dynamic, ?params:Dynamic) {
-			if (!gameEnded) // garde le message de fin de partie (quêtes, Panthéon)
-				status("Partie terminée ! " + endHint() + "");
-			gameEnded = true;
+			if (!gameEnded) {
+				endMessage = "Partie terminée !";
+				gameEnded = true;
+				scheduleReturn();
+			}
 		});
 		swf.FrameScripts.MtStdRoot.root = root;
 		var jobs:Array<js.lib.Promise<Dynamic>> = [];
@@ -309,15 +316,37 @@ class Boot {
 	}
 
 	static var netWarning:String = null;
+	static var lastDelayCheck = 0.0;
 
 	static var lagTransport:net.transport.LagTransport = null;
+
+	/** Mesures (tests) : nombre de pas, temps total et maximal en ms, pas de plus de 20 ms. **/
+	public static var perf = {ticks: 0, total: 0.0, max: 0.0, slow: 0, saves: 0, saveMax: 0.0};
 
 	static function netStep() {
 		if (lagTransport != null)
 			lagTransport.update(Browser.window.performance.now());
 		var m = localMask(false) & ~meta.Settings.QUIT; // Échap ne quitte pas une partie à deux
+		var t0 = Browser.window.performance.now();
 		var r = session.tick(m);
+		var dt = Browser.window.performance.now() - t0;
+		perf.ticks++;
+		perf.total += dt;
+		if (dt > perf.max)
+			perf.max = dt;
+		if (dt > 20)
+			perf.slow++;
 		var now = Browser.window.performance.now();
+		// délai des touches adapté au ping : assez pour couvrir le trajet aller (moins de corrections
+		// visibles, donc moins de saccades), sans dépasser 4 frames (100 ms) pour garder des commandes vives
+		if (now - lastDelayCheck > 2000 && session.rttMs > 0) {
+			lastDelayCheck = now;
+			var want = Std.int(Math.max(2, Math.min(4, Math.ceil((session.rttMs / 2 - 10) / 25))));
+			if (want > session.inputDelay)
+				session.inputDelay++;
+			else if (want < session.inputDelay)
+				session.inputDelay--;
+		}
 		if (now - lastNetInfo > 1000 && !gameEnded) {
 			lastNetInfo = now;
 			var peer:Dynamic = netCfg.peer;
@@ -366,11 +395,6 @@ class Boot {
 		if (gameEnded) {
 			if (code == "Escape")
 				leave();
-			else if (netCfg != null && !netLost && (code == "Enter" || code == "NumpadEnter") && !wantAgain && netCfg.again != null) {
-				wantAgain = true;
-				status("On rejoue ! En attente de l'autre joueur (il doit appuyer sur Entrée)…");
-				netCfg.again();
-			}
 			return;
 		}
 		// en réseau, Échap ne met pas fin à la partie des deux : il faut l'appuyer deux fois pour quitter
@@ -387,10 +411,20 @@ class Boot {
 
 	/** Fin de partie : retour au menu (en réseau, la connexion se ferme). **/
 	static function leave() {
-		if (netCfg != null)
-			Browser.location.href = "index.html#multi";
-		else
-			Browser.location.reload();
+		if (stopped)
+			return;
+		if (returnTimer >= 0)
+			Browser.window.clearTimeout(returnTimer);
+		// en ligne, on revient au salon sans couper la connexion (si l'autre est encore là)
+		if (netCfg != null && !netLost && netCfg.backToLobby != null) {
+			var msg = gameEnded ? endMessage : null;
+			var stop:Dynamic = untyped js.Browser.window.kikiStop;
+			if (stop != null)
+				stop();
+			netCfg.backToLobby(msg);
+			return;
+		}
+		Browser.location.href = netCfg != null ? "index.html#multi" : "index.html";
 	}
 
 	static var rawData = new Map<String, String>();
@@ -421,35 +455,53 @@ class Boot {
 		save.addPicks(picks);
 		save.games++;
 
-		// classement : une ligne par joueur (en coop, le score de chacun est dans $data)
+		// classement : une ligne par partie ; à deux, « Igor et Sandy » (ou leurs pseudos) avec le score commun
 		var mode:String = Reflect.field(root, "$mode");
 		var level = toInt(Reflect.field(data, "__S_reachedLevel"));
 		var date = DateTools.format(Date.now(), "%Y-%m-%d");
-		var heroes = [];
-		var scores:Array<Int> = [toInt(score)];
+		var total = toInt(score);
+		var name = netCfg != null && netCfg.names != null ? Std.string(netCfg.names[0]) : pref("name", "Igor");
 		var sub:Dynamic = Reflect.field(data, "__S_data");
-		if (mode == "multicoop" && sub != null)
-			scores = [toInt(Reflect.field(sub, "__S_s0")), toInt(Reflect.field(sub, "__S_s1"))];
-		if (mode != "solo" && mode != "multicoop")
-			scores = []; // seuls l'Aventure et l'Aventure à deux comptent au classement
-		for (i in 0...scores.length) {
-			var name = netCfg != null && netCfg.names != null ? Std.string(netCfg.names[i]) : pref(i == 0 ? "name" : "name2", i == 0 ? "Igor" : "Sandy");
-			if (save.addRecord({d: date, mode: mode, name: name, score: scores[i], level: level}))
-				heroes.push(name);
+		if (mode == "multicoop") {
+			if (sub != null)
+				total = toInt(Reflect.field(sub, "__S_s0")) + toInt(Reflect.field(sub, "__S_s1"));
+			name += " et " + (netCfg != null && netCfg.names != null ? Std.string(netCfg.names[1]) : pref("name2", "Sandy"));
 		}
+		var hero = false;
+		if (mode == "solo" || mode == "multicoop") // seuls l'Aventure et l'Aventure à deux comptent au classement
+			hero = save.addRecord({d: date, mode: mode, name: name, score: total, level: level});
 		save.store();
+		meta.Save.push(save);
 
-		var msg = "Partie terminée !";
+		var msg = "Partie terminée ! Score : " + total + ", niveau " + level + ".";
 		var fresh = quests.compute(save.items).done.filter(q -> before.indexOf(q) < 0);
 		if (fresh.length > 0)
 			msg += " Nouvelle quête accomplie (" + fresh.length + ") !";
-		if (heroes.length > 0)
-			msg += " " + heroes.join(" et ") + " entre" + (heroes.length > 1 ? "nt" : "") + " au Panthéon : va écrire ta phrase dans le menu !";
-		status(msg + " " + endHint());
+		if (hero)
+			msg += " " + name + " entre" + (mode == "multicoop" ? "nt" : "") + " au Panthéon : écrivez votre phrase dans le menu !";
+		endMessage = msg;
 	}
 
-	static function endHint():String
-		return netCfg != null ? (netLost ? "Échap : menu." : "Entrée : rejouer ensemble · Échap : quitter.") : "Échap pour rejouer.";
+	static var endMessage = "";
+	static var returnTimer = -1;
+
+	/** Fin de partie : on montre le résultat quelques secondes, puis retour au menu (au salon en ligne). **/
+	static function scheduleReturn() {
+		var left = 6;
+		function tickDown() {
+			if (stopped)
+				return;
+			if (left <= 0) {
+				leave();
+				return;
+			}
+			status(endMessage + " Retour au " + (netCfg != null && !netLost ? "salon" : "menu") + " dans " + left + " s (Échap : tout de suite).");
+			left--;
+			returnTimer = Browser.window.setTimeout(tickDown, 1000);
+		}
+		tickDown();
+	}
+
 
 	static function toInt(v:Dynamic):Int {
 		var n = Std.parseInt(Std.string(v));
@@ -513,8 +565,15 @@ class NetGame implements net.rollback.RollbackGame<net.Snapshot> {
 		SoundBank.muted = false;
 	}
 
-	public function save():net.Snapshot
-		return net.Snapshot.save();
+	public function save():net.Snapshot {
+		var t0 = js.Browser.window.performance.now();
+		var s = net.Snapshot.save();
+		var dt = js.Browser.window.performance.now() - t0;
+		Boot.perf.saves++;
+		if (dt > Boot.perf.saveMax)
+			Boot.perf.saveMax = dt;
+		return s;
+	}
 
 	public function load(s:net.Snapshot)
 		s.restore();

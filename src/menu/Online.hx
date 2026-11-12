@@ -40,7 +40,10 @@ class Online {
 	static var otherReady = false;
 	static var otherName = "";
 	static var round = 0;
-	static var again = [false, false];
+	static var inGame = false;
+	static var savedBody:Array<js.html.Node> = null;
+	static var savedTitle:String;
+	static var resultLine:Element = null;
 
 	public static function showMulti(main:Element, hostGameF:Void->Dynamic, soloUrl:String) {
 		hostGame = hostGameF;
@@ -276,6 +279,8 @@ class Online {
 
 		box.innerHTML = "";
 		box.appendChild(el("p", "ok", "Vous êtes connectés !"));
+		resultLine = el("p", "result");
+		box.appendChild(resultLine);
 		var t = el("table", "lobby");
 		var me = el("tr");
 		me.appendChild(el("td", "who", isHost ? "Igor (hôte)" : "Sandy (invité)"));
@@ -291,6 +296,7 @@ class Online {
 				head.value = input.value;
 			send({t: "name", name: myName()});
 		};
+		input.onchange = () -> if (onNameChanged != null) onNameChanged();
 		td.appendChild(input);
 		td.appendChild(el("span", "note", " ← vous"));
 		me.appendChild(td);
@@ -307,6 +313,7 @@ class Online {
 		box.appendChild(t);
 
 		var readyBtn = button("Je suis prêt !", () -> {
+			resultLine.textContent = "";
 			myReady = !myReady;
 			send({t: "ready", ready: myReady});
 			lobbyRefresh();
@@ -344,8 +351,14 @@ class Online {
 				maybeStart();
 			case "start":
 				launch(m);
-			case "again":
-				onAgain(1 - localIndex());
+			case "left":
+				// l'autre a quitté la partie en cours : on revient au salon nous aussi
+				if (inGame) {
+					var stop:Dynamic = untyped js.Browser.window.kikiStop;
+					if (stop != null)
+						stop();
+					backToLobby(otherName + " a quitté la partie.", false);
+				}
 		}
 		if (lobbyRefresh != null)
 			lobbyRefresh();
@@ -373,14 +386,42 @@ class Online {
 		launch(cfg);
 	}
 
-	/** Fin de partie : l'un veut rejouer ; quand les deux veulent, l'hôte relance. **/
-	static function onAgain(who:Int) {
-		again[who] = true;
-		if (peer != null && peer.role == "host" && again[0] && again[1]) {
-			myReady = otherReady = true;
-			maybeStart();
+	/** Fin de partie (ou départ de l'un) : retour au salon, la connexion reste ouverte. **/
+	static function backToLobby(msg:String, iQuit:Bool) {
+		if (!inGame)
+			return;
+		inGame = false;
+		if (iQuit)
+			send({t: "left"});
+		doc.body.innerHTML = "";
+		doc.body.className = "";
+		for (n in savedBody)
+			doc.body.appendChild(n);
+		doc.title = savedTitle;
+		var p = peer;
+		if (p != null) {
+			p.onclose = (r:Dynamic) -> fail("L'autre joueur s'est déconnecté" + (r != null ? " (" + r + ")" : "") + ".");
+			p.onmessage = (data:Dynamic, reliable:Bool) -> {
+				if (!reliable || !Std.isOfType(data, String))
+					return;
+				var m:Dynamic = try haxe.Json.parse(data) catch (e:Dynamic) null;
+				if (m != null)
+					onLobbyMessage(m);
+			};
 		}
+		if (resultLine != null)
+			resultLine.textContent = msg != null ? msg : "Vous avez quitté la partie.";
+		if (onBack != null)
+			onBack();
+		if (lobbyRefresh != null)
+			lobbyRefresh();
 	}
+
+	/** Appelé au retour au salon (le menu recharge sa sauvegarde et réaffiche l'onglet). **/
+	public static var onBack:Void->Void = null;
+
+	/** Pseudo modifié (salon ou paramètres) : le menu recharge la sauvegarde de ce pseudo. **/
+	public static var onNameChanged:Void->Void = null;
 
 	/** Remplace le menu par le jeu, dans la même page (la connexion doit rester ouverte). **/
 	static function launch(cfg:Dynamic) {
@@ -388,9 +429,16 @@ class Online {
 		var stop:Dynamic = untyped js.Browser.window.kikiStop;
 		if (stop != null)
 			stop(); // partie précédente (« Rejouer ensemble »)
-		again = [false, false];
 		myReady = otherReady = false;
 		p.onmessage = null;
+		// le menu est mis de côté (avec ses gestionnaires) pour y revenir après la partie
+		if (!inGame) {
+			savedBody = [for (n in doc.body.childNodes) n];
+			for (n in savedBody)
+				n.parentNode.removeChild(n);
+			savedTitle = doc.title;
+		}
+		inGame = true;
 		var idx = localIndex();
 		untyped js.Browser.window.KIKI_NET = {
 			peer: p,
@@ -408,10 +456,7 @@ class Online {
 				if (m != null)
 					onLobbyMessage(m);
 			},
-			again: () -> {
-				send({t: "again"});
-				onAgain(idx);
-			}
+			backToLobby: (msg:String) -> backToLobby(msg, msg == null)
 		};
 		var names:Array<String> = cfg.names;
 		var me = idx == 0 ? "Igor" : "Sandy";
@@ -448,6 +493,7 @@ class Online {
 			Settings.setName(name.value);
 			onName(name.value);
 		};
+		name.onchange = () -> if (onNameChanged != null) onNameChanged();
 		box.appendChild(name);
 		box.appendChild(el("p", "note", "Affiché à l'autre joueur en ligne, et au classement."));
 		box.appendChild(el("h3", null, "Pseudo du 2e joueur sur le même clavier"));

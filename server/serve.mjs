@@ -55,6 +55,33 @@ const types = {
   ".ico": "image/x-icon", ".wasm": "application/wasm",
 };
 
+// ---------- Sauvegardes des joueurs ----------
+// La collection (frigo, quêtes, classement) de chaque joueur est aussi gardée chez l'hôte, par pseudo :
+// l'invité n'a pas le jeu, et l'adresse du lien change (tunnel), ce qui viderait la mémoire de son navigateur.
+const savesDir = path.join(here, "..", "saves");
+function saveFileOf(name) {
+  const n = String(name ?? "").trim().toLowerCase().slice(0, 40);
+  if (!n) return null;
+  return path.join(savesDir, Buffer.from(n).toString("hex") + ".json");
+}
+function saveApi(req, res) {
+  const url = new URL(req.url, "http://x");
+  const file = saveFileOf(url.searchParams.get("name"));
+  const reply = (code, body) => { res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" }); res.end(body ?? "null"); };
+  if (!file) return reply(400);
+  if (req.method === "GET") {
+    fs.readFile(file, "utf8", (err, data) => reply(200, err ? "null" : data));
+    return;
+  }
+  if (req.method !== "POST") return reply(405);
+  let body = "";
+  req.on("data", (c) => { body += c; if (body.length > 2_000_000) req.destroy(); });
+  req.on("end", () => {
+    try { JSON.parse(body); } catch { return reply(400); }
+    fs.mkdir(savesDir, { recursive: true }, () => fs.writeFile(file, body, (err) => reply(err ? 500 : 200, "true")));
+  });
+}
+
 function serveFile(req, res) {
   let p;
   try { p = decodeURIComponent(new URL(req.url, "http://x").pathname); }
@@ -65,6 +92,7 @@ function serveFile(req, res) {
     res.end(JSON.stringify({ ...info, upnp: info.upnp && { ok: info.upnp.ok, reason: info.upnp.reason } }));
     return;
   }
+  if (p === "/api/save") { saveApi(req, res); return; }
   if (p.endsWith("/")) p += "index.html";
   const file = path.join(root, p);
   if (!file.startsWith(root + path.sep)) { res.writeHead(403); res.end(); return; }
