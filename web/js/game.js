@@ -250,17 +250,15 @@ class Boot {
 		window.kiki.net = { Snapshot : net_Snapshot, SyncTest : net_rollback_SyncTest, NetGame : NetGame, classes : tmp, init : function() {
 			net_Snapshot.init([Boot.manager,Boot.root]);
 		}};
-		window.addEventListener("keydown",function(e) {
+		let onDown = function(e) {
 			Boot.pressed.h[e.code] = true;
-			if(Boot.gameEnded && e.code == "Escape") {
-				Boot.leave();
-			}
+			Boot.onKey(e.code);
 			mtlib_SoundBank.unlock();
 			if(e.keyCode >= 32 && e.keyCode <= 40 && !Boot.isTyping(e)) {
 				e.preventDefault();
 			}
-		});
-		window.addEventListener("keyup",function(e) {
+		};
+		let onUp = function(e) {
 			let _this = Boot.pressed;
 			let key = e.code;
 			if(Object.prototype.hasOwnProperty.call(_this.h,key)) {
@@ -269,10 +267,22 @@ class Boot {
 			} else {
 				return false;
 			}
-		});
-		window.addEventListener("blur",function(_) {
+		};
+		let onBlur = function(_) {
 			return Boot.pressed = new haxe_ds_StringMap();
-		});
+		};
+		window.addEventListener("keydown",onDown);
+		window.addEventListener("keyup",onUp);
+		window.addEventListener("blur",onBlur);
+		window.kikiStop = function() {
+			Boot.stopped = true;
+			Boot.session = null;
+			window.removeEventListener("keydown",onDown);
+			window.removeEventListener("keyup",onUp);
+			window.removeEventListener("blur",onBlur);
+			mtlib_SoundBank.shutdown();
+			return window.kikiStop = null;
+		};
 		if(Boot.netCfg != null) {
 			Boot.startNet();
 		}
@@ -285,6 +295,9 @@ class Boot {
 			last = t;
 			if(acc > 250) {
 				acc = 250;
+			}
+			if(Boot.stopped) {
+				return;
 			}
 			window.requestAnimationFrame(loop);
 			while(acc >= step) {
@@ -397,11 +410,14 @@ class Boot {
 		Boot.netGame = new NetGame();
 		let kt = new net_transport_KikiNetTransport(peer);
 		kt.onReliable = function(msg) {
+			if(Boot.netCfg.onReliable != null) {
+				Boot.netCfg.onReliable(msg);
+			}
 		};
-		let transport = kt;
+		let transport = new RoundTransport(kt,Boot.netCfg.round | 0);
 		let lag = Std.parseInt(new URLSearchParams($global.location.search).get("lag"));
 		if(lag != null && lag > 0) {
-			let lt = new net_transport_LagTransport(kt,lag,lag / 4,0.03,0.01,Boot.netPlayer + 1);
+			let lt = new net_transport_LagTransport(transport,lag,lag / 4,0.03,0.01,Boot.netPlayer + 1);
 			Boot.lagTransport = lt;
 			transport = lt;
 		}
@@ -420,8 +436,10 @@ class Boot {
 			Boot.session = null;
 			Boot.netLost = true;
 			mtlib_SoundBank.muted = false;
-			Boot.status("L'autre joueur est parti" + (reason != null ? " (" + Std.string(reason) + ")" : "") + " : tu continues seul.");
+			Boot.status("L'autre joueur est parti" + (reason != null ? " (" + Std.string(reason) + ")" : "") + " : tu continues seul. Échap deux fois : menu.");
 		};
+		Boot.status("C'est parti ! Vous jouez " + (Boot.netPlayer == 0 ? "Igor" : "Sandy") + ".");
+		Boot.lastNetInfo = window.performance.now() + 3000;
 		window.kiki.session = Boot.session;
 	}
 	static netStep() {
@@ -481,6 +499,28 @@ class Boot {
 			}
 		}
 		return h;
+	}
+	static onKey(code) {
+		let now = window.performance.now();
+		if(Boot.gameEnded) {
+			if(code == "Escape") {
+				Boot.leave();
+			} else if(Boot.netCfg != null && !Boot.netLost && (code == "Enter" || code == "NumpadEnter") && !Boot.wantAgain && Boot.netCfg.again != null) {
+				Boot.wantAgain = true;
+				Boot.status("On rejoue ! En attente de l'autre joueur (il doit appuyer sur Entrée)…");
+				Boot.netCfg.again();
+			}
+			return;
+		}
+		if(Boot.netCfg != null && code == "Escape") {
+			if(now - Boot.lastEscape < 2000) {
+				Boot.leave();
+			} else {
+				Boot.lastEscape = now;
+				Boot.status("Appuyez encore sur Échap pour quitter la partie.");
+				Boot.lastNetInfo = now + 1000;
+			}
+		}
 	}
 	static leave() {
 		if(Boot.netCfg != null) {
@@ -553,7 +593,11 @@ class Boot {
 	}
 	static endHint() {
 		if(Boot.netCfg != null) {
-			return "Échap pour revenir au menu.";
+			if(Boot.netLost) {
+				return "Échap : menu.";
+			} else {
+				return "Entrée : rejouer ensemble · Échap : quitter.";
+			}
 		} else {
 			return "Échap pour rejouer.";
 		}
@@ -639,6 +683,36 @@ $hxClasses["NetGame"] = NetGame;
 NetGame.__name__ = "NetGame";
 Object.assign(NetGame.prototype, {
 	__class__: NetGame
+});
+class net_transport_Transport {
+}
+$hxClasses["net.transport.Transport"] = net_transport_Transport;
+net_transport_Transport.__name__ = "net.transport.Transport";
+Object.assign(net_transport_Transport.prototype, {
+	__class__: net_transport_Transport
+});
+class RoundTransport {
+	constructor(inner,round) {
+		this.inner = inner;
+		this.round = round & 255;
+		let _gthis = this;
+		inner.onMessage = function(b) {
+			if(b.length > 0 && b.b[0] == _gthis.round && _gthis.onMessage != null) {
+				_gthis.onMessage(b.sub(1,b.length - 1));
+			}
+		};
+	}
+	send(data) {
+		let b = new haxe_io_Bytes(new ArrayBuffer(data.length + 1));
+		b.b[0] = this.round;
+		b.blit(1,data,0,data.length);
+		this.inner.send(b);
+	}
+}
+$hxClasses["RoundTransport"] = RoundTransport;
+RoundTransport.__name__ = "RoundTransport";
+Object.assign(RoundTransport.prototype, {
+	__class__: RoundTransport
 });
 class Chrono {
 	constructor() {
@@ -18806,6 +18880,22 @@ class haxe_io_Bytes {
 		data.hxBytes = this;
 		data.bytes = this.b;
 	}
+	blit(pos,src,srcpos,len) {
+		if(pos < 0 || srcpos < 0 || len < 0 || pos + len > this.length || srcpos + len > src.length) {
+			throw haxe_Exception.thrown(haxe_io_Error.OutsideBounds);
+		}
+		if(srcpos == 0 && len == src.b.byteLength) {
+			this.b.set(src.b,pos);
+		} else {
+			this.b.set(src.b.subarray(srcpos,srcpos + len),pos);
+		}
+	}
+	sub(pos,len) {
+		if(pos < 0 || len < 0 || pos + len > this.length) {
+			throw haxe_Exception.thrown(haxe_io_Error.OutsideBounds);
+		}
+		return new haxe_io_Bytes(this.b.buffer.slice(pos + this.b.byteOffset,pos + this.b.byteOffset + len));
+	}
 	static ofData(b) {
 		let hb = b.hxBytes;
 		if(hb != null) {
@@ -29912,6 +30002,16 @@ class mtlib_SoundBank {
 			return mtlib_SoundBank.sfxBus;
 		}
 	}
+	static shutdown() {
+		mtlib_SoundBank.muted = true;
+		if(mtlib_SoundBank.ctx != null) {
+			try {
+				mtlib_SoundBank.ctx.close();
+			} catch( _g ) {
+			}
+		}
+		mtlib_SoundBank.ctx = null;
+	}
 	static whenReady(linkage,f) {
 		if(Object.prototype.hasOwnProperty.call(mtlib_SoundBank.buffers.h,linkage)) {
 			f();
@@ -30949,13 +31049,6 @@ $hxClasses["net.rollback.SyncTest"] = net_rollback_SyncTest;
 net_rollback_SyncTest.__name__ = "net.rollback.SyncTest";
 Object.assign(net_rollback_SyncTest.prototype, {
 	__class__: net_rollback_SyncTest
-});
-class net_transport_Transport {
-}
-$hxClasses["net.transport.Transport"] = net_transport_Transport;
-net_transport_Transport.__name__ = "net.transport.Transport";
-Object.assign(net_transport_Transport.prototype, {
-	__class__: net_transport_Transport
 });
 class net_transport_KikiNetTransport {
 	constructor(peer) {
@@ -32093,6 +32186,9 @@ Boot.localInputs = [0,0];
 Boot.netPlayer = 0;
 Boot.netLost = false;
 Boot.lastNetInfo = 0.0;
+Boot.stopped = false;
+Boot.lastEscape = -1e9;
+Boot.wantAgain = false;
 Boot.rawData = new haxe_ds_StringMap();
 Boot.errors = 0;
 Boot.gameEnded = false;

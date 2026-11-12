@@ -132,6 +132,11 @@
   a.key { display: inline-block; min-width: 7em; text-align: center; padding: 3px 8px; border-radius: 6px; cursor: pointer;
     background: rgba(255,255,255,.85); color: var(--ink); font-weight: bold; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
   a.key.wait { background: #fff3b8; }
+  .bar input::placeholder { color: #efe6ff; font-weight: normal; }
+  table.lobby { border-collapse: collapse; margin: 10px 0; } table.lobby td { padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,.3); }
+  table.lobby td.who { font-weight: bold; } table.lobby td.other { font-size: 17px; } table.lobby td.state { font-style: italic; }
+  table.lobby input { font: inherit; font-size: 16px; padding: 3px 8px; border-radius: 6px; border: 0; width: 11em; }
+  .ok { color: #c8ffb0; font-weight: bold; font-size: 18px; }
   /* jeu en ligne, lancé dans la page du menu (la connexion doit rester ouverte) */
   body.playing { background: #0b0d14; color: #ddd; font: 14px system-ui, sans-serif; height: 100vh; margin: 0;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
@@ -154,7 +159,7 @@
   <header>
     <h1>Kikifest</h1>
     <div class="sub">Les Cavernes, à deux</div>
-    <div class="bar"><input id="name" aria-label="Nom du joueur 1 (Igor)"> &amp; <input id="name2" aria-label="Nom du joueur 2 (Sandy)"> ~ <span id="count">0</span> objets</div>
+    <div class="bar"><input id="name" aria-label="Votre pseudo" placeholder="Votre pseudo" maxlength="20"> ~ <span id="count">0</span> objets</div>
   </header>
   <div class="layout">
     <nav>
