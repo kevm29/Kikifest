@@ -235,6 +235,11 @@ class Boot {
 		mtlib_SoundBank.set_musicVolume(Boot.settings.music / 100);
 		mtlib_SoundBank.set_sfxVolume(Boot.settings.sfx / 100);
 		let canvas = window.document.getElementById("game");
+		if(nj != null && nj > 2) {
+			let hh = Data.DOC_HEIGHT + gui_GameInterface.ROW2_DY;
+			canvas.style.setProperty("aspect-ratio","" + Data.DOC_WIDTH + " / " + hh);
+			canvas.style.height = "min(92vh, calc(96vw * " + hh + " / " + Data.DOC_WIDTH + "))";
+		}
 		Boot.renderer = new swf_Renderer(canvas);
 		Boot.renderer.background = "#000";
 		let _g2 = [];
@@ -18100,6 +18105,19 @@ class gui_GameInterface {
 		this.baseColor = Data.BASE_COLORS[0];
 		this.update();
 	}
+	tintLife(m,pid) {
+		if(m == null) {
+			return;
+		}
+		if(this.mc2 != null) {
+			m._xscale = 80;
+			m._yscale = 80;
+			m._y += 2;
+		}
+		if(gui_GameInterface.LIFE_TINTS[pid] != null) {
+			new mtlib_Color(m).setTransform(gui_GameInterface.LIFE_TINTS[pid]);
+		}
+	}
 	initSingle() {
 		this.fl_multi = false;
 		let tmp = this.game;
@@ -18272,20 +18290,41 @@ class gui_GameInterface {
 			tmp19.push(tmp != null ? tmp.letter1_6 : null);
 		}
 		let tmp20 = this.game;
-		let npl = tmp20 != null ? tmp20.countList(Data.PLAYER) : null;
-		let k = 2;
-		while(k < npl && k < 4) {
-			let s0 = this.scores[0];
-			let tmp = this.mc;
-			let tf = tmp != null ? tmp.createTextField("$score" + Std.string(k),900 + k,32 + (k - 2) * 88,s0 != null ? s0._y : null,80,s0 != null ? s0.__h : null) : null;
-			if(tf != null) {
-				tf.__def = s0 != null ? s0.__def : null;
+		if((tmp20 != null ? tmp20.countList(Data.PLAYER) : null) > 2) {
+			let tmp = this.game;
+			let tmp1 = tmp != null ? tmp.depthMan : null;
+			this.mc2 = tmp1 != null ? tmp1.attach("hammer_interf_game",Data.DP_TOP) : null;
+			if(this.mc2 != null) {
+				let tmp = this.game;
+				this.mc2.set__x(-(tmp != null ? tmp.xOffset : null));
 			}
-			if(tf != null) {
-				tf.format = s0 != null ? s0.format : null;
+			if(this.mc2 != null) {
+				this.mc2.set__y(Data.DOC_HEIGHT + gui_GameInterface.ROW2_DY);
 			}
-			this.scores[k] = tf;
-			k += 1;
+			let tmp2 = this.mc2;
+			if(tmp2 != null) {
+				tmp2.gotoAndStop("2");
+			}
+			if(this.mc2 != null) {
+				this.mc2.cacheAsBitmap = true;
+			}
+			let tmp3 = this.mc2;
+			this.scores[2] = tmp3 != null ? tmp3.score0 : null;
+			let tmp4 = this.mc2;
+			this.scores[3] = tmp4 != null ? tmp4.score1 : null;
+			let k = 2;
+			while(k < 4) {
+				this.letters[k] = [];
+				let j = 0;
+				while(j < 7) {
+					let tmp = this.letters[k];
+					if(tmp != null) {
+						tmp.push(mtlib_MtStd.getVar(this.mc2,"letter" + (k - 2) + "_" + Std.string(j)));
+					}
+					j += 1;
+				}
+				k += 1;
+			}
 		}
 		this.fakeScores = [];
 		this.realScores = [];
@@ -18305,7 +18344,7 @@ class gui_GameInterface {
 			this.setLives(pid,p != null ? p.lives : null);
 			this.clearExtends(pid);
 			if(this.scores[pid] != null) {
-				this.scores[pid].textColor = pid == 2 ? 9236634 : pid == 3 ? 11057407 : Data.BASE_COLORS[0];
+				this.scores[pid].textColor = Data.BASE_COLORS[0];
 			}
 			FxManager.addGlow(this.scores[pid],gui_GameInterface.GLOW_COLOR,2);
 			i += 1;
@@ -18412,16 +18451,13 @@ class gui_GameInterface {
 		}
 	}
 	setLives(pid,v) {
-		if(pid >= 2) {
-			this.currentLives[pid] = v;
-			return;
-		}
+		let host = pid >= 2 ? this.mc2 : this.mc;
 		let baseX = gui_GameInterface.BASE_X;
 		let baseWid = gui_GameInterface.BASE_WIDTH;
 		if(this.fl_multi) {
 			baseWid = 0.6 * gui_GameInterface.BASE_WIDTH;
 		}
-		if(pid == 1) {
+		if(pid % 2 == 1) {
 			baseWid *= -1;
 			baseX = gui_GameInterface.BASE_X_RIGHT;
 		}
@@ -18444,13 +18480,14 @@ class gui_GameInterface {
 			}
 		} else {
 			while(this.currentLives[pid] < v && this.currentLives[pid] < gui_GameInterface.MAX_LIVES) {
-				let mc = mtlib_MtStd.attachMC(this.mc,"hammer_interf_life",this.game.manager.uniq++);
+				let mc = mtlib_MtStd.attachMC(host,"hammer_interf_life",this.game.manager.uniq++);
 				if(mc != null) {
 					mc._x = baseX + this.currentLives[pid] * baseWid;
 				}
 				if(mc != null) {
 					mc._y = -19;
 				}
+				this.tintLife(mc,pid);
 				plives[this.currentLives[pid]] = mc;
 				this.currentLives[pid]++;
 			}
@@ -18462,11 +18499,11 @@ class gui_GameInterface {
 				tmp = false;
 			}
 			if(tmp) {
-				this.more[pid] = mtlib_MtStd.attachMC(this.mc,"hammer_interf_more",this.game.manager.uniq++);
+				this.more[pid] = mtlib_MtStd.attachMC(host,"hammer_interf_more",this.game.manager.uniq++);
 				if(this.more[pid] != null) {
 					this.more[pid].set__x(baseX + baseWid * gui_GameInterface.MAX_LIVES - 4);
 				}
-				if(pid > 0) {
+				if(pid % 2 == 1) {
 					if(this.more[pid] != null) {
 						let fh = this.more[pid];
 						fh.set__x(fh.get__x() - baseWid);
@@ -18534,6 +18571,10 @@ class gui_GameInterface {
 		if(tmp != null) {
 			tmp.removeMovieClip();
 		}
+		let tmp1 = this.mc2;
+		if(tmp1 != null) {
+			tmp1.removeMovieClip();
+		}
 	}
 	update() {
 		if(!this.fl_print) {
@@ -18551,8 +18592,7 @@ class gui_GameInterface {
 						this.fakeScores[pid] = this.realScores[pid];
 					}
 					if(this.scores[pid] != null) {
-						let tmp = Std.string(this.getScoreTxt(this.fakeScores[pid]));
-						this.scores[pid].text = tmp + (pid >= 2 ? " ♥" + this.currentLives[pid] : "");
+						this.scores[pid].text = this.getScoreTxt(this.fakeScores[pid]);
 					}
 				}
 				pid += 1;
@@ -27376,18 +27416,7 @@ class mode_MultiCoop extends mode_Adventure {
 				p.name = (p != null ? p.pid : null) == 2 ? "Joueur 3" : "Joueur 4";
 			}
 			if(p != null) {
-				p.skin = (p != null ? p.pid : null) - 1;
-			}
-			if(p != null) {
-				p.darkColor = (p != null ? p.pid : null) == 2 ? 2237050 : 9063168;
-			}
-			if((p != null ? p.pid : null) == 3) {
-				if(p != null) {
-					p.defaultHead = Data.HEAD_SANDY;
-				}
-				if(p != null) {
-					p.head = p != null ? p.defaultHead : null;
-				}
+				p.darkColor = (p != null ? p.pid : null) == 2 ? 2058794 : 2237050;
 			}
 		}
 	}
@@ -32883,6 +32912,8 @@ gui_GameInterface.BASE_X = 92;
 gui_GameInterface.BASE_X_RIGHT = 300;
 gui_GameInterface.BASE_WIDTH = 20;
 gui_GameInterface.MAX_LIVES = 8;
+gui_GameInterface.ROW2_DY = 20;
+gui_GameInterface.LIFE_TINTS = [null,{ ra : 100, ga : 25, ba : 25, rb : 20, gb : 0, bb : 0},{ ra : 30, ga : 100, ba : 60, rb : 0, gb : 20, bb : 0},{ ra : 25, ga : 45, ba : 100, rb : 0, gb : 10, bb : 150}];
 gui_SoccerInterface.GLOW_COLOR = gui_GameInterface.GLOW_COLOR;
 haxe_io_FPHelper.i64tmp = new haxe__$Int64__$_$_$Int64(0,0);
 haxe_io_FPHelper.helper = new DataView(new ArrayBuffer(8));

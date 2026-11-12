@@ -86,14 +86,9 @@ class MultiCoop extends mode.Adventure
 			{ if (p != null) p.head			= p?.defaultHead; }
 		}
 		if ( p?.pid>=2 ) {
-			// Kikifest (étude) : apparences des joueurs 3 et 4 (Igor et Sandy teintés)
+			// Kikifest (étude) : joueurs 3 et 4 = Igor vert et Igor bleu
 			{ if (p != null) p.name			= p?.pid==2 ? "Joueur 3" : "Joueur 4"; }
-			{ if (p != null) p.skin			= p?.pid-1; }
-			{ if (p != null) p.darkColor		= p?.pid==2 ? 0x22227a : 0x8a4b00; }
-			if ( p?.pid==3 ) {
-				{ if (p != null) p.defaultHead	= RootData.HEAD_SANDY; }
-				{ if (p != null) p.head			= p?.defaultHead; }
-			}
+			{ if (p != null) p.darkColor		= p?.pid==2 ? 0x1f6a2a : 0x22227a; }
 		}
 //		p.ctrl.fl_upKick = false;
 	}

@@ -36,6 +36,22 @@ class GameInterface
 
 	public var baseColor		: Int;
 
+	// Kikifest (étude 3-4 joueurs) : 2e barre, placée sous la 1re (le canevas est agrandi d'autant)
+	public var mc2				: MovieClip;
+	public static var ROW2_DY:Int	= 20;
+	public static var LIFE_TINTS:Array<Dynamic> = [
+		null,
+		{ra:100, ga:25, ba:25, rb:20, gb:0, bb:0},		// Sandy : cornet rouge
+		{ra:30, ga:100, ba:60, rb:0, gb:20, bb:0},		// joueur 3 : vert
+		{ra:25, ga:45, ba:100, rb:0, gb:10, bb:150},	// joueur 4 : bleu
+	];
+
+	function tintLife(m:Dynamic, pid:Dynamic) {
+		if ( m == null ) return;
+		if ( mc2 != null ) { m._xscale = 80; m._yscale = 80; m._y = m._y + 2; }
+		if ( LIFE_TINTS[pid] != null ) new Color(m).setTransform(LIFE_TINTS[pid]);
+	}
+
 
 	/*------------------------------------------------------------------------
 	CONSTRUCTEUR
@@ -146,15 +162,20 @@ class GameInterface
 		letters[1]?.push( ((mc):Dynamic)?.letter1_6 );
 
 
-		// Kikifest (étude 3-4 joueurs) : scores des joueurs 3 et 4 au milieu de la barre
-		var npl:Dynamic = game?.countList(RootData.PLAYER);
-		{ var k:Dynamic=2; while (k<npl && k<4) {
-			var s0:Dynamic = scores[0];
-			var tf:Dynamic = mc?.createTextField("$score"+k, 900+k, 32+(k-2)*88, s0?._y, 80, s0?.__h);
-			{ if (tf != null) tf.__def = s0?.__def; }
-			{ if (tf != null) tf.format = s0?.format; }
-			scores[k] = tf;
-		k++; } }
+		// Kikifest (étude 3-4 joueurs) : une 2e barre en dessous pour les joueurs 3 et 4
+		if ( game?.countList(RootData.PLAYER) > 2 ) {
+			mc2 = game?.depthMan?.attach("hammer_interf_game",RootData.DP_TOP);
+			{ if (mc2 != null) mc2._x = -game?.xOffset; }
+			{ if (mc2 != null) mc2._y = RootData.DOC_HEIGHT + ROW2_DY; }
+			mc2?.gotoAndStop("2");
+			{ if (mc2 != null) mc2.cacheAsBitmap = true; }
+			scores[2] = ((mc2):Dynamic)?.score0;
+			scores[3] = ((mc2):Dynamic)?.score1;
+			{ var k:Dynamic=2; while (k<4) {
+				letters[k] = new Array();
+				{ var j:Dynamic=0; while (j<7) { letters[k]?.push( MtStd.getVar(mc2, "letter"+(k-2)+"_"+j) ); j++; } }
+			k++; } }
+		}
 
 		// Init spécifiques aux players
 		fakeScores		= new Array();
@@ -175,7 +196,7 @@ class GameInterface
 			setLives(pid, p?.lives);
 
 			clearExtends(pid);
-			{ if (scores[pid] != null) scores[pid].textColor = pid==2 ? 0x8cf09a : (pid==3 ? 0xa8b8ff : RootData.BASE_COLORS[0]); }
+			{ if (scores[pid] != null) scores[pid].textColor = RootData.BASE_COLORS[0]; }
 			FxManager.addGlow( ((scores[pid]):Dynamic), GLOW_COLOR, 2);
 		
 i++; } }
@@ -275,13 +296,13 @@ i-=3; } }
 	MODIFIE LE NOMBRE DE VIES
 	------------------------------------------------------------------------*/
 	public function setLives(pid:Dynamic,v:Dynamic)  untyped {
-		if ( pid>=2 ) { currentLives[pid] = v; return; } // Kikifest (étude) : vies des joueurs 3-4 écrites avec le score
+		var host:Dynamic	= pid>=2 ? mc2 : mc; // Kikifest (étude) : joueurs 3-4 sur la 2e barre
 		var baseX:Dynamic	= BASE_X;
 		var baseWid:Dynamic	= BASE_WIDTH;
 		if ( fl_multi ) {
 			baseWid	= 0.6 * BASE_WIDTH;
 		}
-		if ( pid==1 ) {
+		if ( pid%2==1 ) {
 			baseWid	*= -1;
 			baseX	= BASE_X_RIGHT;
 		}
@@ -299,16 +320,17 @@ i-=3; } }
 		}
 		else {
 			while ( currentLives[pid]<v && currentLives[pid]<MAX_LIVES ) {
-				var mc:Dynamic = MtStd.attachMC(mc, "hammer_interf_life", game.manager.uniq++);
+				var mc:Dynamic = MtStd.attachMC(host, "hammer_interf_life", game.manager.uniq++);
 				{ if (mc != null) mc._x = baseX+currentLives[pid]*baseWid; }
 				{ if (mc != null) mc._y = -19; }
+				tintLife(mc, pid);
 				plives[currentLives[pid]]=mc;
 				currentLives[pid]++;
 			}
 			if ( v>MAX_LIVES && more[pid]?._name==null ) {
-				more[pid] = MtStd.attachMC(mc,"hammer_interf_more", game.manager.uniq++);
+				more[pid] = MtStd.attachMC(host,"hammer_interf_more", game.manager.uniq++);
 				{ if (more[pid] != null) more[pid]._x = baseX + baseWid*MAX_LIVES - 4; }
-				if ( pid>0 ) {
+				if ( pid%2==1 ) {
 					{ if (more[pid] != null) more[pid]._x-=baseWid; }
 				}
 				{ if (more[pid] != null) more[pid]._y = -25; }
@@ -359,6 +381,7 @@ i++; } }
 	------------------------------------------------------------------------*/
 	public function destroy()  untyped {
 		mc?.removeMovieClip();
+		mc2?.removeMovieClip();
 	}
 
 
@@ -375,7 +398,7 @@ i++; } }
 					if ( fakeScores[pid]>realScores[pid] ) {
 						fakeScores[pid] = realScores[pid];
 					}
-					{ if (scores[pid] != null) scores[pid].text = getScoreTxt(fakeScores[pid]) + (pid>=2 ? " ♥"+currentLives[pid] : ""); }
+					{ if (scores[pid] != null) scores[pid].text = getScoreTxt(fakeScores[pid]); }
 				}
 			
 pid++; } }

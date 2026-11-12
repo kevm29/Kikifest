@@ -103,6 +103,12 @@ class Boot {
 		SoundBank.sfxVolume = settings.sfx / 100;
 
 		var canvas:js.html.CanvasElement = cast Browser.document.getElementById("game");
+		if (nj != null && nj > 2) {
+			// étude 3-4 joueurs : une 2e barre de scores sous le jeu, le canevas s'allonge d'autant
+			var hh = Data.DOC_HEIGHT + gui.GameInterface.ROW2_DY;
+			canvas.style.setProperty("aspect-ratio", '${Data.DOC_WIDTH} / $hh');
+			canvas.style.height = 'min(92vh, calc(96vw * $hh / ${Data.DOC_WIDTH}))';
+		}
 		renderer = new Renderer(canvas);
 		renderer.background = "#000";
 

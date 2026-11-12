@@ -11,8 +11,8 @@ brancher le salon et le serveur sur plusieurs invités, puis de trancher quelque
 | Sujet | Verdict | Détail |
 |---|---|---|
 | Réseau (rollback) | ✅ prototype testé | `GroupSession` : 2 à 4 joueurs, tests OK jusqu'à 150 ms et 15 % de pertes |
-| Personnages | ✅ prototype | Joueur 3 = Igor teinté vert, joueur 4 = Sandy teintée bleue |
-| Interface (scores, vies) | ✅ prototype | Scores des joueurs 3 et 4 au milieu de la barre, avec leurs vies (♥) |
+| Personnages | ✅ prototype | Joueur 3 = Igor vert, joueur 4 = Igor bleu |
+| Interface (scores, vies) | ✅ prototype | Deuxième barre sous la première : ligne 1 Igor et Sandy, ligne 2 joueurs 3 et 4, chacun avec score, vies et CRISTAL. Cornets un peu plus petits et colorés (jaune, rouge, vert, bleu) |
 | Coût en calcul | ✅ OK | Une frame coûte 0,3 ms à 4 contre 0,18 ms à 2. La photo de l'état coûte environ 3 ms dans les deux cas |
 | Latence ressentie | ⚠️ un peu plus de corrections | La partie suit le joueur le plus lent. Voir plus bas |
 | Salon et serveur | ⏳ à faire | Aujourd'hui, une partie compte 1 hôte et 1 invité |
@@ -114,7 +114,7 @@ Chaque étape se fait sans toucher au mode à 2 joueurs.
 - **Fin de partie** : pour la partie à deux, tu as demandé que la partie s'arrête quand un joueur
   perd. À 4, est-ce qu'on garde cette règle, ou est-ce que les autres continuent tant qu'il en reste
   un en vie ?
-- **Apparence** : les joueurs 3 et 4 sont pour l'instant Igor et Sandy teintés. On peut aussi leur
+- **Apparence** : les joueurs 3 et 4 sont pour l'instant Igor teinté en vert et en bleu. On peut aussi leur
   donner une tête différente parmi celles du jeu (afro, couronne, Igorette…).
 - **Quêtes et classement** : même règle qu'à deux (chacun garde sa collection, les objets ramassés
   vont à tout le monde, bonus de l'hôte), et au classement une ligne par partie avec les 3 ou 4 pseudos.
@@ -129,4 +129,5 @@ Chaque étape se fait sans toucher au mode à 2 joueurs.
 - `src/netdemo/DemoGame.hx` : le petit jeu de test accepte maintenant 2 à 4 joueurs.
 - `src/game/mode/MultiCoop.hx`, `src/game/gui/GameInterface.hx` : les joueurs 3 et 4 et la barre de
   scores. Comme `src/game` est généré, ces changements sont aussi notés dans `tools/mt2hx/patches.py`.
-- `src/game/Boot.hx` : `?joueurs=`, les touches des joueurs 3 et 4 et les robots du mode local.
+- `src/game/Boot.hx` : `?joueurs=`, les touches des joueurs 3 et 4, les robots du mode local, et le canevas
+  allongé pour la 2e barre.
