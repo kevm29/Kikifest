@@ -34,6 +34,15 @@ typedef SessionOptions = {
 
 	/** Durée d'une frame en ms (défaut 25, soit 40 images/s). **/
 	var ?frameMs:Float;
+
+	/**
+		Sauvegarde clairsemée, pour les jeux dont `save` coûte cher (défaut 0 : à chaque frame).
+		Avec N > 0, l'état n'est sauvegardé que pour les frames jouées sans connaître les touches
+		de l'autre : la première, puis une toutes les N. Une frame dont les touches sont connues
+		ne sera jamais rejouée, donc pas besoin de la sauvegarder. Un rollback repart de la
+		dernière sauvegarde avant l'erreur (jusqu'à N - 1 frames de plus à rejouer).
+	**/
+	var ?saveEvery:Int;
 }
 
 typedef SessionStats = {
@@ -141,6 +150,9 @@ class RollbackSession<S> {
 	var lastReceive:Float;
 
 	var nextChecksumFrame:Int;
+	var saveEvery:Int;
+	var savedAt:Array<Int> = [for (i in 0...SIZE) -1];
+	var lastSave = -1;
 	var localChecks = new Map<Int, Int>();
 	var remoteChecks = new Map<Int, Int>();
 
@@ -155,6 +167,7 @@ class RollbackSession<S> {
 		checksumInterval = options.checksumInterval == null ? 20 : options.checksumInterval;
 		frameMs = options.frameMs == null ? 25 : options.frameMs;
 		nextChecksumFrame = checksumInterval;
+		saveEvery = options.saveEvery == null || options.saveEvery < 1 ? 0 : options.saveEvery;
 		lastReceive = now();
 		transport.onMessage = data -> incoming.push(data);
 	}
@@ -229,7 +242,15 @@ class RollbackSession<S> {
 	function advanceFrame() {
 		var f = currentFrame;
 		var i = f & MASK;
-		states[i] = game.save();
+		if (saveEvery == 0)
+			states[i] = game.save();
+		else if (f > remoteConfirmedFrame && (f == remoteConfirmedFrame + 1 || f - lastSave >= saveEvery || lastSave > f)) {
+			// frame jouée sans les touches de l'autre : elle pourra être rejouée
+			states[i] = game.save();
+			savedAt[i] = f;
+			lastSave = f;
+		} else
+			savedAt[i] = -1; // une ancienne sauvegarde de cette frame peut venir d'une prédiction fausse
 		if (f % checksumInterval == 0)
 			stateChecksums[i] = game.checksum();
 		var remote = if (f <= remoteConfirmedFrame) remoteInputs[i] else if (remoteConfirmedFrame >= 0)
@@ -247,6 +268,12 @@ class RollbackSession<S> {
 		var target = currentFrame;
 		var from = firstMispredict;
 		firstMispredict = -1;
+		if (saveEvery > 0) {
+			// dernière sauvegarde avant l'erreur (il y en a toujours une : la première frame prédite)
+			var lim = from - SIZE;
+			while (savedAt[from & MASK] != from && from > lim)
+				from--;
+		}
 		game.load(states[from & MASK]);
 		currentFrame = from;
 		resimulating = true;

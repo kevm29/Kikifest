@@ -6,7 +6,7 @@
 
 const { chromium } = require("playwright");
 
-const url = process.argv[2] || "http://localhost:8080/index.html";
+const url = process.argv[2] || "http://localhost:8080/jeu.html?mode=multicoop";
 const dims = (process.argv[3] || "0").split(",").map(Number);
 const maxLevels = Number(process.argv[4] || 999);
 const firstLevel = Number(process.argv[5] || 0);
@@ -36,11 +36,10 @@ const firstLevel = Number(process.argv[5] || 0);
   // fonctions d'aide dans la page
   await page.evaluate(() => {
     window.__errs = [];
-    const K = { left: 37, up: 38, right: 39, down: 40, bomb: 13, l2: 68, u2: 82, r2: 71, d2: 70, b2: 65 };
+    // touches par défaut des paramètres (KeyboardEvent.code) : joueur 1 puis 2e joueur du même clavier
+    const K = { left: "ArrowLeft", up: "ArrowUp", right: "ArrowRight", down: "ArrowDown", bomb: "Space", l2: "KeyD", u2: "KeyR", r2: "KeyG", d2: "KeyF", b2: "KeyQ" };
     const press = (code, down) => {
-      const ev = new KeyboardEvent(down ? "keydown" : "keyup", { bubbles: true });
-      Object.defineProperty(ev, "keyCode", { get: () => code });
-      window.dispatchEvent(ev);
+      window.dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", { bubbles: true, code }));
     };
     let rnd = 1234567;
     const r = (n) => { rnd ^= rnd << 13; rnd ^= rnd >>> 17; rnd ^= rnd << 5; return Math.abs(rnd) % n; };
@@ -68,7 +67,7 @@ const firstLevel = Number(process.argv[5] || 0);
             else if (!want && held.has(c)) { press(c, false); held.delete(c); }
           }
         }
-        try { B.tick(); } catch (e) { window.__errs.push("TICK " + e + "\n" + (e.stack || "").split("\n").slice(1, 4).join("\n")); }
+        try { B.step(); } catch (e) { window.__errs.push("TICK " + e + "\n" + (e.stack || "").split("\n").slice(1, 4).join("\n")); }
         if (drawEvery && i % drawEvery === 0) {
           try { B.draw(); } catch (e) { window.__errs.push("DRAW " + e + "\n" + (e.stack || "").split("\n").slice(1, 4).join("\n")); }
         }

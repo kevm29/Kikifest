@@ -449,6 +449,14 @@ class net_rollback_RollbackSession {
 	constructor(game,transport,options) {
 		this.remoteChecks = new haxe_ds_IntMap();
 		this.localChecks = new haxe_ds_IntMap();
+		this.lastSave = -1;
+		let _g = [];
+		let _g1 = 0;
+		while(_g1 < 256) {
+			let i = _g1++;
+			_g.push(-1);
+		}
+		this.savedAt = _g;
 		this.lastPing = -1e9;
 		this.ticks = 0;
 		this.slowdownBudget = 0;
@@ -463,35 +471,35 @@ class net_rollback_RollbackSession {
 		this.lastLocalInput = 0;
 		this.lastLocalFrame = -1;
 		this.frameInputs = [0,0];
-		let _g = [];
-		let _g1 = 0;
-		while(_g1 < 256) {
-			let i = _g1++;
-			_g.push(0);
-		}
-		this.stateChecksums = _g;
-		this.states = [];
 		let _g2 = [];
 		let _g11 = 0;
 		while(_g11 < 256) {
 			let i = _g11++;
 			_g2.push(0);
 		}
-		this.usedRemote = _g2;
+		this.stateChecksums = _g2;
+		this.states = [];
 		let _g3 = [];
 		let _g12 = 0;
 		while(_g12 < 256) {
 			let i = _g12++;
 			_g3.push(0);
 		}
-		this.remoteInputs = _g3;
+		this.usedRemote = _g3;
 		let _g4 = [];
 		let _g13 = 0;
 		while(_g13 < 256) {
 			let i = _g13++;
 			_g4.push(0);
 		}
-		this.localInputs = _g4;
+		this.remoteInputs = _g4;
+		let _g5 = [];
+		let _g14 = 0;
+		while(_g14 < 256) {
+			let i = _g14++;
+			_g5.push(0);
+		}
+		this.localInputs = _g5;
 		this.stats = { rollbacks : 0, maxRollback : 0, resimulatedFrames : 0, waitingTicks : 0, slowdownTicks : 0, messagesSent : 0, messagesReceived : 0, checksumsCompared : 0};
 		this.desynced = false;
 		this.frameAdvantage = 0;
@@ -510,6 +518,7 @@ class net_rollback_RollbackSession {
 		this.checksumInterval = options.checksumInterval == null ? 20 : options.checksumInterval;
 		this.frameMs = options.frameMs == null ? 25 : options.frameMs;
 		this.nextChecksumFrame = this.checksumInterval;
+		this.saveEvery = options.saveEvery == null || options.saveEvery < 1 ? 0 : options.saveEvery;
 		this.lastReceive = this.now();
 		let _gthis = this;
 		transport.onMessage = function(data) {
@@ -557,7 +566,15 @@ class net_rollback_RollbackSession {
 	advanceFrame() {
 		let f = this.currentFrame;
 		let i = f & 255;
-		this.states[i] = this.game.save();
+		if(this.saveEvery == 0) {
+			this.states[i] = this.game.save();
+		} else if(f > this.remoteConfirmedFrame && (f == this.remoteConfirmedFrame + 1 || f - this.lastSave >= this.saveEvery || this.lastSave > f)) {
+			this.states[i] = this.game.save();
+			this.savedAt[i] = f;
+			this.lastSave = f;
+		} else {
+			this.savedAt[i] = -1;
+		}
 		if(f % this.checksumInterval == 0) {
 			this.stateChecksums[i] = this.game.checksum();
 		}
@@ -575,6 +592,10 @@ class net_rollback_RollbackSession {
 		let target = this.currentFrame;
 		let from = this.firstMispredict;
 		this.firstMispredict = -1;
+		if(this.saveEvery > 0) {
+			let lim = from - 256;
+			while(this.savedAt[from & 255] != from && from > lim) --from;
+		}
 		this.game.load(this.states[from & 255]);
 		this.currentFrame = from;
 		this.resimulating = true;
@@ -893,6 +914,7 @@ class net_transport_LagTransport {
 net_transport_LagTransport.__name__ = true;
 class netdemo_DemoGame {
 	constructor(seed) {
+		this.saves = 0;
 		this.forgetRngInSave = false;
 		this.corruptAtFrame = -1;
 		let _g = [];
@@ -1038,6 +1060,7 @@ class netdemo_DemoGame {
 		}
 	}
 	save() {
+		this.saves++;
 		let c = this.s.slice();
 		if(this.forgetRngInSave) {
 			c[1] = 0;

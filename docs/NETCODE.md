@@ -99,3 +99,28 @@ Les tests couvrent : déterminisme (SyncTest), détection d'un champ oublié dan
 parties de 60 s sur 4 qualités de réseau (jusqu'à 150 ms, 15 % de pertes) et 3 délais,
 comparées à une partie rejouée sans réseau, horloge d'un joueur 2 % trop rapide,
 détection d'une désynchro, coupure réseau de 2 s puis reprise.
+
+## Branchement dans Kikifest
+
+- **Photo de l'état** (`src/net/Snapshot.hx`) : plutôt qu'un `save`/`load` écrit à la main pour les
+  centaines de classes converties, on parcourt tout le graphe d'objets accessible depuis le
+  gestionnaire, le clip racine et les statiques de toutes les classes, et on garde une copie
+  superficielle de chaque objet. Restaurer réécrit ces copies dans les mêmes objets (les références
+  restent valables, l'ordre des clés et les trous des tableaux sont conservés). Sont laissés de côté :
+  ressources du SWF, DOM, sons, clips retirés de l'affichage, textes (`Lang`) et constantes (`Data`).
+  Environ 4 000 objets, 2 à 3 ms par photo.
+- **Sauvegarde clairsemée** (`saveEvery: 4`) : une frame dont on connaît déjà les touches de l'autre
+  ne sera jamais rejouée, donc on ne la photographie pas ; parmi les frames prédites, on photographie
+  la première puis une sur quatre. Quand les touches arrivent à temps (ping < ~100 ms avec 2 frames de
+  délai), il n'y a presque aucune photo.
+- **Touches** : le jeu ne lit plus le clavier. `Boot` transforme les touches enfoncées en masque
+  d'actions (`meta.Settings` : haut, bas, gauche, droite, bombe, pause, carte), le masque passe par
+  le réseau, puis chaque joueur (par `pid`) reçoit des codes virtuels (1001-1005 pour Igor,
+  1011-1015 pour Sandy) dans `mtlib.Key`. Chacun règle ses touches dans les Paramètres du menu.
+- Pendant les frames rejouées, les bruitages sont coupés (la musique peut démarrer).
+
+Tests dans le vrai jeu (serveur lancé) :
+- `node tools/test/synctest.cjs [url] [frames] [recul]` : SyncTest (retour en arrière et rejeu à chaque frame).
+- `node tools/test/online.cjs [secondes] [relay|direct] [latence ms]` : deux navigateurs, l'un héberge
+  depuis l'onglet Multijoueur, l'autre ouvre le lien ; jeu au hasard des deux côtés, empreintes comparées.
+  Le jeu accepte `?lag=80` (latence simulée) pour forcer des rollbacks.

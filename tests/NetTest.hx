@@ -11,6 +11,7 @@ import netdemo.DemoGame;
 class NetTest {
 	static var failures = 0;
 	static var rng = 42;
+	static var sparse = false;
 
 	static function main() {
 		testSyncTest();
@@ -24,6 +25,15 @@ class NetTest {
 			for (delay in [0, 2, 4])
 				testMatch(net.name, net.lat, net.jit, net.loss, net.dup, delay, 0);
 		testMatch("horloge de l'invité 2 % trop rapide", 50, 10, 0.02, 0, 2, 50);
+		sparse = true;
+		for (net in [
+			{name: "clairsemé, wifi 30 ms", lat: 30., jit: 5., loss: 0.01, dup: 0.},
+			{name: "clairsemé, internet 80 ms", lat: 80., jit: 20., loss: 0.05, dup: 0.01},
+			{name: "clairsemé, très mauvais 150 ms", lat: 150., jit: 50., loss: 0.15, dup: 0.03},
+		])
+			for (delay in [0, 2])
+				testMatch(net.name, net.lat, net.jit, net.loss, net.dup, delay, 0);
+		sparse = false;
 		testDesyncDetected();
 		testDisconnectAndRecover();
 		log(failures == 0 ? "\nTOUS LES TESTS PASSENT" : '\n$failures ÉCHEC(S)');
@@ -67,8 +77,8 @@ class NetTest {
 		var lagB = new LagTransport(pipes[1], lat, jit, loss, dup, 22);
 		var seed = 1234;
 		var gameA = new DemoGame(seed), gameB = new DemoGame(seed);
-		var a = new RollbackSession(gameA, lagA, {localPlayer: 0, now: clock, inputDelay: delay});
-		var b = new RollbackSession(gameB, lagB, {localPlayer: 1, now: clock, inputDelay: delay});
+		var a = new RollbackSession(gameA, lagA, {localPlayer: 0, now: clock, inputDelay: delay, saveEvery: sparse ? 4 : 0});
+		var b = new RollbackSession(gameB, lagB, {localPlayer: 1, now: clock, inputDelay: delay, saveEvery: sparse ? 4 : 0});
 		var desync = false;
 		a.onDesync = b.onDesync = (_, _, _) -> desync = true;
 		var histA:Array<Array<Int>> = [], histB:Array<Array<Int>> = [];
@@ -120,10 +130,11 @@ class NetTest {
 		}
 		var ok = !desync && sameInputs && gameA.checksum() == gameB.checksum() && gameA.checksum() == ref.checksum();
 		var st = a.stats, sb = b.stats;
+		var saves = gameA.saves + gameB.saves;
 		check(ok, '$name, délai $delay',
 			'frames $target, rollbacks ${st.rollbacks}/${sb.rollbacks} (max ${Std.int(Math.max(st.maxRollback, sb.maxRollback))} frames), '
 			+ 'attentes ${st.waitingTicks}/${sb.waitingTicks}, ralentis ${st.slowdownTicks}/${sb.slowdownTicks}, '
-			+ 'écart max ${maxGap}, rtt ${Math.round(a.rttMs)} ms, empreintes comparées ${st.checksumsCompared}'
+			+ 'sauvegardes $saves, écart max ${maxGap}, rtt ${Math.round(a.rttMs)} ms, empreintes comparées ${st.checksumsCompared}'
 			+ (ok ? "" : ' [desync=$desync entrées=$sameInputs ${gameA.checksum()} ${gameB.checksum()} ${ref.checksum()}]'));
 		if (guestFastEvery > 0)
 			check(maxGap <= 12, "  le recalage des horloges garde les deux joueurs proches", 'écart max $maxGap frames');

@@ -57,7 +57,7 @@ class Menu {
 		{
 			id: "multicoop",
 			name: "Aventure à deux",
-			desc: "Igor et Sandy repartent ensemble dans la grande aventure, sur le même clavier.\nIgor : flèches + Entrée · Sandy : R D F G + A",
+			desc: "Igor et Sandy repartent ensemble dans la grande aventure, sur le même clavier.\n{keys}\nPour jouer à deux chacun chez soi, passez par l'onglet Multijoueur.",
 			icon: 1027,
 			options: ["mirrormulti", "nightmaremulti", "lifesharing"]
 		},
@@ -72,7 +72,7 @@ class Menu {
 		{
 			id: "soccer",
 			name: "Soccerfest",
-			desc: "Un match de football à deux, à coups de bombes.\nIgor : flèches + Entrée · Sandy : R D F G + A",
+			desc: "Un match de football à deux, à coups de bombes, sur le même clavier.\n{keys}",
 			icon: 1043,
 			options: ["kickcontrol", "soccerbomb"]
 		},
@@ -177,8 +177,11 @@ class Menu {
 			var el:Element = cast cube;
 			el.onclick = () -> show(el.dataset.view);
 		}
+		Online.init();
 		Browser.window.onhashchange = () -> show(Browser.location.hash.substr(1));
-		show(Browser.location.hash.substr(1));
+		// lien d'invitation reçu de l'hôte (?code=XXXXX) : onglet Multijoueur
+		var code = new js.html.URLSearchParams(Browser.location.search).get("code");
+		show(code != null ? "multi" : Browser.location.hash.substr(1));
 	}
 
 	static function getPref(k:String, def:String):String {
@@ -197,7 +200,7 @@ class Menu {
 	}
 
 	static function show(view:String) {
-		if (["frigo", "quetes", "classement", "pantheon"].indexOf(view) < 0)
+		if (["frigo", "quetes", "classement", "pantheon", "multi", "parametres"].indexOf(view) < 0)
 			view = "jouer";
 		if (Browser.location.hash.substr(1) != view && !(view == "jouer" && Browser.location.hash == ""))
 			Browser.location.hash = view;
@@ -216,6 +219,10 @@ class Menu {
 				showRanking(main);
 			case "pantheon":
 				showPantheon(main);
+			case "multi":
+				Online.showMulti(main, hostGame, soloUrl());
+			case "parametres":
+				Online.showSettings(main, v -> (cast doc.getElementById("name") : js.html.InputElement).value = v != "" ? v : "Igor");
 			default:
 				showModes(main);
 		}
@@ -282,8 +289,9 @@ class Menu {
 				(cast a : Element).classList.toggle("sel", (cast a : Element).dataset.mode == m.id);
 			detail.innerHTML = "";
 			detail.appendChild(el("h2", null, m.name));
+			var keys = "Igor : " + Online.keysText(false) + " · Sandy : " + Online.keysText(true);
 			for (line in m.desc.split("\n"))
-				detail.appendChild(el("p", null, line));
+				detail.appendChild(el("p", null, StringTools.replace(line, "{keys}", keys)));
 			var opts = m.options.filter(o -> state.options.indexOf(o) >= 0);
 			var boxes = [];
 			if (opts.length > 0) {
@@ -308,7 +316,9 @@ class Menu {
 				for (p in PASSIVE)
 					if (state.options.indexOf(p) >= 0)
 						o.push(p);
-				Browser.location.href = "index.html?mode=" + m.id + (o.length > 0 ? "&options=" + o.join(",") : "");
+				if (m.id == "soccer")
+					o.push("set_soc_0"); // terrain du Soccerfest
+				Browser.location.href = "jeu.html?mode=" + m.id + (o.length > 0 ? "&options=" + o.join(",") : "");
 			};
 			detail.appendChild(go);
 			var bonus = startBonus();
@@ -329,6 +339,26 @@ class Menu {
 		main.appendChild(detail);
 		var m = MODES.filter(x -> x.id == current && isUnlocked(x))[0];
 		select(m != null ? m : MODES[0]);
+	}
+
+	/** Options cochées dans un mode, plus les options passives gagnées. **/
+	static function chosenOptions(m:ModeInfo):Array<String> {
+		var o = [for (x in m.options) if (state.options.indexOf(x) >= 0 && getPref("opt." + x, "0") == "1") x];
+		for (p in PASSIVE)
+			if (state.options.indexOf(p) >= 0)
+				o.push(p);
+		return o;
+	}
+
+	/** Partie en ligne créée par l'hôte : Aventure à deux, avec ses options et ses familles d'objets (bonus de quêtes). **/
+	static function hostGame():Dynamic {
+		var m = MODES.filter(x -> x.id == "multicoop")[0];
+		return {mode: "multicoop", options: chosenOptions(m).join(","), families: state.families.join(",")};
+	}
+
+	static function soloUrl():String {
+		var o = chosenOptions(MODES[0]);
+		return "jeu.html?mode=solo" + (o.length > 0 ? "&options=" + o.join(",") : "");
 	}
 
 	/** Bonus permanents de départ, lus comme le fait Player.hx (familles 100 à 108). */
