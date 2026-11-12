@@ -202,7 +202,7 @@ server.listen(port, async () => {
   if (upnp.ok) console.log(`Box : port ${port} ouvert automatiquement (UPnP).`);
   else console.log(`Box : ouverture automatique du port impossible (${upnp.reason}).`);
 
-  info.reachable = info.publicIp ? await checkReachable(port) : false;
+  info.reachable = info.publicIp ? await checkReachable(port, info.publicIp) : false;
   if (!info.publicIp) console.log("Adresse internet introuvable (pas d'accès à internet, ou STUN bloqué).");
   else if (info.reachable === true) console.log(`Vérification depuis internet : le port ${port} est bien joignable.`);
   else if (info.reachable === false) console.log(`Vérification depuis internet : le port ${port} n'est PAS joignable.`);
@@ -222,7 +222,10 @@ server.listen(port, async () => {
   info.ready = true;
 
   console.log("\n--- Liens à envoyer à l'autre joueur (le menu Multijoueur les affiche aussi) ---");
-  if (info.tunnelUrl) console.log(`Par internet :              ${info.tunnelUrl}/`);
+  if (info.tunnelUrl) {
+    console.log(`Par internet :              ${info.tunnelUrl}/`);
+    if (info.publicIp) console.log(`Par internet, en direct :   http://${info.publicIp}:${port}/   (si votre port est ouvert)`);
+  }
   else if (info.publicIp) console.log(`Par internet :              http://${info.publicIp}:${port}/${info.reachable ? "" : "   (risque de ne pas marcher, voir docs/HEBERGER.md)"}`);
   for (const ip of info.lan) console.log(`Chez vous (même Wi-Fi) :    http://${ip}:${port}/`);
   if (upnp.ok && upnp.externalIp && isPrivateIp(upnp.externalIp) && !info.tunnelUrl) {
