@@ -74,6 +74,11 @@ class Boot {
 			jobs.push(fetchText("assets/data/" + k + ".xml").then(t -> Reflect.setField(root, v, t)));
 		var lang:String = null;
 		jobs.push(fetchText("assets/data/lang/fr.xml").then(t -> lang = t));
+		// morceaux ajoutés (dossier web/assets/musiques/, listé par le serveur de l'hôte) : facultatif
+		jobs.push(Browser.window.fetch("api/musiques").then(r -> r.ok ? r.json() : null).then(list -> {
+			meta.Jukebox.setFiles(Std.isOfType(list, Array) ? list : null);
+			return null;
+		}).catchError(_ -> null));
 		// les quêtes ont besoin des listes d'objets (familles) en plus de quests.xml
 		for (k in ["specialItems", "scoreItems", "quests"])
 			jobs.push(fetchText("assets/data/" + k + ".xml").then(t -> rawData.set(k, t)));
@@ -101,6 +106,8 @@ class Boot {
 		settings = meta.Settings.load();
 		SoundBank.musicVolume = settings.music / 100;
 		SoundBank.sfxVolume = settings.sfx / 100;
+		// musique tirée au hasard ; en réseau avec la graine commune, pour que les deux entendent la même
+		meta.Jukebox.pick(netCfg != null ? Std.int(netCfg.seed) : Std.random(1000000));
 
 		var canvas:js.html.CanvasElement = cast Browser.document.getElementById("game");
 		if (nj != null && nj > 2) {
@@ -114,9 +121,10 @@ class Boot {
 
 		var init:Dynamic = {
 			fl_local: true,
-			musics: [for (f in ["music.mp3", "boss.mp3", "hurryUp.mp3"]) {
+			musics: meta.Jukebox.sounds = [for (i => f in ["music.mp3", "boss.mp3", "hurryUp.mp3"]) {
 				var m = new mtlib.Sound();
 				m.loadSound(f, false);
+				m.jukeboxSlot = i;
 				m;
 			}],
 			rawLang: lang,
@@ -138,6 +146,8 @@ class Boot {
 
 		var onDown = (e:js.html.KeyboardEvent) -> {
 			pressed.set(e.code, true);
+			if (e.code == "KeyM" && !e.repeat && !isTyping(e) && !isBound("KeyM"))
+				musicKey();
 			onKey(e.code);
 			mtlib.SoundBank.unlock();
 			if (e.keyCode >= 32 && e.keyCode <= 40 && !isTyping(e))
@@ -314,7 +324,16 @@ class Boot {
 		net.Snapshot.init(([manager, root] : Array<Dynamic>));
 		netGame = new NetGame();
 		var kt = new net.transport.KikiNetTransport(peer);
-		kt.onReliable = (msg:Dynamic) -> if (netCfg.onReliable != null) netCfg.onReliable(msg);
+		kt.onReliable = (msg:Dynamic) -> {
+			// choix de musique de l'hôte : le reste va au salon (rejouer, départ...)
+			var m:Dynamic = Std.isOfType(msg, String) && StringTools.startsWith(msg, '{"t":"music"') ? (try haxe.Json.parse(msg) catch (e:Dynamic) null) : null;
+			if (m != null) {
+				var i = meta.Jukebox.tracks.indexOf(Std.string(m.f));
+				meta.Jukebox.set(i < 0 ? 0 : i, m.off == true);
+				notice("Musique (choisie par l'hôte) : " + meta.Jukebox.label());
+			} else if (netCfg.onReliable != null)
+				netCfg.onReliable(msg);
+		};
 		// chaque partie (« Rejouer ensemble ») a son numéro : les messages en retard de la précédente sont ignorés
 		var transport:net.transport.Transport = new RoundTransport(kt, Std.int(netCfg.round));
 		// test : ?lag=80 ajoute 80 ms de latence (et un peu de pertes) dans chaque sens
@@ -417,6 +436,48 @@ class Boot {
 				h = net.rollback.Checksum.addInt(h, Std.int(p.lives));
 			}
 		return h;
+	}
+
+	// ---------------------------------------------------------------- musique
+
+	static function isBound(code:String):Bool {
+		for (k in [settings.keys, settings.keys2])
+			for (a in meta.Settings.ACTIONS)
+				if (Reflect.field(k, a.id) == code)
+					return true;
+		return false;
+	}
+
+	/** Touche M : morceau suivant ou musique coupée (en réseau, seul l'hôte choisit). **/
+	static function musicKey() {
+		if (session != null && netPlayer != 0) {
+			notice("C'est l'hôte qui choisit la musique (touche M).");
+			return;
+		}
+		meta.Jukebox.next();
+		notice("Musique : " + meta.Jukebox.label() + " (M : changer)");
+		if (session != null) {
+			var peer:Dynamic = netCfg.peer;
+			try
+				peer.sendReliable('{"t":"music","f":' + haxe.Json.stringify(meta.Jukebox.tracks[meta.Jukebox.current]) + ',"off":' + meta.Jukebox.off + '}')
+			catch (e:Dynamic) {}
+		}
+	}
+
+	static var noticeTimer = -1;
+
+	/** Message affiché quelques secondes sous le jeu. **/
+	static function notice(s:String) {
+		status(s);
+		lastNetInfo = Browser.window.performance.now() + 2500;
+		if (noticeTimer >= 0)
+			Browser.window.clearTimeout(noticeTimer);
+		if (netCfg == null)
+			noticeTimer = Browser.window.setTimeout(() -> {
+				noticeTimer = -1;
+				if (!gameEnded)
+					status("");
+			}, 2500);
 	}
 
 	static var stopped = false;

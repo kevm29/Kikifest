@@ -26,7 +26,7 @@ class SoundBank {
 		return v;
 	}
 
-	/** Les musiques sont des fichiers (music.mp3...), les bruitages des sons du SWF. */
+	/** Les musiques sont des fichiers (music.mp3, musiques/...), les bruitages des sons du SWF. */
 	static function bus(c:AudioContext, linkage:String):js.html.audio.GainNode {
 		if (musicBus == null) {
 			musicBus = c.createGain();
@@ -36,7 +36,7 @@ class SoundBank {
 			sfxBus.gain.value = sfxVolume;
 			sfxBus.connect(c.destination);
 		}
-		return linkage.indexOf(".mp3") > 0 ? musicBus : sfxBus;
+		return linkage.indexOf(".") >= 0 ? musicBus : sfxBus;
 	}
 	public static var base:String = "assets/sfx/";
 
@@ -77,7 +77,7 @@ class SoundBank {
 	}
 
 	static function url(linkage:String):String {
-		if (linkage.indexOf(".") > 0) return base + linkage;
+		if (linkage.indexOf(".") >= 0) return base + linkage;
 		var lib = swf.Library.inst;
 		var id = lib.exportId(linkage);
 		if (id == null) return null;
@@ -102,7 +102,7 @@ class SoundBank {
 		});
 	}
 
-	public static function play(linkage:String, volume:Float, loops:Int, onEnd:Void->Void):Dynamic {
+	public static function play(linkage:String, volume:Float, loops:Int, onEnd:Void->Void, rate:Float = 1.0):Dynamic {
 		// pendant un rollback, seuls les bruitages sont coupés : une musique qui démarre doit démarrer
 		if ((muted && loops <= 1) || linkage == null) return null;
 		var c = context();
@@ -115,6 +115,8 @@ class SoundBank {
 		var src = c.createBufferSource();
 		src.buffer = b;
 		src.loop = loops > 1;
+		if (rate != 1.0)
+			src.playbackRate.value = rate;
 		var g = c.createGain();
 		g.gain.value = safe(volume);
 		src.connect(g);

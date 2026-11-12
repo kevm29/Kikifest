@@ -9,6 +9,13 @@ class Sound {
 	var playing:Dynamic = null;
 	var wanted:Bool = false;
 
+	/** Musique du jeu n° slot (0 thème, 1 boss, 2 « vite ») : le morceau joué est choisi par meta.Jukebox. **/
+	public var jukeboxSlot:Int = -1;
+
+	/** Démarrée et pas arrêtée (même si la musique est coupée), avec ses paramètres de départ. **/
+	var active:Bool = false;
+	var lastLoops:Null<Int> = null;
+
 	/** Position de lecture en ms (non suivie : la musique reprend du début). */
 	public var position:Float = 0;
 
@@ -28,17 +35,32 @@ class Sound {
 
 	public function start(?offset:Float, ?loops:Int) {
 		stop();
+		active = true;
+		lastLoops = loops;
 		var n = loops == null ? 1 : loops;
-		playing = SoundBank.play(linkage, volume / 100, n, () -> if (onSoundComplete != null) onSoundComplete());
+		var file = linkage, rate = 1.0;
+		if (jukeboxSlot >= 0) {
+			var r = meta.Jukebox.resolve(jukeboxSlot, linkage);
+			if (r == null) return; // musique coupée : elle reprendra si on la remet
+			file = r.linkage;
+			rate = r.rate;
+		}
+		playing = SoundBank.play(file, volume / 100, n, () -> if (onSoundComplete != null) onSoundComplete(), rate);
 		if (playing == null && n > 1 && !SoundBank.muted) {
 			// musique pas encore chargée : elle démarrera dès qu'elle le sera
 			wanted = true;
-			SoundBank.whenReady(linkage, () -> if (wanted && playing == null) start(offset, loops));
+			SoundBank.whenReady(file, () -> if (wanted && playing == null) start(offset, loops));
 		}
+	}
+
+	/** Relance le son s'il était en cours (le choix de musique a changé). **/
+	public function restart() {
+		if (active) start(0, lastLoops);
 	}
 
 	public function stop(?id:String) {
 		wanted = false;
+		active = false;
 		if (playing != null) SoundBank.stop(playing);
 		playing = null;
 	}

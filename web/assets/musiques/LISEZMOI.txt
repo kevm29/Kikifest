@@ -1,0 +1,14 @@
+Musiques ajoutées
+=================
+
+Déposez ici vos morceaux (MP3, OGG, WAV, FLAC ou M4A). Rien d'autre à faire :
+au début de chaque partie, le jeu en tire un au hasard parmi eux et le thème d'origine.
+
+Pendant la partie, la touche M passe au morceau suivant, puis coupe la musique,
+puis revient au thème d'origine. En réseau, c'est l'hôte qui choisit, l'invité entend la même chose.
+
+Quand « vite ! » apparaît, le thème d'origine laisse place à sa musique « vite » (hurryUp.mp3) ;
+un morceau ajouté est simplement joué plus vite (1,25 fois).
+
+Les morceaux de ce dossier ne sont pas envoyés sur GitHub (voir .gitignore) :
+ils restent sur l'ordinateur de l'hôte. L'invité les reçoit par le jeu, en jouant.
