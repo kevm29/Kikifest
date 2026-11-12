@@ -18,8 +18,18 @@ Puis, dans le dossier de Kikifest :
 
 Le navigateur s'ouvre sur le menu du jeu, `http://localhost:8080/`. Laissez la fenêtre noire ouverte pendant la partie.
 
-Sous Windows, le pare-feu demande la première fois s'il faut autoriser Node.js :
-répondez **Autoriser**, sinon l'invité ne pourra pas se connecter.
+Au démarrage, le serveur prépare tout seul la connexion par internet (environ 10 secondes) :
+
+1. **Pare-feu Windows** : s'il bloque Kikifest, Windows demande « Voulez-vous autoriser cette application
+   à apporter des modifications ? » : répondez **Oui** (une seule fois).
+2. **Box** : il ouvre le port 8080 (UPnP).
+3. **Vérification** : un service public (ifconfig.co) essaie de joindre votre ordinateur depuis internet.
+4. **Si ça ne passe pas**, il bascule en mode **« sans toucher à la box »** : un tunnel gratuit de Cloudflare
+   donne un lien du type `https://mots-au-hasard.trycloudflare.com`, qui marche sans redirection de port ni pare-feu.
+   L'outil (cloudflared) est téléchargé une fois, dans `server/bin/`. Le lien change à chaque lancement.
+
+Pour forcer le tunnel (par exemple si l'invité n'arrive pas à se connecter malgré tout) :
+double-cliquez sur `Heberger-Windows-sans-box.bat`, ou lancez `node server/serve.mjs --tunnel`.
 
 ## 2. Créer la partie et envoyer le lien
 
@@ -33,14 +43,12 @@ cochées de l'hôte ; à la fin, les objets ramassés s'ajoutent au frigo de cha
 Si personne ne vient, le lien « Jouer seul » lance l'Aventure en solo, sans Sandy.
 
 - **Même Wi-Fi** (vous êtes dans la même maison) : utilisez le lien « même Wi-Fi ». Rien d'autre à faire.
-- **Par internet** : utilisez le lien « par internet ». Il faut que votre box laisse entrer l'invité (étape 3).
+- **Par internet** : utilisez le lien « par internet ». Sous le lien, le menu indique s'il a été vérifié.
 
-## 3. Ouvrir le port de la box (seulement par internet)
+## 3. Facultatif : ouvrir le port de la box à la main
 
-Le serveur essaie de l'ouvrir **tout seul** (UPnP) au démarrage. S'il y arrive, la fenêtre affiche
-« Port 8080 ouvert automatiquement sur votre box » : vous n'avez rien à faire.
-
-Sinon, il faut le faire une fois à la main dans l'interface de votre box :
+Le tunnel marche partout, mais passe par Cloudflare. Pour un lien direct (`http://votre-adresse:8080`),
+si l'ouverture automatique échoue, faites la redirection une fois dans l'interface de votre box :
 
 1. Ouvrez l'interface de la box dans le navigateur. Selon l'opérateur :
    Free `mafreebox.freebox.fr`, Orange `192.168.1.1`, SFR `192.168.1.1` (ou `192.168.0.1`), Bouygues `192.168.1.254`.
@@ -70,7 +78,9 @@ Si le port 8080 est déjà pris, choisissez-en un autre : `node server/serve.mjs
 
 | Problème | Que faire |
 |---|---|
-| L'invité voit « Ce site est inaccessible » | Le port n'est pas ouvert (étape 3), ou le pare-feu de l'ordinateur bloque Node.js. |
+| L'invité voit « Délai d'attente dépassé » ou « Ce site est inaccessible » | Relancez avec `Heberger-Windows-sans-box.bat` (tunnel) et renvoyez le nouveau lien. Pour diagnostiquer : depuis un téléphone sur **votre** Wi-Fi, ouvrez le lien « même Wi-Fi ». S'il ne s'ouvre pas, c'est le pare-feu de l'ordinateur ; s'il s'ouvre, c'est la box. |
+| La fenêtre dit « autorisation refusée » pour le pare-feu | Relancez et répondez **Oui** à la question de Windows, ou utilisez le tunnel. |
+| Vous testez le lien « par internet » depuis chez vous | Ça ne prouve rien : beaucoup de box ne savent pas se rejoindre elles-mêmes. Testez depuis un téléphone en 4G/5G (Wi-Fi coupé). |
 | La fenêtre parle de « CGNAT », « 4G » ou « box derrière une autre box » | Votre accès internet n'a pas d'adresse publique : l'invité ne peut pas vous joindre. Demandez une « IP fixe/full-stack » à votre opérateur (souvent gratuit), faites héberger l'autre joueur, ou passez par un VPN de jeu comme [Tailscale](https://tailscale.com) ou [ZeroTier](https://zerotier.com) (les deux l'installent, puis l'invité utilise l'adresse Tailscale/ZeroTier de l'hôte). |
 | « Aucune partie avec le code... » | L'hôte a fermé la page ou le serveur ; il recrée une partie et renvoie le lien. |
 | « Le port 8080 est déjà utilisé » | Kikifest tourne déjà dans une autre fenêtre, ou choisissez un autre port. |
@@ -82,7 +92,8 @@ Copiez `server/config.example.json` en `server/config.json` et adaptez :
 pour ajouter votre propre serveur TURN (relais WebRTC). Retirez l'exemple TURN si vous n'en avez pas :
 un serveur TURN qui ne répond pas ralentit la connexion. Sans TURN, le repli par le serveur de l'hôte suffit.
 
-Options de la ligne de commande : `node server/serve.mjs [port] [--no-upnp] [--no-open]`.
+Options de la ligne de commande : `node server/serve.mjs [port] [--no-upnp] [--no-open] [--tunnel | --no-tunnel]`.
+Dans `server/config.json`, `"tunnel"` vaut `"auto"` (par défaut : seulement si le port n'est pas joignable), `true` ou `false`.
 Pour tester le mode relais : ajoutez `?relay=1` à l'adresse de la page, chez les deux joueurs.
 
 ## Pour les développeurs

@@ -1,6 +1,6 @@
 // Serveur de l'hôte Kikifest : sert le jeu et met les deux joueurs en relation.
 //
-//   node server/serve.mjs [port] [--no-upnp] [--no-open]
+//   node server/serve.mjs [port] [--no-upnp] [--no-open] [--tunnel | --no-tunnel]
 //
 // - Fichiers du jeu (dossier web/) en HTTP.
 // - Salons : l'hôte crée une partie (code à 5 lettres), l'invité la rejoint par le code ou le lien.
@@ -8,7 +8,9 @@
 //   entre les deux joueurs, qui se connectent ensuite en direct (pair à pair).
 // - Repli : si la connexion directe échoue, les messages du jeu passent par ce WebSocket.
 //   Comme ce serveur tourne chez l'hôte, le trajet reste direct invité -> hôte.
-// - Au démarrage : ouverture automatique du port sur la box (UPnP) et affichage du lien à envoyer.
+// - Au démarrage : autorisation dans le pare-feu Windows, ouverture du port sur la box (UPnP),
+//   vérification depuis internet que le port est vraiment joignable, et sinon tunnel gratuit
+//   (https://xxxx.trycloudflare.com) qui marche sans rien régler sur la box. Puis lien à envoyer.
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -16,7 +18,9 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { attachWebSocket } from "./ws.mjs";
-import { lanAddresses, publicAddressViaStun, openPortUpnp, isPrivateIp } from "./nat.mjs";
+import { lanAddresses, publicAddressViaStun, openPortUpnp, isPrivateIp, checkReachable } from "./nat.mjs";
+import { ensureWindowsFirewall } from "./firewall.mjs";
+import { startTunnel } from "./tunnel.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..", "web");
@@ -30,12 +34,18 @@ const portArg = args.find((a) => /^\d+$/.test(a));
 const port = Number(portArg ?? process.env.PORT ?? config.port ?? 8080);
 const useUpnp = !args.includes("--no-upnp") && config.upnp !== false;
 const openBrowser = !args.includes("--no-open") && config.openBrowser !== false;
+// Tunnel : "auto" (seulement si le port n'est pas joignable), true (toujours), false (jamais).
+const tunnelMode = args.includes("--tunnel") ? true : args.includes("--no-tunnel") ? false : (config.tunnel ?? "auto");
 // Serveurs STUN (découverte d'adresse publique) et TURN (relais, facultatif) donnés aux navigateurs.
 const iceServers = config.iceServers ?? [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
 ];
 
-const info = { port, lan: lanAddresses(), publicIp: null, upnp: null, iceServers };
+// ready passe à true quand toutes les vérifications du démarrage sont finies.
+// reachable : le port est-il joignable depuis internet (true / false / null = inconnu).
+// tunnelUrl : adresse du tunnel, à donner à l'invité en priorité quand elle existe.
+const info = { port, lan: lanAddresses(), publicIp: null, upnp: null, reachable: null, tunnelUrl: null, ready: false, iceServers };
+let tunnel = null;
 
 // ---------- Fichiers statiques ----------
 const types = {
@@ -49,6 +59,7 @@ function serveFile(req, res) {
   let p;
   try { p = decodeURIComponent(new URL(req.url, "http://x").pathname); }
   catch { res.writeHead(400); res.end(); return; }
+  if (p === "/api/ping") { res.writeHead(200, { "cache-control": "no-store" }); res.end("kikifest"); return; }
   if (p === "/api/info") {
     res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     res.end(JSON.stringify({ ...info, upnp: info.upnp && { ok: info.upnp.ok, reason: info.upnp.reason } }));
@@ -146,28 +157,44 @@ server.listen(port, async () => {
   console.log(`Ouvrez le jeu sur cet ordinateur :  ${local}`);
   if (openBrowser) openInBrowser(local);
 
-  console.log("\nRecherche de votre adresse internet...");
-  const [stunIp, upnp] = await Promise.all([
+  console.log("\nPréparation de la connexion par internet (quelques secondes)...");
+  if (process.platform === "win32") console.log("Si Windows demande l'autorisation de modifier le pare-feu, répondez « Oui ».");
+  const [stunIp, upnp, firewall] = await Promise.all([
     publicAddressViaStun(),
     useUpnp ? openPortUpnp(port) : Promise.resolve({ ok: false, reason: "désactivé" }),
+    ensureWindowsFirewall(port),
   ]);
-  info.upnp = upnp;
   info.publicIp = stunIp ?? (upnp.externalIp && !isPrivateIp(upnp.externalIp) ? upnp.externalIp : null);
+  if (firewall === "fixed") console.log("Pare-feu Windows : Kikifest est maintenant autorisé.");
+  else if (firewall === "refused") console.log("Pare-feu Windows : autorisation refusée, l'invité risque d'être bloqué.");
+  if (upnp.ok) console.log(`Box : port ${port} ouvert automatiquement (UPnP).`);
+  else console.log(`Box : ouverture automatique du port impossible (${upnp.reason}).`);
 
-  for (const ip of info.lan) console.log(`Invité sur le même réseau (Wi-Fi) :  http://${ip}:${port}/`);
-  if (info.publicIp) console.log(`Invité par internet :                http://${info.publicIp}:${port}/`);
-  else console.log("Adresse internet introuvable (pas d'accès à internet ?).");
+  info.reachable = info.publicIp ? await checkReachable(port) : false;
+  if (!info.publicIp) console.log("Adresse internet introuvable (pas d'accès à internet, ou STUN bloqué).");
+  else if (info.reachable === true) console.log(`Vérification depuis internet : le port ${port} est bien joignable.`);
+  else if (info.reachable === false) console.log(`Vérification depuis internet : le port ${port} n'est PAS joignable.`);
+  else console.log("Vérification depuis internet impossible (service de test injoignable).");
 
-  if (upnp.ok) {
-    console.log(`\nPort ${port} ouvert automatiquement sur votre box (UPnP).`);
-    if (upnp.externalIp && isPrivateIp(upnp.externalIp)) {
-      console.log("Attention : votre box n'a pas d'adresse publique (box derrière une autre box, 4G ou CGNAT).");
-      console.log("L'invité ne pourra sans doute pas vous joindre par internet. Voir docs/HEBERGER.md.");
+  if (tunnelMode === true || (tunnelMode === "auto" && info.reachable !== true)) {
+    if (tunnelMode === "auto") console.log("\nPassage en mode « sans toucher à la box » : ouverture d'un tunnel gratuit.");
+    try {
+      tunnel = await startTunnel(port, path.join(here, "bin"));
+      info.tunnelUrl = tunnel.url;
+    } catch (e) {
+      console.log(`Tunnel impossible : ${e.message}.`);
     }
-  } else {
-    console.log(`\nOuverture automatique du port impossible : ${upnp.reason}.`);
-    console.log(`Pour jouer par internet, redirigez le port TCP ${port} de votre box vers cet ordinateur`);
-    console.log(`(${info.lan[0] ?? "son adresse locale"}). Mode d'emploi : docs/HEBERGER.md.`);
+  }
+
+  info.upnp = upnp;
+  info.ready = true;
+
+  console.log("\n--- Liens à envoyer à l'autre joueur (le menu Multijoueur les affiche aussi) ---");
+  if (info.tunnelUrl) console.log(`Par internet :              ${info.tunnelUrl}/`);
+  else if (info.publicIp) console.log(`Par internet :              http://${info.publicIp}:${port}/${info.reachable ? "" : "   (risque de ne pas marcher, voir docs/HEBERGER.md)"}`);
+  for (const ip of info.lan) console.log(`Chez vous (même Wi-Fi) :    http://${ip}:${port}/`);
+  if (upnp.ok && upnp.externalIp && isPrivateIp(upnp.externalIp) && !info.tunnelUrl) {
+    console.log("Attention : votre box n'a pas d'adresse publique (box derrière une autre box, 4G ou CGNAT).");
   }
   console.log("\nLaissez cette fenêtre ouverte pendant la partie. Ctrl+C pour arrêter.\n");
 });
@@ -182,6 +209,7 @@ let stopping = false;
 async function stop() {
   if (stopping) process.exit(0);
   stopping = true;
+  tunnel?.stop();
   if (info.upnp?.ok) {
     console.log("Fermeture du port sur la box...");
     await Promise.race([info.upnp.remove().catch(() => {}), new Promise((r) => setTimeout(r, 2000))]);
