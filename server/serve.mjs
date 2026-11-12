@@ -51,7 +51,8 @@ let tunnel = null;
 const types = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json",
   ".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml",
-  ".mp3": "audio/mpeg", ".wav": "audio/wav", ".xml": "application/xml", ".css": "text/css",
+  ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg",
+  ".flac": "audio/flac", ".m4a": "audio/mp4", ".xml": "application/xml", ".css": "text/css",
   ".ico": "image/x-icon", ".wasm": "application/wasm",
 };
 
@@ -82,6 +83,18 @@ function saveApi(req, res) {
   });
 }
 
+// ---------- Musiques ajoutées ----------
+// Les morceaux déposés dans web/assets/musiques/ s'ajoutent au thème d'origine (le jeu en tire un au hasard).
+const musicDir = path.join(root, "assets", "musiques");
+const musicExt = /\.(mp3|ogg|oga|opus|wav|flac|m4a)$/i;
+function musicList(res) {
+  fs.readdir(musicDir, (err, names) => {
+    const list = err ? [] : names.filter((n) => musicExt.test(n) && !n.startsWith(".")).sort((a, b) => a.localeCompare(b));
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    res.end(JSON.stringify(list));
+  });
+}
+
 function serveFile(req, res) {
   let p;
   try { p = decodeURIComponent(new URL(req.url, "http://x").pathname); }
@@ -93,6 +106,7 @@ function serveFile(req, res) {
     return;
   }
   if (p === "/api/save") { saveApi(req, res); return; }
+  if (p === "/api/musiques") { musicList(res); return; }
   if (p.endsWith("/")) p += "index.html";
   const file = path.join(root, p);
   if (!file.startsWith(root + path.sep)) { res.writeHead(403); res.end(); return; }

@@ -45,6 +45,19 @@ const base = "http://localhost:8080/";
   for (const p of [host, guest])
     await p.waitForFunction(() => window.kiki && kiki.session && kiki.manager && kiki.manager.current, null, { timeout: 30000 });
   console.log("partie lancée des deux côtés");
+  // musique : même morceau des deux côtés ; M chez l'hôte change celle de l'invité, M chez l'invité ne change rien
+  const music = (p) => p.evaluate(() => { const J = kiki.net.classes["meta.Jukebox"]; return J.off ? "coupée" : J.tracks[J.current]; });
+  const pressM = (p) => p.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyM", bubbles: true })));
+  const m0 = [await music(host), await music(guest)];
+  await pressM(host);
+  await host.waitForTimeout(1000);
+  const m1 = [await music(host), await music(guest)];
+  await pressM(guest);
+  await host.waitForTimeout(1000);
+  const m2 = [await music(host), await music(guest)];
+  const musicOk = m0[0] === m0[1] && m1[0] === m1[1] && m1[0] !== m0[0] && m2[0] === m1[0] && m2[1] === m1[1];
+  console.log("musique :", JSON.stringify([m0, m1, m2]), musicOk ? "OK" : "ÉCHEC");
+  if (!musicOk) errs.push("musique pas synchronisée");
   // touches au hasard : l'hôte et l'invité utilisent tous deux les touches « Vous » (flèches + Espace)
   const keys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"];
   let rnd = 7;
