@@ -18124,7 +18124,7 @@ class gui_GameInterface {
 			return;
 		}
 		let d = Reflect.copy(tf.__def);
-		d.size = 16;
+		d.size = 14;
 		d.align = align;
 		d.b = [0,-2,w,20.15];
 		tf.__def = d;
@@ -18363,20 +18363,37 @@ class gui_GameInterface {
 		this.kikiField(this.scores[1],220,80,0);
 		this.kikiField(this.scores[2],122,80,1);
 		this.kikiField(this.scores[3],220,80,0);
+		let top = -Data.DOC_HEIGHT;
+		let arrow = new swf_DisplayObject(gui_GameInterface.LEVEL_ARROW);
+		if(arrow != null) {
+			let tmp = this.game;
+			arrow._x = (tmp != null ? tmp.xOffset : null) + 4 - 261;
+		}
+		if(arrow != null) {
+			arrow._y = top + 22;
+		}
 		let tmp21 = this.mc;
-		let lv = tmp21 != null ? tmp21.createTextField("$kikiLevel",950,0,0,40,20) : null;
+		if(tmp21 != null) {
+			tmp21.__addChildAt(arrow,949);
+		}
+		let tmp22 = this.mc;
+		let lv = tmp22 != null ? tmp22.createTextField("$kikiLevel",950,0,0,40,20) : null;
 		if(lv != null) {
 			let tmp = this.scores[0];
 			lv.__def = Reflect.copy(tmp != null ? tmp.__def : null);
 		}
-		this.kikiField(lv,12,40,0);
+		let tmp23 = this.game;
+		this.kikiField(lv,(tmp23 != null ? tmp23.xOffset : null) + 24,40,0);
+		if(lv != null) {
+			lv._y = top + 2;
+		}
 		this.level = lv;
 		this.fakeScores = [];
 		this.realScores = [];
 		this.currentLives = [];
 		this.lives = [];
-		let tmp22 = this.game;
-		let pl = tmp22 != null ? tmp22.getPlayerList() : null;
+		let tmp24 = this.game;
+		let pl = tmp24 != null ? tmp24.getPlayerList() : null;
 		let i = 0;
 		while(i < (pl != null ? pl.length : null)) {
 			let p = pl[i];
@@ -32958,6 +32975,7 @@ gui_GameInterface.BASE_X_RIGHT = 300;
 gui_GameInterface.BASE_WIDTH = 20;
 gui_GameInterface.MAX_LIVES = 8;
 gui_GameInterface.ROW2_DY = 20;
+gui_GameInterface.LEVEL_ARROW = 3971;
 gui_GameInterface.LIFE_TINTS = [null,{ ra : 100, ga : 25, ba : 25, rb : 20, gb : 0, bb : 0},{ ra : 30, ga : 100, ba : 60, rb : 0, gb : 20, bb : 0},{ ra : 25, ga : 45, ba : 100, rb : 0, gb : 10, bb : 150}];
 gui_SoccerInterface.GLOW_COLOR = gui_GameInterface.GLOW_COLOR;
 haxe_io_FPHelper.i64tmp = new haxe__$Int64__$_$_$Int64(0,0);

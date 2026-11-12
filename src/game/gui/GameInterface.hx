@@ -39,6 +39,7 @@ class GameInterface
 	// Kikifest (étude 3-4 joueurs) : 2e barre, placée sous la 1re (le canevas est agrandi d'autant)
 	public var mc2				: MovieClip;
 	public static var ROW2_DY:Int	= 20;
+	public static var LEVEL_ARROW:Int	= 3971; // forme de la flèche rouge du niveau (barre du solo)
 	public static var LIFE_TINTS:Array<Dynamic> = [
 		null,
 		{ra:100, ga:25, ba:25, rb:20, gb:0, bb:0},		// Sandy : cornet rouge
@@ -50,7 +51,7 @@ class GameInterface
 	function kikiField(tf:Dynamic, x:Float, w:Float, align:Int) {
 		if ( tf == null || tf.__def == null ) return;
 		var d:Dynamic = Reflect.copy(tf.__def);
-		d.size = 16;
+		d.size = 14;
 		d.align = align;
 		d.b = [0, -2, w, 20.15];
 		tf.__def = d;
@@ -195,14 +196,21 @@ class GameInterface
 		}
 
 		// Kikifest : comme la barre du solo, numéro du niveau dans l'angle gauche et scores
-		// côte à côte au milieu, dans la police du solo (16 px au lieu de 13)
+		// côte à côte au milieu, dans la police du solo (14 px au lieu de 13)
 		kikiField(scores[0], 122, 80, 1);
 		kikiField(scores[1], 220, 80, 0);
 		kikiField(scores[2], 122, 80, 1);
 		kikiField(scores[3], 220, 80, 0);
+		// niveau : flèche rouge du solo + numéro, dans l'angle en haut à gauche de l'écran
+		var top:Dynamic = -RootData.DOC_HEIGHT;
+		var arrow:Dynamic = new DisplayObject(LEVEL_ARROW);
+		{ if (arrow != null) arrow._x = game?.xOffset + 4 - 261; }
+		{ if (arrow != null) arrow._y = top + 22; }
+		mc?.__addChildAt(arrow, 949);
 		var lv:Dynamic = mc?.createTextField("$kikiLevel", 950, 0, 0, 40, 20);
 		{ if (lv != null) lv.__def = Reflect.copy(scores[0]?.__def); }
-		kikiField(lv, 12, 40, 0);
+		kikiField(lv, game?.xOffset + 24, 40, 0);
+		{ if (lv != null) lv._y = top + 2; }
 		level = lv;
 
 		// Init spécifiques aux players
