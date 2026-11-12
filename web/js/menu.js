@@ -181,6 +181,9 @@ class StringTools {
 	static trim(s) {
 		return StringTools.ltrim(StringTools.rtrim(s));
 	}
+	static replace(s,sub,by) {
+		return s.split(sub).join(by);
+	}
 }
 StringTools.__name__ = "StringTools";
 class Type {
@@ -1289,10 +1292,12 @@ class menu_Menu {
 				menu_Menu.show(el.dataset.view);
 			};
 		}
+		menu_Online.init();
 		window.onhashchange = function() {
 			menu_Menu.show(HxOverrides.substr($global.location.hash,1,null));
 		};
-		menu_Menu.show(HxOverrides.substr($global.location.hash,1,null));
+		let code = new URLSearchParams($global.location.search).get("code");
+		menu_Menu.show(code != null ? "multi" : HxOverrides.substr($global.location.hash,1,null));
 	}
 	static getPref(k,def) {
 		try {
@@ -1313,7 +1318,7 @@ class menu_Menu {
 		}
 	}
 	static show(view) {
-		if(["frigo","quetes","classement","pantheon"].indexOf(view) < 0) {
+		if(["frigo","quetes","classement","pantheon","multi","parametres"].indexOf(view) < 0) {
 			view = "jouer";
 		}
 		if(HxOverrides.substr($global.location.hash,1,null) != view && !(view == "jouer" && $global.location.hash == "")) {
@@ -1336,8 +1341,16 @@ class menu_Menu {
 		case "frigo":
 			menu_Menu.showFridge(main);
 			break;
+		case "multi":
+			menu_Online.showMulti(main,menu_Menu.hostGame,menu_Menu.soloUrl());
+			break;
 		case "pantheon":
 			menu_Menu.showPantheon(main);
+			break;
+		case "parametres":
+			menu_Online.showSettings(main,function(v) {
+				menu_Menu.doc.getElementById("name").value = v != "" ? v : "Igor";
+			});
 			break;
 		case "quetes":
 			menu_Menu.showQuests(main);
@@ -1410,12 +1423,13 @@ class menu_Menu {
 			}
 			detail.innerHTML = "";
 			detail.appendChild(menu_Menu.el("h2",null,m.name));
+			let keys = "Igor : " + menu_Online.keysText(false) + " · Sandy : " + menu_Online.keysText(true);
 			let _g2 = 0;
 			let _g3 = m.desc.split("\n");
 			while(_g2 < _g3.length) {
 				let line = _g3[_g2];
 				++_g2;
-				detail.appendChild(menu_Menu.el("p",null,line));
+				detail.appendChild(menu_Menu.el("p",null,StringTools.replace(line,"{keys}",keys)));
 			}
 			let _g4 = [];
 			let _g5 = 0;
@@ -1472,7 +1486,10 @@ class menu_Menu {
 						o.push(p);
 					}
 				}
-				let select = "index.html?mode=" + m.id;
+				if(m.id == "soccer") {
+					o.push("set_soc_0");
+				}
+				let select = "jeu.html?mode=" + m.id;
 				let select1 = o.length > 0 ? "&options=" + o.join(",") : "";
 				return $global.location.href = select + select1;
 			};
@@ -1513,6 +1530,47 @@ class menu_Menu {
 		}
 		let m = _g2[0];
 		select(m != null ? m : menu_Menu.MODES[0]);
+	}
+	static chosenOptions(m) {
+		let _g = [];
+		let _g1 = 0;
+		let _g2 = m.options;
+		while(_g1 < _g2.length) {
+			let x = _g2[_g1];
+			++_g1;
+			if(menu_Menu.state.options.indexOf(x) >= 0 && menu_Menu.getPref("opt." + x,"0") == "1") {
+				_g.push(x);
+			}
+		}
+		let o = _g;
+		let _g3 = 0;
+		let _g4 = menu_Menu.PASSIVE;
+		while(_g3 < _g4.length) {
+			let p = _g4[_g3];
+			++_g3;
+			if(menu_Menu.state.options.indexOf(p) >= 0) {
+				o.push(p);
+			}
+		}
+		return o;
+	}
+	static hostGame() {
+		let _g = [];
+		let _g1 = 0;
+		let _g2 = menu_Menu.MODES;
+		while(_g1 < _g2.length) {
+			let v = _g2[_g1];
+			++_g1;
+			if(v.id == "multicoop") {
+				_g.push(v);
+			}
+		}
+		let m = _g[0];
+		return { mode : "multicoop", options : menu_Menu.chosenOptions(m).join(","), families : menu_Menu.state.families.join(",")};
+	}
+	static soloUrl() {
+		let o = menu_Menu.chosenOptions(menu_Menu.MODES[0]);
+		return "jeu.html?mode=solo" + (o.length > 0 ? "&options=" + o.join(",") : "");
 	}
 	static startBonus() {
 		let f = menu_Menu.state.families;
@@ -2049,6 +2107,461 @@ class menu_Menu {
 	}
 }
 menu_Menu.__name__ = "menu.Menu";
+class menu_Online {
+	static el(tag,cls,text) {
+		let e = menu_Online.doc.createElement(tag);
+		if(cls != null) {
+			e.className = cls;
+		}
+		if(text != null) {
+			e.textContent = text;
+		}
+		return e;
+	}
+	static button(text,f,cls) {
+		let b = menu_Online.el("a",cls != null ? cls : "button",text);
+		b.onclick = f;
+		return b;
+	}
+	static showMulti(main,hostGame,soloUrl) {
+		let p = menu_Online.el("div","panel wide");
+		p.appendChild(menu_Online.el("h2",null,"Jouer à deux en ligne"));
+		main.appendChild(p);
+		let kiki = window.KikiNet;
+		if(kiki == null || $global.location.protocol == "file:") {
+			p.appendChild(menu_Online.el("p",null,"Le jeu à deux en ligne passe par le serveur de l'hôte : lancez Heberger-Windows.bat (ou Heberger-Mac.command), puis ouvrez http://localhost:8080/."));
+			return;
+		}
+		let body = menu_Online.el("div");
+		p.appendChild(body);
+		let urlCode = new URLSearchParams($global.location.search).get("code");
+		if(urlCode != null && !menu_Online.busy) {
+			menu_Online.join(body,urlCode);
+			return;
+		}
+		body.appendChild(menu_Online.el("p",null,"L'un de vous deux héberge la partie (il a lancé le serveur sur son ordinateur) et envoie le lien à l'autre. " + "Chacun joue sur son propre clavier, avec les touches choisies dans les Paramètres."));
+		body.appendChild(menu_Online.el("p",null,"L'hôte joue Igor, l'invité joue Sandy. La partie démarre avec les bonus de quêtes de l'hôte ; " + "les objets ramassés s'ajoutent au frigo de chacun."));
+		let box = menu_Online.el("div","options");
+		box.appendChild(menu_Online.el("h3",null,"Créer une partie"));
+		box.appendChild(menu_Online.button("Créer une partie et inviter quelqu'un",function() {
+			menu_Online.host(body,hostGame,soloUrl);
+		}));
+		body.appendChild(box);
+		let box2 = menu_Online.el("div","options");
+		box2.appendChild(menu_Online.el("h3",null,"Rejoindre une partie"));
+		let row = menu_Online.el("div","row");
+		let input = menu_Online.doc.createElement("input");
+		input.placeholder = "Code";
+		input.maxLength = 5;
+		input.className = "code";
+		input.onkeydown = function(e) {
+			if(e.key == "Enter") {
+				menu_Online.join(body,input.value);
+			}
+		};
+		row.appendChild(input);
+		row.appendChild(menu_Online.button("Rejoindre",function() {
+			menu_Online.join(body,input.value);
+		},"button small"));
+		box2.appendChild(row);
+		body.appendChild(box2);
+		let solo = menu_Online.el("p","note");
+		solo.appendChild(menu_Online.doc.createTextNode("Personne avec qui jouer ? "));
+		let a = menu_Online.el("a",null,"Jouer seul l'Aventure (sans Sandy)");
+		a.href = soloUrl;
+		solo.appendChild(a);
+		body.appendChild(solo);
+	}
+	static statusLine(parent) {
+		let s = menu_Online.el("p","netstatus");
+		parent.appendChild(s);
+		return s;
+	}
+	static fail(body,e) {
+		menu_Online.busy = false;
+		body.innerHTML = "";
+		body.appendChild(menu_Online.el("p","warn","Oups : " + (e != null && e.message != null ? e.message : Std.string(e))));
+		body.appendChild(menu_Online.button("Recommencer",function() {
+			$global.location.href = "index.html#multi";
+		}));
+	}
+	static host(body,hostGame,soloUrl) {
+		if(menu_Online.busy) {
+			return;
+		}
+		menu_Online.busy = true;
+		body.innerHTML = "";
+		body.appendChild(menu_Online.el("p",null,"Partie créée ! Envoyez ce lien à l'autre joueur :"));
+		let links = menu_Online.el("div","links");
+		body.appendChild(links);
+		let code = menu_Online.el("p","bigcode","…");
+		let st = menu_Online.statusLine(body);
+		let note = menu_Online.el("p","note");
+		body.appendChild(note);
+		let solo = menu_Online.el("p","note");
+		let a = menu_Online.el("a",null,"Personne ne vient ? Jouer seul (sans Sandy)");
+		a.href = soloUrl;
+		solo.appendChild(a);
+		body.appendChild(solo);
+		let kiki = window.KikiNet;
+		let pr = kiki.host({ onCode : function(c) {
+			code.textContent = "Code : " + c;
+			menu_Online.showLinks(links,note,c);
+		}, onStatus : function(s) {
+			return st.textContent = s;
+		}});
+		links.parentElement.insertBefore(code,links.nextSibling);
+		pr.then(function(peer) {
+			st.textContent = "L'autre joueur est là ! Lancement…";
+			peer.onclose = function(r) {
+				menu_Online.fail(body,"L'autre joueur est parti.");
+			};
+			peer.onmessage = function(data,reliable) {
+				if(!reliable || typeof(data) != "string") {
+					return;
+				}
+				let m;
+				try {
+					m = JSON.parse(data);
+				} catch( _g ) {
+					m = null;
+				}
+				if(m == null || m.t != "hello") {
+					return;
+				}
+				let g = hostGame();
+				let guestName = m.name != null && StringTools.trim(m.name) != "" ? m.name : "Sandy";
+				let cfg = { t : "start", mode : g.mode, options : g.options, families : g.families, seed : (peer.seed | 0) & 2147483647, names : [meta_Settings.name(),HxOverrides.substr(guestName,0,20)]};
+				let peer1 = peer;
+				let tmp = JSON.stringify(cfg);
+				peer1.sendReliable(tmp);
+				menu_Online.launch(peer,cfg);
+			};
+			return null;
+		},function(e) {
+			menu_Online.fail(body,e);
+			return null;
+		});
+	}
+	static copyable(label,url) {
+		let wrap = menu_Online.el("div","copy");
+		wrap.appendChild(menu_Online.el("div","label",label));
+		let row = menu_Online.el("div","row");
+		let link = menu_Online.el("div","link",url);
+		row.appendChild(link);
+		let btn = menu_Online.el("a","button small","Copier");
+		btn.onclick = function() {
+			let nav = $global.navigator;
+			try {
+				nav.clipboard.writeText(url);
+			} catch( _g ) {
+				let r = menu_Online.doc.createRange();
+				r.selectNodeContents(link);
+				window.getSelection().removeAllRanges();
+				window.getSelection().addRange(r);
+				menu_Online.doc.execCommand("copy");
+			}
+			btn.textContent = "Copié !";
+			return window.setTimeout(function() {
+				return btn.textContent = "Copier";
+			},1500);
+		};
+		row.appendChild(btn);
+		wrap.appendChild(row);
+		return wrap;
+	}
+	static showLinks(links,note,code) {
+		window.fetch("api/info").then(function(r) {
+			return r.json();
+		}).then(function(info) {
+			if(info != null && info.upnp == null) {
+				window.setTimeout(function() {
+					menu_Online.showLinks(links,note,code);
+				},1500);
+				return null;
+			}
+			links.innerHTML = "";
+			let host = $global.location.hostname;
+			let local = host == "localhost" || host == "127.0.0.1" || host == "[::1]";
+			let port = $global.location.port != "" ? ":" + $global.location.port : "";
+			let lan = info != null && info.lan != null ? info.lan : [];
+			if(!local) {
+				links.appendChild(menu_Online.copyable("Lien à envoyer",$global.location.protocol + "//" + $global.location.host + "/?code=" + code));
+			} else if(info != null) {
+				if(info.publicIp != null) {
+					links.appendChild(menu_Online.copyable("Lien à envoyer (par internet)","http://" + Std.string(info.publicIp) + port + "/?code=" + code));
+				}
+				let _g = 0;
+				while(_g < lan.length) {
+					let ip = lan[_g];
+					++_g;
+					links.appendChild(menu_Online.copyable("Lien si l'autre joueur est chez vous (même Wi-Fi)","http://" + ip + port + "/?code=" + code));
+				}
+			}
+			if(info != null && local) {
+				if(info.upnp.ok) {
+					note.textContent = "Le port " + Std.string(info.port) + " a été ouvert automatiquement sur votre box.";
+				} else {
+					note.textContent = "Votre box n'a pas ouvert le port automatiquement (" + Std.string(info.upnp.reason) + "). " + ("Pour jouer par internet, redirigez le port TCP " + Std.string(info.port) + " vers cet ordinateur (" + (lan.length > 0 ? lan[0] : "?") + ") : voir docs/HEBERGER.md. ") + "Sur le même Wi-Fi, ça marche sans rien faire.";
+					note.className = "note warn";
+				}
+			}
+			return null;
+		}).catch(function(_) {
+			links.innerHTML = "";
+			return links.appendChild(menu_Online.copyable("Code de la partie",code));
+		});
+	}
+	static join(body,code) {
+		let _this_r = new RegExp("[^A-Z0-9]","g".split("u").join(""));
+		code = code.toUpperCase().replace(_this_r,"");
+		if(code.length != 5 || menu_Online.busy) {
+			return;
+		}
+		menu_Online.busy = true;
+		window.history.replaceState(null,"","?code=" + code + "#multi");
+		body.innerHTML = "";
+		body.appendChild(menu_Online.el("p",null,"Connexion à la partie " + code + "…"));
+		let st = menu_Online.statusLine(body);
+		let kiki = window.KikiNet;
+		let pr = kiki.join(code,{ onStatus : function(s) {
+			return st.textContent = s;
+		}});
+		pr.then(function(peer) {
+			st.textContent = "Connecté ! En attente du lancement par l'hôte…";
+			peer.onclose = function(r) {
+				menu_Online.fail(body,"L'hôte a fermé la partie.");
+			};
+			peer.onmessage = function(data,reliable) {
+				if(!reliable || typeof(data) != "string") {
+					return;
+				}
+				let m;
+				try {
+					m = JSON.parse(data);
+				} catch( _g ) {
+					m = null;
+				}
+				if(m != null && m.t == "start") {
+					menu_Online.launch(peer,m);
+				}
+			};
+			let peer1 = peer;
+			let tmp = JSON.stringify({ t : "hello", name : menu_Online.guestName()});
+			peer1.sendReliable(tmp);
+			return null;
+		},function(e) {
+			menu_Online.fail(body,e);
+			return null;
+		});
+	}
+	static guestName() {
+		let v = null;
+		try {
+			v = window.localStorage.getItem("kikifest.name");
+		} catch( _g ) {
+		}
+		if(v != null && StringTools.trim(v) != "") {
+			return StringTools.trim(v);
+		} else {
+			return "Sandy";
+		}
+	}
+	static launch(peer,cfg) {
+		peer.onclose = null;
+		peer.onmessage = null;
+		window.KIKI_NET = { peer : peer, mode : cfg.mode, options : cfg.options, families : cfg.families, seed : cfg.seed, names : cfg.names};
+		menu_Online.doc.title = "Kikifest à deux";
+		menu_Online.doc.body.className = "playing";
+		let tmp = "<canvas id=\"game\"></canvas><div id=\"status\">Chargement…</div>" + "<div class=\"help\">" + StringTools.htmlEscape(cfg.names[0]) + " (Igor) et " + StringTools.htmlEscape(cfg.names[1]);
+		menu_Online.doc.body.innerHTML = tmp + " (Sandy) · chacun avec ses touches · P : pause</div>";
+		let s = menu_Online.doc.createElement("script");
+		s.src = "js/game.js";
+		menu_Online.doc.body.appendChild(s);
+	}
+	static showSettings(main,onName) {
+		let d = meta_Settings.load();
+		let p = menu_Online.el("div","panel wide settings");
+		p.appendChild(menu_Online.el("h2",null,"Paramètres"));
+		let box = menu_Online.el("div","options");
+		box.appendChild(menu_Online.el("h3",null,"Pseudo"));
+		let name = menu_Online.doc.createElement("input");
+		name.maxLength = 20;
+		let cur = null;
+		try {
+			cur = window.localStorage.getItem("kikifest.name");
+		} catch( _g ) {
+		}
+		name.value = cur != null ? cur : "";
+		name.placeholder = "Igor";
+		name.oninput = function() {
+			meta_Settings.setName(name.value);
+			onName(name.value);
+		};
+		box.appendChild(name);
+		box.appendChild(menu_Online.el("p","note","Affiché à l'autre joueur en ligne, et au classement."));
+		p.appendChild(box);
+		let vol = menu_Online.el("div","options");
+		vol.appendChild(menu_Online.el("h3",null,"Son"));
+		let k_id = "music";
+		let k_name = "Musique";
+		let lab = menu_Online.el("label","slider");
+		lab.appendChild(menu_Online.el("span","lbl",k_name));
+		let r = menu_Online.doc.createElement("input");
+		r.type = "range";
+		r.min = "0";
+		r.max = "100";
+		r.value = Std.string(Reflect.field(d,k_id));
+		let val = menu_Online.el("span","val",r.value + " %");
+		r.oninput = function() {
+			d[k_id] = Std.parseInt(r.value);
+			val.textContent = r.value + " %";
+			meta_Settings.store(d);
+		};
+		lab.appendChild(r);
+		lab.appendChild(val);
+		vol.appendChild(lab);
+		let k_id1 = "sfx";
+		let k_name1 = "Bruitages";
+		let lab1 = menu_Online.el("label","slider");
+		lab1.appendChild(menu_Online.el("span","lbl",k_name1));
+		let r1 = menu_Online.doc.createElement("input");
+		r1.type = "range";
+		r1.min = "0";
+		r1.max = "100";
+		r1.value = Std.string(Reflect.field(d,k_id1));
+		let val1 = menu_Online.el("span","val",r1.value + " %");
+		r1.oninput = function() {
+			d[k_id1] = Std.parseInt(r1.value);
+			val1.textContent = r1.value + " %";
+			meta_Settings.store(d);
+		};
+		lab1.appendChild(r1);
+		lab1.appendChild(val1);
+		vol.appendChild(lab1);
+		p.appendChild(vol);
+		let keys = menu_Online.el("div","options");
+		keys.appendChild(menu_Online.el("h3",null,"Touches"));
+		keys.appendChild(menu_Online.el("p","note","Cliquez sur une touche puis appuyez sur la nouvelle. " + "En ligne, chacun joue avec ses propres touches, celles de la colonne « Vous ». " + "La 2e colonne sert au 2e joueur sur le même clavier (Aventure à deux en local)."));
+		let t = menu_Online.el("table","keys");
+		let head = menu_Online.el("tr");
+		let h = "";
+		head.appendChild(menu_Online.el("th",null,h));
+		let h1 = "Vous (Igor, ou seul)";
+		head.appendChild(menu_Online.el("th",null,h1));
+		let h2 = "2e joueur (même clavier)";
+		head.appendChild(menu_Online.el("th",null,h2));
+		t.appendChild(head);
+		let buttons = [];
+		let refresh = function() {
+			let _g = 0;
+			while(_g < buttons.length) {
+				let x = buttons[_g];
+				++_g;
+				x.b.textContent = meta_Settings.label(d,Reflect.field(Reflect.field(d,x.set),x.id));
+			}
+		};
+		let _g = 0;
+		let _g1 = meta_Settings.ACTIONS;
+		while(_g < _g1.length) {
+			let a = _g1[_g];
+			++_g;
+			let tr = menu_Online.el("tr");
+			tr.appendChild(menu_Online.el("td","act",a.name));
+			let set = "keys";
+			let td = menu_Online.el("td");
+			let b = menu_Online.el("a","key");
+			b.onclick = function() {
+				refresh();
+				b.textContent = "Appuyez…";
+				b.classList.add("wait");
+				return menu_Online.capture = function(e) {
+					menu_Online.capture = null;
+					b.classList.remove("wait");
+					if(e.code != "Escape" && e.code != "") {
+						Reflect.field(d,set)[a.id] = e.code;
+						let lbl = e.key != null && e.key.length == 1 && e.key != " " ? e.key.toUpperCase() : null;
+						if(lbl != null) {
+							d.labels[e.code] = lbl;
+						}
+						meta_Settings.store(d);
+					}
+					refresh();
+				};
+			};
+			buttons.push({ b : b, set : set, id : a.id});
+			td.appendChild(b);
+			tr.appendChild(td);
+			let set1 = "keys2";
+			let td1 = menu_Online.el("td");
+			let b1 = menu_Online.el("a","key");
+			b1.onclick = function() {
+				refresh();
+				b1.textContent = "Appuyez…";
+				b1.classList.add("wait");
+				return menu_Online.capture = function(e) {
+					menu_Online.capture = null;
+					b1.classList.remove("wait");
+					if(e.code != "Escape" && e.code != "") {
+						Reflect.field(d,set1)[a.id] = e.code;
+						let lbl = e.key != null && e.key.length == 1 && e.key != " " ? e.key.toUpperCase() : null;
+						if(lbl != null) {
+							d.labels[e.code] = lbl;
+						}
+						meta_Settings.store(d);
+					}
+					refresh();
+				};
+			};
+			buttons.push({ b : b1, set : set1, id : a.id});
+			td1.appendChild(b1);
+			tr.appendChild(td1);
+			t.appendChild(tr);
+		}
+		keys.appendChild(t);
+		keys.appendChild(menu_Online.el("p","note","Échap : quitter la partie (en solo ou sur le même clavier)."));
+		keys.appendChild(menu_Online.button("Touches par défaut",function() {
+			d.keys = meta_Settings.defaultKeys();
+			d.keys2 = meta_Settings.defaultKeys2();
+			meta_Settings.store(d);
+			refresh();
+		},"button small"));
+		p.appendChild(keys);
+		refresh();
+		main.appendChild(p);
+	}
+	static init() {
+		window.addEventListener("keydown",function(e) {
+			if(menu_Online.capture != null) {
+				e.preventDefault();
+				menu_Online.capture(e);
+			}
+		},true);
+	}
+	static keysText(second) {
+		let d = meta_Settings.load();
+		let k = second ? d.keys2 : d.keys;
+		let dirs = [k.left,k.up,k.right,k.down];
+		let arrows = dirs.join(",") == "ArrowLeft,ArrowUp,ArrowRight,ArrowDown";
+		let tmp;
+		if(arrows) {
+			tmp = "flèches";
+		} else {
+			let _g = [];
+			let c = k.up;
+			_g.push(meta_Settings.label(d,c));
+			let c1 = k.left;
+			_g.push(meta_Settings.label(d,c1));
+			let c2 = k.down;
+			_g.push(meta_Settings.label(d,c2));
+			let c3 = k.right;
+			_g.push(meta_Settings.label(d,c3));
+			tmp = _g.join(" ");
+		}
+		return tmp + " + " + meta_Settings.label(d,k.bomb);
+	}
+}
+menu_Online.__name__ = "menu.Online";
 class meta_Quests {
 	constructor(questsXml,itemXmls) {
 		this.familyOrder = [];
@@ -2300,6 +2813,155 @@ meta_Save.__name__ = "meta.Save";
 Object.assign(meta_Save.prototype, {
 	__class__: meta_Save
 });
+class meta_Settings {
+	static defaultKeys() {
+		return { up : "ArrowUp", down : "ArrowDown", left : "ArrowLeft", right : "ArrowRight", bomb : "Space", pause : "KeyP", map : "KeyC"};
+	}
+	static defaultKeys2() {
+		return { up : "KeyR", down : "KeyF", left : "KeyD", right : "KeyG", bomb : "KeyQ", pause : "KeyP", map : "KeyC"};
+	}
+	static defaults() {
+		return { music : 70, sfx : 100, keys : meta_Settings.defaultKeys(), keys2 : meta_Settings.defaultKeys2(), labels : { }};
+	}
+	static load() {
+		let d = meta_Settings.defaults();
+		try {
+			let raw = window.localStorage.getItem("kikifest.settings");
+			if(raw != null) {
+				let s = JSON.parse(raw);
+				if(s.music != null) {
+					d.music = meta_Settings.clamp(s.music);
+				}
+				if(s.sfx != null) {
+					d.sfx = meta_Settings.clamp(s.sfx);
+				}
+				let k = "keys";
+				let src = Reflect.field(s,k);
+				if(src != null) {
+					let _g = 0;
+					let _g1 = meta_Settings.ACTIONS;
+					while(_g < _g1.length) {
+						let a = _g1[_g];
+						++_g;
+						if(Reflect.field(src,a.id) != null) {
+							Reflect.field(d,k)[a.id] = Reflect.field(src,a.id);
+						}
+					}
+				}
+				let k1 = "keys2";
+				let src1 = Reflect.field(s,k1);
+				if(src1 != null) {
+					let _g = 0;
+					let _g1 = meta_Settings.ACTIONS;
+					while(_g < _g1.length) {
+						let a = _g1[_g];
+						++_g;
+						if(Reflect.field(src1,a.id) != null) {
+							Reflect.field(d,k1)[a.id] = Reflect.field(src1,a.id);
+						}
+					}
+				}
+				if(s.labels != null) {
+					d.labels = s.labels;
+				}
+			}
+		} catch( _g ) {
+		}
+		return d;
+	}
+	static store(d) {
+		try {
+			window.localStorage.setItem("kikifest.settings",JSON.stringify(d));
+		} catch( _g ) {
+		}
+	}
+	static clamp(v) {
+		let n = Std.parseInt(Std.string(v));
+		if(n == null) {
+			return 100;
+		} else if(n < 0) {
+			return 0;
+		} else if(n > 100) {
+			return 100;
+		} else {
+			return n;
+		}
+	}
+	static name() {
+		try {
+			let v = window.localStorage.getItem("kikifest.name");
+			if(v != null && StringTools.trim(v) != "") {
+				return StringTools.trim(v);
+			} else {
+				return "Igor";
+			}
+		} catch( _g ) {
+			return "Igor";
+		}
+	}
+	static setName(v) {
+		try {
+			window.localStorage.setItem("kikifest.name",StringTools.trim(v));
+		} catch( _g ) {
+		}
+	}
+	static azerty() {
+		let l = $global.navigator.language;
+		if(!(l == "fr" || l == "fr-FR")) {
+			return l == "fr-BE";
+		} else {
+			return true;
+		}
+	}
+	static label(d,code) {
+		let l = d.labels != null ? Reflect.field(d.labels,code) : null;
+		if(l != null) {
+			return l;
+		}
+		let fixed_h = Object.create(null);
+		fixed_h["Space"] = "Espace";
+		fixed_h["ArrowUp"] = "Flèche haut";
+		fixed_h["ArrowDown"] = "Flèche bas";
+		fixed_h["ArrowLeft"] = "Flèche gauche";
+		fixed_h["ArrowRight"] = "Flèche droite";
+		fixed_h["Enter"] = "Entrée";
+		fixed_h["NumpadEnter"] = "Entrée (pavé)";
+		fixed_h["ShiftLeft"] = "Maj gauche";
+		fixed_h["ShiftRight"] = "Maj droite";
+		fixed_h["ControlLeft"] = "Ctrl gauche";
+		fixed_h["ControlRight"] = "Ctrl droit";
+		fixed_h["AltLeft"] = "Alt";
+		fixed_h["Escape"] = "Échap";
+		fixed_h["Backspace"] = "Retour arrière";
+		fixed_h["Tab"] = "Tab";
+		if(Object.prototype.hasOwnProperty.call(fixed_h,code)) {
+			return fixed_h[code];
+		}
+		if(meta_Settings.azerty()) {
+			let fr_h = Object.create(null);
+			fr_h["KeyQ"] = "A";
+			fr_h["KeyA"] = "Q";
+			fr_h["KeyW"] = "Z";
+			fr_h["KeyZ"] = "W";
+			fr_h["Semicolon"] = "M";
+			fr_h["KeyM"] = ",";
+			if(Object.prototype.hasOwnProperty.call(fr_h,code)) {
+				return fr_h[code];
+			}
+		}
+		if(code.startsWith("Key")) {
+			return HxOverrides.substr(code,3,null);
+		}
+		if(code.startsWith("Digit")) {
+			return HxOverrides.substr(code,5,null);
+		}
+		if(code.startsWith("Numpad")) {
+			return HxOverrides.substr(code,6,null) + " (pavé)";
+		}
+		return code;
+	}
+}
+meta_Settings.__name__ = "meta.Settings";
 class mtlib_Rand {
 	static next() {
 		let x = mtlib_Rand.seed;
@@ -3577,7 +4239,7 @@ menu_Menu.itemNames = new haxe_ds_IntMap();
 menu_Menu.familyNames = new haxe_ds_IntMap();
 menu_Menu.questTexts = new haxe_ds_IntMap();
 menu_Menu.oldHeroes = [];
-menu_Menu.MODES = [{ id : "solo", name : "Aventure", desc : "Jouez la vraie Aventure ! Libérez les fruits ! (avec les Dimensions parallèles)", icon : 1000, options : ["mirror","nightmare","ninja","bombexpert"]},{ id : "tutorial", name : "Apprentissage", desc : "Découvrez le jeu pas à pas, avec des vies illimitées. Ce mode est gratuit et illimité !", icon : 1, options : []},{ id : "multicoop", name : "Aventure à deux", desc : "Igor et Sandy repartent ensemble dans la grande aventure, sur le même clavier.\nIgor : flèches + Entrée · Sandy : R D F G + A", icon : 1027, options : ["mirrormulti","nightmaremulti","lifesharing"]},{ id : "timeattack", name : "Time Attack", desc : "Traversez les niveaux le plus vite possible !", icon : 1236, unlock : "timeattack", options : []},{ id : "soccer", name : "Soccerfest", desc : "Un match de football à deux, à coups de bombes.\nIgor : flèches + Entrée · Sandy : R D F G + A", icon : 1043, options : ["kickcontrol","soccerbomb"]}];
+menu_Menu.MODES = [{ id : "solo", name : "Aventure", desc : "Jouez la vraie Aventure ! Libérez les fruits ! (avec les Dimensions parallèles)", icon : 1000, options : ["mirror","nightmare","ninja","bombexpert"]},{ id : "tutorial", name : "Apprentissage", desc : "Découvrez le jeu pas à pas, avec des vies illimitées. Ce mode est gratuit et illimité !", icon : 1, options : []},{ id : "multicoop", name : "Aventure à deux", desc : "Igor et Sandy repartent ensemble dans la grande aventure, sur le même clavier.\n{keys}\nPour jouer à deux chacun chez soi, passez par l'onglet Multijoueur.", icon : 1027, options : ["mirrormulti","nightmaremulti","lifesharing"]},{ id : "timeattack", name : "Time Attack", desc : "Traversez les niveaux le plus vite possible !", icon : 1236, unlock : "timeattack", options : []},{ id : "soccer", name : "Soccerfest", desc : "Un match de football à deux, à coups de bombes, sur le même clavier.\n{keys}", icon : 1043, options : ["kickcontrol","soccerbomb"]}];
 menu_Menu.OPTION_NAMES = (function($this) {
 	var $r;
 	let _g = new haxe_ds_StringMap();
@@ -3596,7 +4258,10 @@ menu_Menu.OPTION_NAMES = (function($this) {
 menu_Menu.PASSIVE = ["boost","set_ta_0","set_ta_1","set_ta_2","set_mta_0","set_mta_1","set_mta_2"];
 menu_Menu.iconCache = new haxe_ds_StringMap();
 menu_Menu.FLOOR_COLORS = ["#f2c230","#c9a3ec","#a777d6","#c64fa0","#e2445f"];
+menu_Online.doc = window.document;
+menu_Online.busy = false;
 meta_Save.FLOORS = [369920,737965,3508030,11152196];
+meta_Settings.ACTIONS = [{ id : "up", name : "Sauter", bit : 1},{ id : "down", name : "Descendre", bit : 2},{ id : "left", name : "Gauche", bit : 4},{ id : "right", name : "Droite", bit : 8},{ id : "bomb", name : "Poser une bombe", bit : 16},{ id : "pause", name : "Pause", bit : 32},{ id : "map", name : "Carte", bit : 64}];
 mtlib_Rand.seed = 625341585;
 swf_DisplayObject._hx_skip_constructor = false;
 swf_FrameScripts.GLOBALS = ["Math","random","_global","_root","undefined","NaN","Infinity","Number","String","Array","Boolean","Object","isNaN","parseInt","parseFloat","int","trace","console","eval"];
