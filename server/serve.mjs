@@ -167,6 +167,10 @@ server.listen(port, async () => {
   info.publicIp = stunIp ?? (upnp.externalIp && !isPrivateIp(upnp.externalIp) ? upnp.externalIp : null);
   if (firewall === "fixed") console.log("Pare-feu Windows : Kikifest est maintenant autorisé.");
   else if (firewall === "refused") console.log("Pare-feu Windows : autorisation refusée, l'invité risque d'être bloqué.");
+  else if (firewall === "failed") {
+    console.log("Pare-feu : impossible de le régler automatiquement. S'il est géré par un antivirus (Avast, Norton,");
+    console.log("Kaspersky, Bitdefender...), autorisez Node.js dans les réglages de son pare-feu.");
+  }
   if (upnp.ok) console.log(`Box : port ${port} ouvert automatiquement (UPnP).`);
   else console.log(`Box : ouverture automatique du port impossible (${upnp.reason}).`);
 
