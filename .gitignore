@@ -5,3 +5,4 @@ __pycache__/
 server/config.json
 build/
 server/bin/
+saves/

@@ -114,7 +114,7 @@ class Menu {
 		js.lib.Promise.all(jobs).then(_ -> {
 			quests = new Quests(texts.get("quests"), [texts.get("specialItems"), texts.get("scoreItems")]);
 			readLang(texts.get("lang/fr"));
-			Library.load("assets", lib -> start(), e -> setStatus("Erreur : " + e));
+			Library.load("assets", lib -> Save.sync(start), e -> setStatus("Erreur : " + e));
 			return null;
 		});
 	}
@@ -164,6 +164,8 @@ class Menu {
 		var input:js.html.InputElement = cast doc.getElementById("name");
 		input.value = getPref("name", "");
 		input.oninput = () -> setPref("name", StringTools.trim(input.value));
+		input.onchange = () -> reloadSave();
+		Online.onNameChanged = reloadSave;
 		doc.getElementById("pyr").innerHTML = pyramidSvg(-1, 56);
 		doc.getElementById("count").textContent = Std.string(save.totalItems());
 
@@ -177,10 +179,31 @@ class Menu {
 			el.onclick = () -> show(el.dataset.view);
 		}
 		Online.init();
+		Online.onBack = () -> {
+			save = Save.load();
+			state = quests.compute(save.items);
+			doc.getElementById("count").textContent = Std.string(save.totalItems());
+			show("multi");
+		};
 		Browser.window.onhashchange = () -> show(Browser.location.hash.substr(1));
 		// lien d'invitation reçu de l'hôte (?code=XXXXX) : onglet Multijoueur
 		var code = new js.html.URLSearchParams(Browser.location.search).get("code");
 		show(code != null ? "multi" : Browser.location.hash.substr(1));
+	}
+
+	/** Changement de pseudo : on reprend la sauvegarde de ce pseudo gardée chez l'hôte, s'il y en a une. **/
+	static function reloadSave() {
+		Save.sync(() -> {
+			save = Save.load();
+			state = quests.compute(save.items);
+			var count = doc.getElementById("count");
+			if (count == null)
+				return; // en pleine partie : le menu sera mis à jour au retour
+			count.textContent = Std.string(save.totalItems());
+			var v = Browser.location.hash.substr(1);
+			if (v != "multi" && v != "parametres")
+				show(v);
+		});
 	}
 
 	static function getPref(k:String, def:String):String {
@@ -232,8 +255,8 @@ class Menu {
 	static var iconCache = new Map<String, String>();
 
 	/** Dessine un objet du jeu (clip hammer_item_special / hammer_item_score) dans une image. */
-	static function itemIcon(id:Int, size:Int, ?dark:Bool):Element {
-		var key = id + ":" + size;
+	static function itemIcon(id:Int, size:Int, ?dark:Bool, ?sub:Int):Element {
+		var key = id + ":" + size + ":" + sub;
 		var url = iconCache.get(key);
 		if (url == null) {
 			var dpr = Browser.window.devicePixelRatio;
@@ -243,6 +266,9 @@ class Menu {
 			var mc = root.attachMovie(id >= 1000 ? "hammer_item_score" : "hammer_item_special", "ic" + uniq, uniq++);
 			if (mc != null) {
 				mc.gotoAndStop(Std.string(id >= 1000 ? id - 1000 + 1 : id + 1));
+				var inner:Dynamic = untyped mc.sub;
+				if (sub != null && inner != null)
+					inner.gotoAndStop(Std.string(sub)); // ex. les 7 lettres de l'Alphabet Cristallin
 				var b:Dynamic = mc.getBounds(mc);
 				var w:Float = b.xMax - b.xMin, h:Float = b.yMax - b.yMin;
 				if (w > 0 && h > 0) {
@@ -408,7 +434,16 @@ class Menu {
 				var c = Quests.count(save.items, i);
 				var cell = el("div", "cell" + (c > 0 ? "" : " unknown"));
 				if (c > 0) {
-					cell.appendChild(itemIcon(i, 40));
+					if (i == 0) {
+						// Alphabet Cristallin : on montre le mot entier (les lettres ne sont pas comptées séparément)
+						cell.classList.add("letters");
+						var word = el("div", "word");
+						for (k in 1...8)
+							word.appendChild(itemIcon(0, 22, false, k));
+						cell.appendChild(word);
+						cell.title = "Alphabet Cristallin : lettres ramassées (toutes lettres confondues)";
+					} else
+						cell.appendChild(itemIcon(i, 40));
 					cell.appendChild(el("span", "qty", "×" + c));
 				} else
 					cell.appendChild(el("span", "qmark", "?"));
