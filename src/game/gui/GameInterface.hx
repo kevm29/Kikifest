@@ -46,6 +46,23 @@ class GameInterface
 		{ra:25, ga:45, ba:100, rb:0, gb:10, bb:150},	// joueur 4 : bleu
 	];
 
+	/** Kikifest : place un champ de la barre Coop et lui donne la taille de police du solo. **/
+	function kikiField(tf:Dynamic, x:Float, w:Float, align:Int) {
+		if ( tf == null || tf.__def == null ) return;
+		var d:Dynamic = Reflect.copy(tf.__def);
+		d.size = 16;
+		d.align = align;
+		d.b = [0, -2, w, 20.15];
+		tf.__def = d;
+		tf._x = x;
+		tf._y = -19.2;
+	}
+
+	/** Kikifest : à plusieurs, au-delà de 4 cornets on affiche le « + » (les scores sont au milieu). **/
+	function maxLives():Int {
+		return fl_multi ? 4 : MAX_LIVES;
+	}
+
 	function tintLife(m:Dynamic, pid:Dynamic) {
 		if ( m == null ) return;
 		if ( mc2 != null ) { m._xscale = 80; m._yscale = 80; m._y = m._y + 2; }
@@ -176,6 +193,17 @@ class GameInterface
 				{ var j:Dynamic=0; while (j<7) { letters[k]?.push( MtStd.getVar(mc2, "letter"+(k-2)+"_"+j) ); j++; } }
 			k++; } }
 		}
+
+		// Kikifest : comme la barre du solo, numéro du niveau dans l'angle gauche et scores
+		// côte à côte au milieu, dans la police du solo (16 px au lieu de 13)
+		kikiField(scores[0], 122, 80, 1);
+		kikiField(scores[1], 220, 80, 0);
+		kikiField(scores[2], 122, 80, 1);
+		kikiField(scores[3], 220, 80, 0);
+		var lv:Dynamic = mc?.createTextField("$kikiLevel", 950, 0, 0, 40, 20);
+		{ if (lv != null) lv.__def = Reflect.copy(scores[0]?.__def); }
+		kikiField(lv, 12, 40, 0);
+		level = lv;
 
 		// Init spécifiques aux players
 		fakeScores		= new Array();
@@ -319,7 +347,7 @@ i-=3; } }
 			}
 		}
 		else {
-			while ( currentLives[pid]<v && currentLives[pid]<MAX_LIVES ) {
+			while ( currentLives[pid]<v && currentLives[pid]<maxLives() ) {
 				var mc:Dynamic = MtStd.attachMC(host, "hammer_interf_life", game.manager.uniq++);
 				{ if (mc != null) mc._x = baseX+currentLives[pid]*baseWid; }
 				{ if (mc != null) mc._y = -19; }
@@ -327,15 +355,15 @@ i-=3; } }
 				plives[currentLives[pid]]=mc;
 				currentLives[pid]++;
 			}
-			if ( v>MAX_LIVES && more[pid]?._name==null ) {
+			if ( v>maxLives() && more[pid]?._name==null ) {
 				more[pid] = MtStd.attachMC(host,"hammer_interf_more", game.manager.uniq++);
-				{ if (more[pid] != null) more[pid]._x = baseX + baseWid*MAX_LIVES - 4; }
+				{ if (more[pid] != null) more[pid]._x = baseX + baseWid*maxLives() - 4; }
 				if ( pid%2==1 ) {
 					{ if (more[pid] != null) more[pid]._x-=baseWid; }
 				}
 				{ if (more[pid] != null) more[pid]._y = -25; }
 			}
-			if ( v<=MAX_LIVES && more[pid]?._name!=null ) {
+			if ( v<=maxLives() && more[pid]?._name!=null ) {
 				more[pid]?.removeMovieClip();
 			}
 		}

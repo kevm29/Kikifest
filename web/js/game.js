@@ -4423,6 +4423,20 @@ class Reflect {
 		delete(o[field]);
 		return true;
 	}
+	static copy(o) {
+		if(o == null) {
+			return null;
+		}
+		let o2 = { };
+		let _g = 0;
+		let _g1 = Reflect.fields(o);
+		while(_g < _g1.length) {
+			let f = _g1[_g];
+			++_g;
+			o2[f] = Reflect.field(o,f);
+		}
+		return o2;
+	}
 }
 $hxClasses["Reflect"] = Reflect;
 Reflect.__name__ = "Reflect";
@@ -18105,6 +18119,25 @@ class gui_GameInterface {
 		this.baseColor = Data.BASE_COLORS[0];
 		this.update();
 	}
+	kikiField(tf,x,w,align) {
+		if(tf == null || tf.__def == null) {
+			return;
+		}
+		let d = Reflect.copy(tf.__def);
+		d.size = 16;
+		d.align = align;
+		d.b = [0,-2,w,20.15];
+		tf.__def = d;
+		tf._x = x;
+		tf._y = -19.2;
+	}
+	maxLives() {
+		if(this.fl_multi) {
+			return 4;
+		} else {
+			return gui_GameInterface.MAX_LIVES;
+		}
+	}
 	tintLife(m,pid) {
 		if(m == null) {
 			return;
@@ -18326,12 +18359,24 @@ class gui_GameInterface {
 				k += 1;
 			}
 		}
+		this.kikiField(this.scores[0],122,80,1);
+		this.kikiField(this.scores[1],220,80,0);
+		this.kikiField(this.scores[2],122,80,1);
+		this.kikiField(this.scores[3],220,80,0);
+		let tmp21 = this.mc;
+		let lv = tmp21 != null ? tmp21.createTextField("$kikiLevel",950,0,0,40,20) : null;
+		if(lv != null) {
+			let tmp = this.scores[0];
+			lv.__def = Reflect.copy(tmp != null ? tmp.__def : null);
+		}
+		this.kikiField(lv,12,40,0);
+		this.level = lv;
 		this.fakeScores = [];
 		this.realScores = [];
 		this.currentLives = [];
 		this.lives = [];
-		let tmp21 = this.game;
-		let pl = tmp21 != null ? tmp21.getPlayerList() : null;
+		let tmp22 = this.game;
+		let pl = tmp22 != null ? tmp22.getPlayerList() : null;
 		let i = 0;
 		while(i < (pl != null ? pl.length : null)) {
 			let p = pl[i];
@@ -18479,7 +18524,7 @@ class gui_GameInterface {
 				this.currentLives[pid]--;
 			}
 		} else {
-			while(this.currentLives[pid] < v && this.currentLives[pid] < gui_GameInterface.MAX_LIVES) {
+			while(this.currentLives[pid] < v && this.currentLives[pid] < this.maxLives()) {
 				let mc = mtlib_MtStd.attachMC(host,"hammer_interf_life",this.game.manager.uniq++);
 				if(mc != null) {
 					mc._x = baseX + this.currentLives[pid] * baseWid;
@@ -18492,7 +18537,7 @@ class gui_GameInterface {
 				this.currentLives[pid]++;
 			}
 			let tmp;
-			if(v > gui_GameInterface.MAX_LIVES) {
+			if(v > this.maxLives()) {
 				let tmp1 = this.more[pid];
 				tmp = (tmp1 != null ? tmp1._name : null) == null;
 			} else {
@@ -18501,7 +18546,7 @@ class gui_GameInterface {
 			if(tmp) {
 				this.more[pid] = mtlib_MtStd.attachMC(host,"hammer_interf_more",this.game.manager.uniq++);
 				if(this.more[pid] != null) {
-					this.more[pid].set__x(baseX + baseWid * gui_GameInterface.MAX_LIVES - 4);
+					this.more[pid].set__x(baseX + baseWid * this.maxLives() - 4);
 				}
 				if(pid % 2 == 1) {
 					if(this.more[pid] != null) {
@@ -18514,7 +18559,7 @@ class gui_GameInterface {
 				}
 			}
 			let tmp1;
-			if(v <= gui_GameInterface.MAX_LIVES) {
+			if(v <= this.maxLives()) {
 				let tmp = this.more[pid];
 				tmp1 = (tmp != null ? tmp._name : null) != null;
 			} else {
