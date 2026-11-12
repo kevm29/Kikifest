@@ -3,6 +3,7 @@
 import dgram from "node:dgram";
 import os from "node:os";
 import crypto from "node:crypto";
+import https from "node:https";
 
 // Adresses IPv4 de la machine sur le réseau local (Wi-Fi, Ethernet).
 export function lanAddresses() {
@@ -155,17 +156,35 @@ export function isPrivateIp(ip) {
 }
 
 // Vérifie si le port est joignable depuis internet. Renvoie true, false, ou null (impossible de savoir).
-// Le service public ifconfig.co tente lui-même une connexion vers notre adresse publique.
+// Le service public ifconfig.co tente lui-même une connexion vers l'adresse qui l'appelle.
+// On l'appelle obligatoirement en IPv4 : sinon (box Orange, Free... avec IPv6), il teste l'adresse IPv6,
+// que la box bloque en entrée, et répond « non joignable » alors que l'IPv4 l'est.
 // (Se joindre soi-même par l'adresse publique ne prouve rien : le pare-feu et la box traitent ce cas à part.)
-export async function checkReachable(port) {
-  try {
-    const res = await fetch(`https://ifconfig.co/port/${port}`, {
-      headers: { accept: "application/json" }, signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return null;
-    const j = await res.json();
-    return typeof j.reachable === "boolean" ? j.reachable : null;
-  } catch {
-    return null;
+function askPortCheck(port) {
+  return new Promise((resolve) => {
+    const req = https.get(`https://ifconfig.co/port/${port}`,
+      { family: 4, headers: { accept: "application/json" }, timeout: 15000 }, (res) => {
+        let body = "";
+        res.on("data", (d) => (body += d));
+        res.on("end", () => {
+          try { resolve(res.statusCode === 200 ? JSON.parse(body) : null); } catch { resolve(null); }
+        });
+      });
+    req.on("timeout", () => req.destroy());
+    req.on("error", () => resolve(null));
+  });
+}
+
+export async function checkReachable(port, publicIp = null) {
+  // Deux essais : la box peut mettre quelques secondes à appliquer la redirection UPnP.
+  let last = null;
+  for (let i = 0; i < 2; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 4000));
+    const j = await askPortCheck(port);
+    if (!j || typeof j.reachable !== "boolean") continue;
+    if (publicIp && j.ip && j.ip !== publicIp) continue; // le service n'a pas testé la bonne adresse
+    if (j.reachable) return true;
+    last = false;
   }
+  return last;
 }
