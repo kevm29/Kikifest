@@ -28,14 +28,22 @@ class Online {
 
 	// ---------------------------------------------------------------- multijoueur
 
-	/** Peer en cours (une seule partie à la fois) **/
-	static var busy = false;
-
 	/**
-		@param start  options de la partie de l'hôte : { mode, options, families }
-		@param soloUrl  adresse de l'Aventure en solo (sans Sandy)
+		État de la partie en ligne, gardé quand on change d'onglet : le salon vit dans `box`,
+		un élément créé une fois et raccroché à chaque affichage de l'onglet Multijoueur.
 	**/
-	public static function showMulti(main:Element, hostGame:Void->Dynamic, soloUrl:String) {
+	static var box:Element = null;
+
+	static var peer:Dynamic = null;
+	static var hostGame:Void->Dynamic;
+	static var myReady = false;
+	static var otherReady = false;
+	static var otherName = "";
+	static var round = 0;
+	static var again = [false, false];
+
+	public static function showMulti(main:Element, hostGameF:Void->Dynamic, soloUrl:String) {
+		hostGame = hostGameF;
 		var p = el("div", "panel wide");
 		p.appendChild(el("h2", null, "Jouer à deux en ligne"));
 		main.appendChild(p);
@@ -44,37 +52,51 @@ class Online {
 			p.appendChild(el("p", null, "Le jeu à deux en ligne passe par le serveur de l'hôte : lancez Heberger-Windows.bat (ou Heberger-Mac.command), puis ouvrez http://localhost:8080/."));
 			return;
 		}
+		if (box != null) {
+			// une partie est en cours de création ou un joueur est déjà là : on la remontre telle quelle
+			p.appendChild(box);
+			return;
+		}
 		var body = el("div");
 		p.appendChild(body);
 
 		var urlCode = new js.html.URLSearchParams(Browser.location.search).get("code");
-		if (urlCode != null && !busy) {
-			join(body, urlCode);
+		if (urlCode != null) {
+			join(p, urlCode);
+			body.remove();
 			return;
 		}
 
-		body.appendChild(el("p", null, "L'un de vous deux héberge la partie (il a lancé le serveur sur son ordinateur) et envoie le lien à l'autre. "
-			+ "Chacun joue sur son propre clavier, avec les touches choisies dans les Paramètres."));
-		body.appendChild(el("p", null, "L'hôte joue Igor, l'invité joue Sandy. La partie démarre avec les bonus de quêtes de l'hôte ; "
-			+ "les objets ramassés s'ajoutent au frigo de chacun."));
+		body.appendChild(el("p", null, "1. Celui qui a lancé le serveur clique sur « Créer une partie » et envoie le lien à l'autre."));
+		body.appendChild(el("p", null, "2. L'autre ouvre le lien : vous vous retrouvez tous les deux dans le salon, où chacun choisit son pseudo."));
+		body.appendChild(el("p", null, "3. Chacun clique sur « Je suis prêt » : la partie démarre chez les deux. L'hôte joue Igor, l'invité Sandy, chacun sur son clavier avec ses touches (onglet Paramètres)."));
 
-		var box = el("div", "options");
-		box.appendChild(el("h3", null, "Créer une partie"));
-		box.appendChild(button("Créer une partie et inviter quelqu'un", () -> host(body, hostGame, soloUrl)));
-		body.appendChild(box);
+		var b1 = el("div", "options");
+		b1.appendChild(el("h3", null, "Créer une partie"));
+		b1.appendChild(button("Créer une partie et inviter quelqu'un", () -> {
+			body.remove();
+			host(p);
+		}));
+		body.appendChild(b1);
 
-		var box2 = el("div", "options");
-		box2.appendChild(el("h3", null, "Rejoindre une partie"));
+		var b2 = el("div", "options");
+		b2.appendChild(el("h3", null, "Rejoindre une partie"));
 		var row = el("div", "row");
 		var input:js.html.InputElement = cast doc.createInputElement();
 		input.placeholder = "Code";
 		input.maxLength = 5;
 		input.className = "code";
-		input.onkeydown = (e:js.html.KeyboardEvent) -> if (e.key == "Enter") join(body, input.value);
+		var go = () -> {
+			if (~/^[A-Za-z0-9]{5}$/.match(StringTools.trim(input.value))) {
+				body.remove();
+				join(p, input.value);
+			}
+		};
+		input.onkeydown = (e:js.html.KeyboardEvent) -> if (e.key == "Enter") go();
 		row.appendChild(input);
-		row.appendChild(button("Rejoindre", () -> join(body, input.value), "button small"));
-		box2.appendChild(row);
-		body.appendChild(box2);
+		row.appendChild(button("Rejoindre", go, "button small"));
+		b2.appendChild(row);
+		body.appendChild(b2);
 
 		var solo = el("p", "note");
 		solo.appendChild(doc.createTextNode("Personne avec qui jouer ? "));
@@ -84,36 +106,37 @@ class Online {
 		body.appendChild(solo);
 	}
 
-	static function statusLine(parent:Element):Element {
-		var s = el("p", "netstatus");
-		parent.appendChild(s);
-		return s;
+	static function newBox(parent:Element):Element {
+		box = el("div");
+		parent.appendChild(box);
+		return box;
 	}
 
-	static function fail(body:Element, e:Dynamic) {
-		busy = false;
-		body.innerHTML = "";
-		body.appendChild(el("p", "warn", "Oups : " + (e != null && e.message != null ? e.message : Std.string(e))));
-		body.appendChild(button("Recommencer", () -> Browser.location.href = "index.html#multi"));
-	}
-
-	static function host(body:Element, hostGame:Void->Dynamic, soloUrl:String) {
-		if (busy)
+	static function fail(e:Dynamic) {
+		var msg = e != null && e.message != null ? e.message : Std.string(e);
+		if (peer != null)
+			try peer.close() catch (_:Dynamic) {}
+		peer = null;
+		if (box == null)
 			return;
-		busy = true;
-		body.innerHTML = "";
-		body.appendChild(el("p", null, "Partie créée ! Envoyez ce lien à l'autre joueur :"));
+		box.innerHTML = "";
+		box.appendChild(el("p", "warn", "Oups : " + msg));
+		box.appendChild(button("Revenir au début", () -> Browser.location.href = "index.html#multi"));
+	}
+
+	static function host(parent:Element) {
+		var b = newBox(parent);
+		var title = el("p", null, "Partie créée ! Envoyez ce lien à l'autre joueur (Discord, SMS…) :");
+		b.appendChild(title);
 		var links = el("div", "links");
-		body.appendChild(links);
+		b.appendChild(links);
 		var code = el("p", "bigcode", "…");
-		var st = statusLine(body);
+		b.appendChild(code);
+		var st = el("p", "netstatus");
+		b.appendChild(st);
 		var note = el("p", "note");
-		body.appendChild(note);
-		var solo = el("p", "note");
-		var a:js.html.AnchorElement = cast el("a", null, "Personne ne vient ? Jouer seul (sans Sandy)");
-		a.href = soloUrl;
-		solo.appendChild(a);
-		body.appendChild(solo);
+		b.appendChild(note);
+		b.appendChild(el("p", "note", "Vous pouvez changer d'onglet en attendant (paramètres, frigo…) : la partie reste ouverte."));
 
 		var kiki:Dynamic = untyped js.Browser.window.KikiNet;
 		var pr:js.lib.Promise<Dynamic> = kiki.host({
@@ -123,32 +146,11 @@ class Online {
 			},
 			onStatus: (s:String) -> st.textContent = s
 		});
-		links.parentElement.insertBefore(code, links.nextSibling);
-		pr.then(peer -> {
-			st.textContent = "L'autre joueur est là ! Lancement…";
-			peer.onclose = (r:Dynamic) -> fail(body, "L'autre joueur est parti.");
-			peer.onmessage = (data:Dynamic, reliable:Bool) -> {
-				if (!reliable || !Std.isOfType(data, String))
-					return;
-				var m:Dynamic = try haxe.Json.parse(data) catch (e:Dynamic) null;
-				if (m == null || m.t != "hello")
-					return;
-				var g:Dynamic = hostGame();
-				var guestName:String = m.name != null && StringTools.trim(m.name) != "" ? m.name : "Sandy";
-				var cfg = {
-					t: "start",
-					mode: g.mode,
-					options: g.options,
-					families: g.families,
-					seed: Std.int(peer.seed) & 0x7fffffff,
-					names: [Settings.name(), guestName.substr(0, 20)]
-				};
-				peer.sendReliable(haxe.Json.stringify(cfg));
-				launch(peer, cfg);
-			};
+		pr.then(p -> {
+			connected(p);
 			return null;
 		}, e -> {
-			fail(body, e);
+			fail(e);
 			return null;
 		});
 	}
@@ -223,63 +225,203 @@ class Online {
 		});
 	}
 
-	static function join(body:Element, code:String) {
+	static function join(parent:Element, code:String) {
 		code = ~/[^A-Z0-9]/g.replace(code.toUpperCase(), "");
-		if (code.length != 5 || busy)
-			return;
-		busy = true;
-		Browser.window.history.replaceState(null, "", "?code=" + code + "#multi");
-		body.innerHTML = "";
-		body.appendChild(el("p", null, "Connexion à la partie " + code + "…"));
-		var st = statusLine(body);
+		var b = newBox(parent);
+		Browser.window.history.replaceState(null, "", "index.html?code=" + code + "#multi");
+		b.appendChild(el("p", null, "Connexion à la partie " + code + "…"));
+		var st = el("p", "netstatus");
+		b.appendChild(st);
 		var kiki:Dynamic = untyped js.Browser.window.KikiNet;
 		var pr:js.lib.Promise<Dynamic> = kiki.join(code, {onStatus: (s:String) -> st.textContent = s});
-		pr.then(peer -> {
-			st.textContent = "Connecté ! En attente du lancement par l'hôte…";
-			peer.onclose = (r:Dynamic) -> fail(body, "L'hôte a fermé la partie.");
-			peer.onmessage = (data:Dynamic, reliable:Bool) -> {
-				if (!reliable || !Std.isOfType(data, String))
-					return;
-				var m:Dynamic = try haxe.Json.parse(data) catch (e:Dynamic) null;
-				if (m != null && m.t == "start")
-					launch(peer, m);
-			};
-			peer.sendReliable(haxe.Json.stringify({t: "hello", name: guestName()}));
+		pr.then(p -> {
+			connected(p);
 			return null;
 		}, e -> {
-			fail(body, e);
+			fail(e);
 			return null;
 		});
 	}
 
-	/** Pseudo de l'invité : celui des paramètres, ou Sandy s'il n'en a pas choisi. **/
-	static function guestName():String {
+	static function myName():String {
 		var v:String = null;
 		try
 			v = Browser.window.localStorage.getItem("kikifest.name")
 		catch (e:Dynamic) {}
-		return v != null && StringTools.trim(v) != "" ? StringTools.trim(v) : "Sandy";
+		if (v != null && StringTools.trim(v) != "")
+			return StringTools.trim(v).substr(0, 20);
+		return peer != null && peer.role == "guest" ? "Sandy" : "Igor";
+	}
+
+	static function send(m:Dynamic) {
+		if (peer != null)
+			try peer.sendReliable(haxe.Json.stringify(m)) catch (e:Dynamic) {}
+	}
+
+	static var lobbyRefresh:Void->Void = null;
+
+	/** Les deux joueurs sont reliés : salon d'attente (pseudos, « Je suis prêt »). **/
+	static function connected(p:Dynamic) {
+		peer = p;
+		var isHost = p.role == "host";
+		otherName = isHost ? "Sandy" : "Igor";
+		p.onclose = (r:Dynamic) -> fail("L'autre joueur s'est déconnecté" + (r != null ? " (" + r + ")" : "") + ".");
+		p.onmessage = (data:Dynamic, reliable:Bool) -> {
+			if (!reliable || !Std.isOfType(data, String))
+				return;
+			var m:Dynamic = try haxe.Json.parse(data) catch (e:Dynamic) null;
+			if (m != null)
+				onLobbyMessage(m);
+		};
+
+		box.innerHTML = "";
+		box.appendChild(el("p", "ok", "Vous êtes connectés !"));
+		var t = el("table", "lobby");
+		var me = el("tr");
+		me.appendChild(el("td", "who", isHost ? "Igor (hôte)" : "Sandy (invité)"));
+		var td = el("td");
+		var input:js.html.InputElement = cast doc.createInputElement();
+		input.maxLength = 20;
+		input.value = myName();
+		input.placeholder = "Votre pseudo";
+		input.oninput = () -> {
+			Settings.setName(input.value);
+			var head:js.html.InputElement = cast doc.getElementById("name");
+			if (head != null)
+				head.value = input.value;
+			send({t: "name", name: myName()});
+		};
+		td.appendChild(input);
+		td.appendChild(el("span", "note", " ← vous"));
+		me.appendChild(td);
+		var meState = el("td", "state");
+		me.appendChild(meState);
+		var other = el("tr");
+		other.appendChild(el("td", "who", isHost ? "Sandy (invité)" : "Igor (hôte)"));
+		var otherTd = el("td", "other");
+		other.appendChild(otherTd);
+		var otherState = el("td", "state");
+		other.appendChild(otherState);
+		t.appendChild(isHost ? me : other);
+		t.appendChild(isHost ? other : me);
+		box.appendChild(t);
+
+		var readyBtn = button("Je suis prêt !", () -> {
+			myReady = !myReady;
+			send({t: "ready", ready: myReady});
+			lobbyRefresh();
+			maybeStart();
+		});
+		box.appendChild(readyBtn);
+		box.appendChild(el("p", "note", "Vos touches : " + keysText(false) + " · P : pause. La partie démarre quand vous êtes prêts tous les deux."));
+		var ping = el("p", "note");
+		box.appendChild(ping);
+
+		lobbyRefresh = () -> {
+			otherTd.textContent = otherName;
+			meState.textContent = myReady ? "✔ prêt" : "pas encore prêt";
+			otherState.textContent = otherReady ? "✔ prêt" : "pas encore prêt";
+			readyBtn.textContent = myReady ? "Finalement, pas encore" : "Je suis prêt !";
+			ping.textContent = (p.transport == "webrtc" ? "Liaison directe" : "Liaison par le serveur de l'hôte") + " · ping " + Math.round(p.rtt) + " ms";
+		};
+		lobbyRefresh();
+		var timer = 0;
+		timer = Browser.window.setInterval(() -> if (peer == p && box.isConnected) lobbyRefresh() else if (peer != p) Browser.window.clearInterval(timer), 1000);
+		send({t: "hello", name: myName()});
+		// petit signal sonore/visuel : on ramène l'onglet Multijoueur au premier plan
+		if (Browser.location.hash != "#multi")
+			Browser.location.hash = "multi";
+	}
+
+	static function onLobbyMessage(m:Dynamic) {
+		switch (m.t) {
+			case "hello", "name":
+				var n:String = Std.string(m.name);
+				if (StringTools.trim(n) != "")
+					otherName = StringTools.trim(n).substr(0, 20);
+			case "ready":
+				otherReady = m.ready == true;
+				maybeStart();
+			case "start":
+				launch(m);
+			case "again":
+				onAgain(1 - localIndex());
+		}
+		if (lobbyRefresh != null)
+			lobbyRefresh();
+	}
+
+	static function localIndex():Int
+		return peer != null && peer.role == "host" ? 0 : 1;
+
+	/** L'hôte lance la partie quand les deux sont prêts. **/
+	static function maybeStart() {
+		if (peer == null || peer.role != "host" || !myReady || !otherReady)
+			return;
+		var g:Dynamic = hostGame();
+		round++;
+		var cfg = {
+			t: "start",
+			mode: g.mode,
+			options: g.options,
+			families: g.families,
+			seed: (Std.int(peer.seed) + round * 7919) & 0x7fffffff,
+			round: round,
+			names: [myName(), otherName]
+		};
+		send(cfg);
+		launch(cfg);
+	}
+
+	/** Fin de partie : l'un veut rejouer ; quand les deux veulent, l'hôte relance. **/
+	static function onAgain(who:Int) {
+		again[who] = true;
+		if (peer != null && peer.role == "host" && again[0] && again[1]) {
+			myReady = otherReady = true;
+			maybeStart();
+		}
 	}
 
 	/** Remplace le menu par le jeu, dans la même page (la connexion doit rester ouverte). **/
-	static function launch(peer:Dynamic, cfg:Dynamic) {
-		peer.onclose = null;
-		peer.onmessage = null;
+	static function launch(cfg:Dynamic) {
+		var p = peer;
+		var stop:Dynamic = untyped js.Browser.window.kikiStop;
+		if (stop != null)
+			stop(); // partie précédente (« Rejouer ensemble »)
+		again = [false, false];
+		myReady = otherReady = false;
+		p.onmessage = null;
+		var idx = localIndex();
 		untyped js.Browser.window.KIKI_NET = {
-			peer: peer,
+			peer: p,
 			mode: cfg.mode,
 			options: cfg.options,
 			families: cfg.families,
 			seed: cfg.seed,
-			names: cfg.names
+			round: cfg.round != null ? cfg.round : 1,
+			names: cfg.names,
+			// messages fiables reçus pendant la partie (rejouer)
+			onReliable: (data:Dynamic) -> {
+				if (!Std.isOfType(data, String))
+					return;
+				var m:Dynamic = try haxe.Json.parse(data) catch (e:Dynamic) null;
+				if (m != null)
+					onLobbyMessage(m);
+			},
+			again: () -> {
+				send({t: "again"});
+				onAgain(idx);
+			}
 		};
+		var names:Array<String> = cfg.names;
+		var me = idx == 0 ? "Igor" : "Sandy";
 		doc.title = "Kikifest à deux";
 		doc.body.className = "playing";
 		doc.body.innerHTML = '<canvas id="game"></canvas><div id="status">Chargement…</div>'
-			+ '<div class="help">' + StringTools.htmlEscape(cfg.names[0]) + ' (Igor) et ' + StringTools.htmlEscape(cfg.names[1])
-			+ ' (Sandy) · chacun avec ses touches · P : pause</div>';
+			+ '<div class="help">Vous jouez <b>' + me + '</b> (' + StringTools.htmlEscape(names[idx]) + ') avec ' + StringTools.htmlEscape(keysText(false))
+			+ ' · ' + StringTools.htmlEscape(names[1 - idx]) + ' joue ' + (idx == 0 ? "Sandy" : "Igor") + ' · P : pause · Échap deux fois : quitter</div>';
 		var s = doc.createScriptElement();
-		s.src = "js/game.js";
+		s.src = "js/game.js?r=" + Std.string(cfg.round);
 		doc.body.appendChild(s);
 	}
 
@@ -308,6 +450,17 @@ class Online {
 		};
 		box.appendChild(name);
 		box.appendChild(el("p", "note", "Affiché à l'autre joueur en ligne, et au classement."));
+		box.appendChild(el("h3", null, "Pseudo du 2e joueur sur le même clavier"));
+		var name2:js.html.InputElement = cast doc.createInputElement();
+		name2.maxLength = 20;
+		var cur2:String = null;
+		try
+			cur2 = Browser.window.localStorage.getItem("kikifest.name2")
+		catch (e:Dynamic) {}
+		name2.value = cur2 != null ? cur2 : "";
+		name2.placeholder = "Sandy";
+		name2.oninput = () -> try Browser.window.localStorage.setItem("kikifest.name2", StringTools.trim(name2.value)) catch (e:Dynamic) {};
+		box.appendChild(name2);
 		p.appendChild(box);
 
 		var vol = el("div", "options");

@@ -160,11 +160,10 @@ class Menu {
 		save = Save.load();
 		state = quests.compute(save.items);
 
-		for (k in ["name", "name2"]) {
-			var input:js.html.InputElement = cast doc.getElementById(k);
-			input.value = getPref(k, k == "name" ? "Igor" : "Sandy");
-			input.onchange = () -> setPref(k, input.value);
-		}
+		// un seul pseudo : le vôtre (celui de l'autre joueur arrive par le réseau)
+		var input:js.html.InputElement = cast doc.getElementById("name");
+		input.value = getPref("name", "");
+		input.oninput = () -> setPref("name", StringTools.trim(input.value));
 		doc.getElementById("pyr").innerHTML = pyramidSvg(-1, 56);
 		doc.getElementById("count").textContent = Std.string(save.totalItems());
 
@@ -222,7 +221,7 @@ class Menu {
 			case "multi":
 				Online.showMulti(main, hostGame, soloUrl());
 			case "parametres":
-				Online.showSettings(main, v -> (cast doc.getElementById("name") : js.html.InputElement).value = v != "" ? v : "Igor");
+				Online.showSettings(main, v -> (cast doc.getElementById("name") : js.html.InputElement).value = v);
 			default:
 				showModes(main);
 		}

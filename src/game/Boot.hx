@@ -120,16 +120,28 @@ class Boot {
 			init: () -> net.Snapshot.init(([manager, root] : Array<Dynamic>))
 		};
 
-		Browser.window.addEventListener("keydown", (e:js.html.KeyboardEvent) -> {
+		var onDown = (e:js.html.KeyboardEvent) -> {
 			pressed.set(e.code, true);
-			if (gameEnded && e.code == "Escape")
-				leave();
+			onKey(e.code);
 			mtlib.SoundBank.unlock();
 			if (e.keyCode >= 32 && e.keyCode <= 40 && !isTyping(e))
 				e.preventDefault();
-		});
-		Browser.window.addEventListener("keyup", (e:js.html.KeyboardEvent) -> pressed.remove(e.code));
-		Browser.window.addEventListener("blur", _ -> pressed = new haxe.ds.StringMap());
+		};
+		var onUp = (e:js.html.KeyboardEvent) -> pressed.remove(e.code);
+		var onBlur = (_) -> pressed = new haxe.ds.StringMap();
+		Browser.window.addEventListener("keydown", onDown);
+		Browser.window.addEventListener("keyup", onUp);
+		Browser.window.addEventListener("blur", onBlur);
+		// « Rejouer ensemble » recharge le jeu dans la même page : on arrête proprement celui-ci
+		untyped js.Browser.window.kikiStop = () -> {
+			stopped = true;
+			session = null;
+			Browser.window.removeEventListener("keydown", onDown);
+			Browser.window.removeEventListener("keyup", onUp);
+			Browser.window.removeEventListener("blur", onBlur);
+			SoundBank.shutdown();
+			untyped js.Browser.window.kikiStop = null;
+		};
 
 		if (netCfg != null)
 			startNet();
@@ -142,6 +154,8 @@ class Boot {
 			last = t;
 			if (acc > 250)
 				acc = 250;
+			if (stopped)
+				return;
 			// la boucle continue même si une image du jeu lève une erreur (sinon tout se fige)
 			Browser.window.requestAnimationFrame(loop);
 			while (acc >= step) {
@@ -259,12 +273,13 @@ class Boot {
 		net.Snapshot.init(([manager, root] : Array<Dynamic>));
 		netGame = new NetGame();
 		var kt = new net.transport.KikiNetTransport(peer);
-		kt.onReliable = (msg:Dynamic) -> {};
-		var transport:net.transport.Transport = kt;
+		kt.onReliable = (msg:Dynamic) -> if (netCfg.onReliable != null) netCfg.onReliable(msg);
+		// chaque partie (« Rejouer ensemble ») a son numéro : les messages en retard de la précédente sont ignorés
+		var transport:net.transport.Transport = new RoundTransport(kt, Std.int(netCfg.round));
 		// test : ?lag=80 ajoute 80 ms de latence (et un peu de pertes) dans chaque sens
 		var lag = Std.parseInt(new js.html.URLSearchParams(Browser.location.search).get("lag"));
 		if (lag != null && lag > 0) {
-			var lt = new net.transport.LagTransport(kt, lag, lag / 4, 0.03, 0.01, netPlayer + 1);
+			var lt = new net.transport.LagTransport(transport, lag, lag / 4, 0.03, 0.01, netPlayer + 1);
 			lagTransport = lt;
 			transport = lt;
 		}
@@ -286,8 +301,10 @@ class Boot {
 			session = null;
 			netLost = true;
 			SoundBank.muted = false;
-			status("L'autre joueur est parti" + (reason != null ? " (" + reason + ")" : "") + " : tu continues seul.");
+			status("L'autre joueur est parti" + (reason != null ? " (" + reason + ")" : "") + " : tu continues seul. Échap deux fois : menu.");
 		};
+		status("C'est parti ! Vous jouez " + (netPlayer == 0 ? "Igor" : "Sandy") + ".");
+		lastNetInfo = Browser.window.performance.now() + 3000;
 		untyped js.Browser.window.kiki.session = session;
 	}
 
@@ -337,6 +354,35 @@ class Boot {
 				h = net.rollback.Checksum.addInt(h, Std.int(p.lives));
 			}
 		return h;
+	}
+
+	static var stopped = false;
+	static var lastEscape = -1e9;
+	static var wantAgain = false;
+
+	/** Touches hors du jeu : fin de partie, quitter. **/
+	static function onKey(code:String) {
+		var now = Browser.window.performance.now();
+		if (gameEnded) {
+			if (code == "Escape")
+				leave();
+			else if (netCfg != null && !netLost && (code == "Enter" || code == "NumpadEnter") && !wantAgain && netCfg.again != null) {
+				wantAgain = true;
+				status("On rejoue ! En attente de l'autre joueur (il doit appuyer sur Entrée)…");
+				netCfg.again();
+			}
+			return;
+		}
+		// en réseau, Échap ne met pas fin à la partie des deux : il faut l'appuyer deux fois pour quitter
+		if (netCfg != null && code == "Escape") {
+			if (now - lastEscape < 2000)
+				leave();
+			else {
+				lastEscape = now;
+				status("Appuyez encore sur Échap pour quitter la partie.");
+				lastNetInfo = now + 1000;
+			}
+		}
 	}
 
 	/** Fin de partie : retour au menu (en réseau, la connexion se ferme). **/
@@ -403,7 +449,7 @@ class Boot {
 	}
 
 	static function endHint():String
-		return netCfg != null ? "Échap pour revenir au menu." : "Échap pour rejouer.";
+		return netCfg != null ? (netLost ? "Échap : menu." : "Entrée : rejouer ensemble · Échap : quitter.") : "Échap pour rejouer.";
 
 	static function toInt(v:Dynamic):Int {
 		var n = Std.parseInt(Std.string(v));
@@ -475,4 +521,28 @@ class NetGame implements net.rollback.RollbackGame<net.Snapshot> {
 
 	public function checksum():Int
 		return Boot.checksum();
+}
+
+/** Préfixe chaque message du rollback par le numéro de la partie, et ignore ceux d'une autre partie. **/
+class RoundTransport implements net.transport.Transport {
+	public var onMessage:haxe.io.Bytes->Void;
+
+	var inner:net.transport.Transport;
+	var round:Int;
+
+	public function new(inner:net.transport.Transport, round:Int) {
+		this.inner = inner;
+		this.round = round & 0xff;
+		inner.onMessage = b -> {
+			if (b.length > 0 && b.get(0) == this.round && onMessage != null)
+				onMessage(b.sub(1, b.length - 1));
+		};
+	}
+
+	public function send(data:haxe.io.Bytes) {
+		var b = haxe.io.Bytes.alloc(data.length + 1);
+		b.set(0, round);
+		b.blit(1, data, 0, data.length);
+		inner.send(b);
+	}
 }

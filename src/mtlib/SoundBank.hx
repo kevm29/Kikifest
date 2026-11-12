@@ -45,6 +45,13 @@ class SoundBank {
 	static var loading:Map<String, Bool> = new Map();
 	static var waiting:Map<String, Array<Void->Void>> = new Map();
 
+	/** Coupe tous les sons (le jeu est arrêté pour être relancé dans la même page). */
+	public static function shutdown() {
+		muted = true;
+		if (ctx != null) try ctx.close() catch (e:Dynamic) {}
+		ctx = null;
+	}
+
 	/** Appelle f quand le son est chargé (tout de suite s'il l'est déjà). */
 	public static function whenReady(linkage:String, f:Void->Void) {
 		if (buffers.exists(linkage)) {

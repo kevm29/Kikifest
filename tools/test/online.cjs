@@ -26,7 +26,22 @@ const base = "http://localhost:8080/";
   await host.waitForFunction(() => /Code : [A-Z0-9]{5}/.test(document.body.textContent), null, { timeout: 15000 });
   const code = (await host.evaluate(() => document.body.textContent.match(/Code : ([A-Z0-9]{5})/)[1]));
   console.log("code", code);
+  // l'hôte va voir un autre onglet pendant l'attente, puis revient : la partie doit rester ouverte
+  await host.click('.cube[data-view="parametres"]');
+  await host.waitForTimeout(300);
+  await host.click('.cube[data-view="multi"]');
   const guest = await open("invité", base + "?code=" + code + relay);
+  // salon : chacun met son pseudo puis se dit prêt
+  for (const [p, n] of [[host, "Kevin"], [guest, "Copain"]]) {
+    await p.waitForSelector("table.lobby input", { timeout: 20000 });
+    await p.fill("table.lobby input", n);
+  }
+  await host.waitForFunction(() => document.querySelector("table.lobby td.other").textContent === "Copain", null, { timeout: 5000 });
+  await guest.waitForFunction(() => document.querySelector("table.lobby td.other").textContent === "Kevin", null, { timeout: 5000 });
+  console.log("salon : pseudos échangés");
+  await host.getByText("Je suis prêt !").click();
+  await guest.waitForFunction(() => /✔ prêt/.test(document.body.textContent), null, { timeout: 5000 });
+  await guest.getByText("Je suis prêt !").click();
   for (const p of [host, guest])
     await p.waitForFunction(() => window.kiki && kiki.session && kiki.manager && kiki.manager.current, null, { timeout: 30000 });
   console.log("partie lancée des deux côtés");
@@ -50,6 +65,7 @@ const base = "http://localhost:8080/";
   }
   const info = async (p) => p.evaluate(() => {
     const s = kiki.session;
+    if (!s) return { status: document.getElementById("status").textContent, stats: {} };
     const pl = kiki.manager.current.getPlayerList ? kiki.manager.current.getPlayerList().map((x) => [x.pid, Math.round(x.x), Math.round(x.y)]) : [];
     return { frame: s.currentFrame, confirmed: s.remoteConfirmedFrame, rtt: Math.round(s.rttMs), desynced: s.desynced, stats: s.stats, players: pl,
       status: document.getElementById("status").textContent };
@@ -57,7 +73,17 @@ const base = "http://localhost:8080/";
   const a = await info(host), b = await info(guest);
   console.log("hôte  ", JSON.stringify(a));
   console.log("invité", JSON.stringify(b));
-  const ok = !a.desynced && !b.desynced && a.stats.checksumsCompared > 10 && b.stats.checksumsCompared > 10 && errs.length === 0;
+  let again = "non testé";
+  if (/Partie terminée/.test(a.status) && /Partie terminée/.test(b.status)) {
+    for (const p of [host, guest]) await p.evaluate(() => { window.__old = kiki.session; window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", bubbles: true })); });
+    for (const p of [host, guest])
+      await p.waitForFunction(() => window.KIKI_NET && KIKI_NET.round === 2 && window.kiki && kiki.session && kiki.session !== window.__old && kiki.session.currentFrame > 200, null, { timeout: 30000 });
+    await host.waitForTimeout(3000);
+    const a2 = await info(host), b2 = await info(guest);
+    again = !a2.desynced && !b2.desynced && a2.stats.checksumsCompared > 3 ? "OK" : "ÉCHEC " + JSON.stringify([a2, b2]);
+  }
+  console.log("rejouer ensemble :", again);
+  const ok = again.indexOf("ÉCHEC") < 0 && !a.desynced && !b.desynced && a.stats.checksumsCompared > 10 && b.stats.checksumsCompared > 10 && errs.length === 0;
   if (errs.length) console.log("Erreurs :\n" + errs.slice(0, 15).join("\n"));
   console.log(ok ? "OK" : "ÉCHEC");
   await browser.close();
