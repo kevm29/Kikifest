@@ -1340,6 +1340,7 @@ class EReg {
 		}
 	}
 }
+$hxClasses["EReg"] = EReg;
 EReg.__name__ = "EReg";
 Object.assign(EReg.prototype, {
 	__class__: EReg
