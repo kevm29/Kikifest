@@ -146,6 +146,16 @@ class GameInterface
 		letters[1]?.push( ((mc):Dynamic)?.letter1_6 );
 
 
+		// Kikifest (étude 3-4 joueurs) : scores des joueurs 3 et 4 au milieu de la barre
+		var npl:Dynamic = game?.countList(RootData.PLAYER);
+		{ var k:Dynamic=2; while (k<npl && k<4) {
+			var s0:Dynamic = scores[0];
+			var tf:Dynamic = mc?.createTextField("$score"+k, 900+k, 32+(k-2)*88, s0?._y, 80, s0?.__h);
+			{ if (tf != null) tf.__def = s0?.__def; }
+			{ if (tf != null) tf.format = s0?.format; }
+			scores[k] = tf;
+		k++; } }
+
 		// Init spécifiques aux players
 		fakeScores		= new Array();
 		realScores		= new Array();
@@ -165,7 +175,7 @@ class GameInterface
 			setLives(pid, p?.lives);
 
 			clearExtends(pid);
-			{ if (scores[pid] != null) scores[pid].textColor = RootData.BASE_COLORS[0]; }
+			{ if (scores[pid] != null) scores[pid].textColor = pid==2 ? 0x8cf09a : (pid==3 ? 0xa8b8ff : RootData.BASE_COLORS[0]); }
 			FxManager.addGlow( ((scores[pid]):Dynamic), GLOW_COLOR, 2);
 		
 i++; } }
@@ -265,6 +275,7 @@ i-=3; } }
 	MODIFIE LE NOMBRE DE VIES
 	------------------------------------------------------------------------*/
 	public function setLives(pid:Dynamic,v:Dynamic)  untyped {
+		if ( pid>=2 ) { currentLives[pid] = v; return; } // Kikifest (étude) : vies des joueurs 3-4 écrites avec le score
 		var baseX:Dynamic	= BASE_X;
 		var baseWid:Dynamic	= BASE_WIDTH;
 		if ( fl_multi ) {
@@ -364,7 +375,7 @@ i++; } }
 					if ( fakeScores[pid]>realScores[pid] ) {
 						fakeScores[pid] = realScores[pid];
 					}
-					{ if (scores[pid] != null) scores[pid].text = getScoreTxt(fakeScores[pid]); }
+					{ if (scores[pid] != null) scores[pid].text = getScoreTxt(fakeScores[pid]) + (pid>=2 ? " ♥"+currentLives[pid] : ""); }
 				}
 			
 pid++; } }

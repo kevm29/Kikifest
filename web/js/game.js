@@ -211,6 +211,8 @@ class Boot {
 		let mode = Boot.netCfg != null ? Boot.netCfg.mode : params.get("mode");
 		Boot.root["$mode"] = mode != null ? mode : "solo";
 		Boot.root["$version"] = "WIN 8,0,0,0";
+		let nj = Boot.netCfg != null && Boot.netCfg.players != null ? Boot.netCfg.players | 0 : Std.parseInt(params.get("joueurs"));
+		Boot.root["$joueurs"] = nj != null ? "" + nj : "2";
 		let _g = 0;
 		let _g1 = [["$options",""],["$lang","fr"],["$shake","1"],["$detail","1"],["$sound","1"],["$music","1"],["$volume","100"]];
 		while(_g < _g1.length) {
@@ -361,7 +363,7 @@ class Boot {
 			++_g1;
 			let c = p.ctrl;
 			let pid = p.pid;
-			if(c == null || pid == null || pid < 0 || pid > 1) {
+			if(c == null || pid == null || pid < 0 || pid > 3) {
 				continue;
 			}
 			let base = 1000 + pid * 10;
@@ -386,6 +388,29 @@ class Boot {
 			}
 		}
 	}
+	static robotMask(k) {
+		let r = Boot.robots[k];
+		if(--r.until <= 0) {
+			r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			r.until = 10 + (r.seed & 2147483647) % 40;
+			r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			r.mask = [0,4,8,4,8,1][(r.seed & 2147483647) % 6];
+			r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			if((r.seed & 2147483647) % 3 == 0) {
+				r.mask |= 16;
+			}
+		}
+		let m = r.mask;
+		r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+		r.seed ^= r.seed << 5;
+		if((r.seed & 2147483647) % 8 == 0) {
+			r.mask &= -17;
+		}
+		return m;
+	}
 	static localStep() {
 		try {
 			Boot.step();
@@ -397,6 +422,8 @@ class Boot {
 		Boot.localInputs[0] = Boot.localMask(false);
 		let mode = Reflect.field(Boot.root,"$mode");
 		Boot.localInputs[1] = Boot.netCfg == null && (mode == "multicoop" || mode == "soccer" || mode == "multitime") ? Boot.localMask(true) : 0;
+		Boot.localInputs[2] = Boot.netCfg == null && mode == "multicoop" ? Boot.robotMask(0) : 0;
+		Boot.localInputs[3] = Boot.netCfg == null && mode == "multicoop" ? Boot.robotMask(1) : 0;
 		if(Boot.netLost) {
 			Boot.localInputs = Boot.netPlayer == 0 ? [Boot.localMask(false) & -129,0] : [0,Boot.localMask(false) & -129];
 		}
@@ -18200,12 +18227,28 @@ class gui_GameInterface {
 			let tmp = this.mc;
 			tmp19.push(tmp != null ? tmp.letter1_6 : null);
 		}
+		let tmp20 = this.game;
+		let npl = tmp20 != null ? tmp20.countList(Data.PLAYER) : null;
+		let k = 2;
+		while(k < npl && k < 4) {
+			let s0 = this.scores[0];
+			let tmp = this.mc;
+			let tf = tmp != null ? tmp.createTextField("$score" + Std.string(k),900 + k,32 + (k - 2) * 88,s0 != null ? s0._y : null,80,s0 != null ? s0.__h : null) : null;
+			if(tf != null) {
+				tf.__def = s0 != null ? s0.__def : null;
+			}
+			if(tf != null) {
+				tf.format = s0 != null ? s0.format : null;
+			}
+			this.scores[k] = tf;
+			k += 1;
+		}
 		this.fakeScores = [];
 		this.realScores = [];
 		this.currentLives = [];
 		this.lives = [];
-		let tmp20 = this.game;
-		let pl = tmp20 != null ? tmp20.getPlayerList() : null;
+		let tmp21 = this.game;
+		let pl = tmp21 != null ? tmp21.getPlayerList() : null;
 		let i = 0;
 		while(i < (pl != null ? pl.length : null)) {
 			let p = pl[i];
@@ -18218,7 +18261,7 @@ class gui_GameInterface {
 			this.setLives(pid,p != null ? p.lives : null);
 			this.clearExtends(pid);
 			if(this.scores[pid] != null) {
-				this.scores[pid].textColor = Data.BASE_COLORS[0];
+				this.scores[pid].textColor = pid == 2 ? 9236634 : pid == 3 ? 11057407 : Data.BASE_COLORS[0];
 			}
 			FxManager.addGlow(this.scores[pid],gui_GameInterface.GLOW_COLOR,2);
 			i += 1;
@@ -18325,6 +18368,10 @@ class gui_GameInterface {
 		}
 	}
 	setLives(pid,v) {
+		if(pid >= 2) {
+			this.currentLives[pid] = v;
+			return;
+		}
 		let baseX = gui_GameInterface.BASE_X;
 		let baseWid = gui_GameInterface.BASE_WIDTH;
 		if(this.fl_multi) {
@@ -18460,7 +18507,8 @@ class gui_GameInterface {
 						this.fakeScores[pid] = this.realScores[pid];
 					}
 					if(this.scores[pid] != null) {
-						this.scores[pid].text = this.getScoreTxt(this.fakeScores[pid]);
+						let tmp = Std.string(this.getScoreTxt(this.fakeScores[pid]));
+						this.scores[pid].text = tmp + (pid >= 2 ? " ♥" + this.currentLives[pid] : "");
 					}
 				}
 				pid += 1;
@@ -27147,6 +27195,13 @@ class mode_MultiCoop extends mode_Adventure {
 			if(tmp != null) {
 				tmp.setKeys(82,70,68,71,65);
 			}
+			let n = Std.parseInt("" + Std.string(mtlib_MtStd.getVar(mtlib_MtStd.getRoot(),"$joueurs")));
+			let cols = [9,10];
+			let k = 2;
+			while(n != null && k < n && k < 4) {
+				this.insertPlayer(cols[k - 2],-2);
+				k += 1;
+			}
 		} else {
 			let tmp = p1 != null ? p1.ctrl : null;
 			if(tmp != null) {
@@ -27212,6 +27267,39 @@ class mode_MultiCoop extends mode_Adventure {
 			if(p != null) {
 				p.head = p != null ? p.defaultHead : null;
 			}
+		}
+		if((p != null ? p.pid : null) >= 2) {
+			if(p != null) {
+				p.name = (p != null ? p.pid : null) == 2 ? "Joueur 3" : "Joueur 4";
+			}
+			if(p != null) {
+				p.skin = (p != null ? p.pid : null) - 1;
+			}
+			if(p != null) {
+				p.darkColor = (p != null ? p.pid : null) == 2 ? 2237050 : 9063168;
+			}
+			if((p != null ? p.pid : null) == 3) {
+				if(p != null) {
+					p.defaultHead = Data.HEAD_SANDY;
+				}
+				if(p != null) {
+					p.head = p != null ? p.defaultHead : null;
+				}
+			}
+		}
+	}
+	main() {
+		super.main();
+		let pl = this.getPlayerList();
+		let i = 0;
+		while(i < (pl != null ? pl.length : null)) {
+			let p = pl[i];
+			if((p != null ? p.pid : null) >= 2 && (p != null ? p.color : null) == null && ((p != null ? p.fl_alphaBlink : null) || !(p != null ? p.fl_blinked : null))) {
+				if(p != null) {
+					p.setColorHex(45,(p != null ? p.pid : null) == 2 ? 2791994 : 3824895);
+				}
+			}
+			i += 1;
 		}
 	}
 	saveScore() {
@@ -32182,7 +32270,8 @@ Boot.SET_VARS = (function($this) {
 }(this));
 Boot.pressed = new haxe_ds_StringMap();
 Boot.VKEY = 1000;
-Boot.localInputs = [0,0];
+Boot.localInputs = [0,0,0,0];
+Boot.robots = [{ seed : 39083849, mask : 0, until : 0},{ seed : 63369015, mask : 0, until : 0}];
 Boot.netPlayer = 0;
 Boot.netLost = false;
 Boot.lastNetInfo = 0.0;
