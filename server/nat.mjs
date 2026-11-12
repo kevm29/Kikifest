@@ -153,3 +153,19 @@ export function isPrivateIp(ip) {
   return a === 10 || a === 127 || (a === 172 && b >= 16 && b < 32) || (a === 192 && b === 168) ||
     (a === 100 && b >= 64 && b < 128) || (a === 169 && b === 254);
 }
+
+// Vérifie si le port est joignable depuis internet. Renvoie true, false, ou null (impossible de savoir).
+// Le service public ifconfig.co tente lui-même une connexion vers notre adresse publique.
+// (Se joindre soi-même par l'adresse publique ne prouve rien : le pare-feu et la box traitent ce cas à part.)
+export async function checkReachable(port) {
+  try {
+    const res = await fetch(`https://ifconfig.co/port/${port}`, {
+      headers: { accept: "application/json" }, signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return typeof j.reachable === "boolean" ? j.reachable : null;
+  } catch {
+    return null;
+  }
+}

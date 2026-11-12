@@ -179,11 +179,13 @@ class Online {
 		return wrap;
 	}
 
-	/** Liens d'invitation : par internet (adresse publique) et sur le même réseau (adresses locales). **/
+	/** Liens d'invitation : par internet (tunnel ou adresse publique) et sur le même réseau (adresses locales). **/
 	static function showLinks(links:Element, note:Element, code:String) {
 		Browser.window.fetch("api/info").then(r -> r.json()).then((info:Dynamic) -> {
-			// le serveur cherche l'adresse internet quelques secondes après le démarrage
-			if (info != null && info.upnp == null) {
+			// le serveur prépare la connexion par internet (pare-feu, box, vérification, tunnel) pendant quelques secondes
+			if (info != null && info.ready != true) {
+				if (links.childNodes.length == 0)
+					links.appendChild(el("p", "note", "Préparation du lien par internet…"));
 				Browser.window.setTimeout(() -> showLinks(links, note, code), 1500);
 				return null;
 			}
@@ -195,18 +197,22 @@ class Online {
 			if (!local)
 				links.appendChild(copyable("Lien à envoyer", Browser.location.protocol + "//" + Browser.location.host + "/?code=" + code));
 			else if (info != null) {
-				if (info.publicIp != null)
+				if (info.tunnelUrl != null)
+					links.appendChild(copyable("Lien à envoyer (par internet)", info.tunnelUrl + "/?code=" + code));
+				else if (info.publicIp != null)
 					links.appendChild(copyable("Lien à envoyer (par internet)", "http://" + info.publicIp + port + "/?code=" + code));
 				for (ip in lan)
 					links.appendChild(copyable("Lien si l'autre joueur est chez vous (même Wi-Fi)", "http://" + ip + port + "/?code=" + code));
 			}
 			if (info != null && local) {
-				if (info.upnp.ok)
-					note.textContent = 'Le port ${info.port} a été ouvert automatiquement sur votre box.';
+				note.className = "note";
+				if (info.tunnelUrl != null)
+					note.textContent = "Le lien par internet passe par un tunnel gratuit : rien à régler sur votre box. Il change à chaque lancement du serveur.";
+				else if (info.reachable == true)
+					note.textContent = 'Vérifié : votre ordinateur est bien joignable par internet (port ${info.port}).';
 				else {
-					note.textContent = 'Votre box n\'a pas ouvert le port automatiquement (${info.upnp.reason}). '
-						+ 'Pour jouer par internet, redirigez le port TCP ${info.port} vers cet ordinateur (${lan.length > 0 ? lan[0] : "?"}) : voir docs/HEBERGER.md. '
-						+ 'Sur le même Wi-Fi, ça marche sans rien faire.';
+					note.textContent = 'Attention : le port ${info.port} ne semble pas joignable depuis internet, le lien par internet risque de ne pas marcher. '
+						+ 'Relancez le serveur avec « --tunnel », ou voir docs/HEBERGER.md. Sur le même Wi-Fi, ça marche sans rien faire.';
 					note.className = "note warn";
 				}
 			}
