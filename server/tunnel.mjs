@@ -48,8 +48,14 @@ export async function startTunnel(port, binDir, log = console.log) {
     const timer = setTimeout(() => reject(new Error("le tunnel ne s'est pas ouvert à temps")), 45000);
     const onData = (d) => {
       out += d;
-      const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(out);
+      // Les vraies adresses ont plusieurs mots séparés par des tirets (mots-au-hasard.trycloudflare.com).
+      // On ignore api.trycloudflare.com, qui apparaît dans les messages d'erreur de cloudflared.
+      const m = /https:\/\/([a-z0-9]+(?:-[a-z0-9]+)+)\.trycloudflare\.com/.exec(out);
       if (m) { clearTimeout(timer); resolve(m[0]); }
+      else if (/failed to (request|create) quick tunnel|error/i.test(out) && /api\.trycloudflare\.com/.test(out)) {
+        clearTimeout(timer); try { child.kill(); } catch {}
+        reject(new Error("Cloudflare a refusé de créer le tunnel (accès internet bloqué ?)"));
+      }
     };
     child.stdout.on("data", onData);
     child.stderr.on("data", onData);
