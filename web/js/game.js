@@ -18341,22 +18341,41 @@ class gui_GameInterface {
 			if(this.mc2 != null) {
 				this.mc2.cacheAsBitmap = true;
 			}
-			let tmp3 = this.mc2;
-			this.scores[2] = tmp3 != null ? tmp3.score0 : null;
+			let tmp3 = this.game;
+			let npl = tmp3 != null ? tmp3.countList(Data.PLAYER) : null;
 			let tmp4 = this.mc2;
-			this.scores[3] = tmp4 != null ? tmp4.score1 : null;
+			this.scores[2] = tmp4 != null ? tmp4.score0 : null;
 			let k = 2;
 			while(k < 4) {
-				this.letters[k] = [];
-				let j = 0;
-				while(j < 7) {
-					let tmp = this.letters[k];
-					if(tmp != null) {
-						tmp.push(mtlib_MtStd.getVar(this.mc2,"letter" + (k - 2) + "_" + Std.string(j)));
+				if(k < npl) {
+					this.letters[k] = [];
+					let j = 0;
+					while(j < 7) {
+						let tmp = this.letters[k];
+						if(tmp != null) {
+							tmp.push(mtlib_MtStd.getVar(this.mc2,"letter" + (k - 2) + "_" + Std.string(j)));
+						}
+						j += 1;
 					}
-					j += 1;
+				} else {
+					let j = 0;
+					while(j < 7) {
+						let l = mtlib_MtStd.getVar(this.mc2,"letter" + (k - 2) + "_" + Std.string(j));
+						if(l != null) {
+							l._visible = false;
+						}
+						j += 1;
+					}
+					let tmp = this.mc2;
+					if((tmp != null ? tmp.score1 : null) != null) {
+						this.mc2.score1._visible = false;
+					}
 				}
 				k += 1;
+			}
+			if(npl > 3) {
+				let tmp = this.mc2;
+				this.scores[3] = tmp != null ? tmp.score1 : null;
 			}
 		}
 		this.kikiField(this.scores[0],122,80,1);

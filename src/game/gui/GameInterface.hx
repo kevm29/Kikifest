@@ -187,12 +187,20 @@ class GameInterface
 			{ if (mc2 != null) mc2._y = RootData.DOC_HEIGHT + ROW2_DY; }
 			mc2?.gotoAndStop("2");
 			{ if (mc2 != null) mc2.cacheAsBitmap = true; }
+			var npl:Dynamic = game?.countList(RootData.PLAYER);
 			scores[2] = ((mc2):Dynamic)?.score0;
-			scores[3] = ((mc2):Dynamic)?.score1;
 			{ var k:Dynamic=2; while (k<4) {
-				letters[k] = new Array();
-				{ var j:Dynamic=0; while (j<7) { letters[k]?.push( MtStd.getVar(mc2, "letter"+(k-2)+"_"+j) ); j++; } }
+				if ( k<npl ) {
+					letters[k] = new Array();
+					{ var j:Dynamic=0; while (j<7) { letters[k]?.push( MtStd.getVar(mc2, "letter"+(k-2)+"_"+j) ); j++; } }
+				}
+				else {
+					// à 3 joueurs, la moitié droite de la 2e ligne reste vide
+					{ var j:Dynamic=0; while (j<7) { var l:Dynamic = MtStd.getVar(mc2, "letter"+(k-2)+"_"+j); if (l != null) l._visible = false; j++; } }
+					{ if (((mc2):Dynamic)?.score1 != null) ((mc2):Dynamic).score1._visible = false; }
+				}
 			k++; } }
+			if ( npl>3 ) scores[3] = ((mc2):Dynamic)?.score1;
 		}
 
 		// Kikifest : comme la barre du solo, numéro du niveau dans l'angle gauche et scores
