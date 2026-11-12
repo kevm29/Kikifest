@@ -64,26 +64,35 @@ const base = "http://localhost:8080/";
     await host.waitForTimeout(120);
   }
   const info = async (p) => p.evaluate(() => {
-    const s = kiki.session;
-    if (!s) return { status: document.getElementById("status").textContent, stats: {} };
+    const s = kiki.session, st = document.getElementById("status");
+    if (!st) return { lobby: true, status: (document.querySelector(".result") || {}).textContent, stats: {} };
+    if (!s) return { status: st.textContent, stats: {} };
     const pl = kiki.manager.current.getPlayerList ? kiki.manager.current.getPlayerList().map((x) => [x.pid, Math.round(x.x), Math.round(x.y)]) : [];
-    return { frame: s.currentFrame, confirmed: s.remoteConfirmedFrame, rtt: Math.round(s.rttMs), desynced: s.desynced, stats: s.stats, players: pl,
-      status: document.getElementById("status").textContent };
+    const pf = kiki.boot.perf;
+    return { perf: { ms: +(pf.total / pf.ticks).toFixed(2), max: Math.round(pf.max), slow: pf.slow, saves: pf.saves, saveMax: Math.round(pf.saveMax) }, frame: s.currentFrame, confirmed: s.remoteConfirmedFrame, rtt: Math.round(s.rttMs), desynced: s.desynced, stats: s.stats, players: pl,
+      status: st.textContent };
   });
   const a = await info(host), b = await info(guest);
   console.log("hôte  ", JSON.stringify(a));
   console.log("invité", JSON.stringify(b));
   let again = "non testé";
-  if (/Partie terminée/.test(a.status) && /Partie terminée/.test(b.status)) {
-    for (const p of [host, guest]) await p.evaluate(() => { window.__old = kiki.session; window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", bubbles: true })); });
+  if (/Partie terminée/.test(a.status) || /Partie terminée/.test(b.status) || a.lobby || b.lobby) {
+    // fin de partie : les deux reviennent au salon, se disent prêts, et une 2e partie démarre
+    for (const p of [host, guest]) await p.evaluate(() => { window.__old = kiki.session; });
+    for (const p of [host, guest]) await p.waitForSelector("table.lobby", { timeout: 20000 });
+    const res = await host.evaluate(() => document.querySelector(".result").textContent);
+    console.log("salon après la partie :", res);
+    for (const p of [host, guest]) await p.getByText("Je suis prêt !").click();
     for (const p of [host, guest])
       await p.waitForFunction(() => window.KIKI_NET && KIKI_NET.round === 2 && window.kiki && kiki.session && kiki.session !== window.__old && kiki.session.currentFrame > 200, null, { timeout: 30000 });
     await host.waitForTimeout(3000);
     const a2 = await info(host), b2 = await info(guest);
+    const rank = await host.evaluate(() => JSON.parse(localStorage.getItem("kikifest.collection")).history.map((h) => h.name + " " + h.score));
+    console.log("classement de l'hôte :", rank.join(" | "));
     again = !a2.desynced && !b2.desynced && a2.stats.checksumsCompared > 3 ? "OK" : "ÉCHEC " + JSON.stringify([a2, b2]);
   }
   console.log("rejouer ensemble :", again);
-  const ok = again.indexOf("ÉCHEC") < 0 && !a.desynced && !b.desynced && a.stats.checksumsCompared > 10 && b.stats.checksumsCompared > 10 && errs.length === 0;
+  const ok = again.indexOf("ÉCHEC") < 0 && (a.lobby || b.lobby || (!a.desynced && !b.desynced && a.stats.checksumsCompared > 10 && b.stats.checksumsCompared > 10)) && errs.length === 0;
   if (errs.length) console.log("Erreurs :\n" + errs.slice(0, 15).join("\n"));
   console.log(ok ? "OK" : "ÉCHEC");
   await browser.close();

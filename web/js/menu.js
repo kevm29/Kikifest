@@ -1227,7 +1227,7 @@ class menu_Menu {
 			menu_Menu.quests = new meta_Quests(texts_h["quests"],[texts_h["specialItems"],texts_h["scoreItems"]]);
 			menu_Menu.readLang(texts_h["lang/fr"]);
 			swf_Library.load("assets",function(lib) {
-				menu_Menu.start();
+				meta_Save.sync(menu_Menu.start);
 			},function(e) {
 				menu_Menu.setStatus("Erreur : " + e);
 			});
@@ -1315,6 +1315,10 @@ class menu_Menu {
 		input.oninput = function() {
 			menu_Menu.setPref("name",StringTools.trim(input.value));
 		};
+		input.onchange = function() {
+			menu_Menu.reloadSave();
+		};
+		menu_Online.onNameChanged = menu_Menu.reloadSave;
 		menu_Menu.doc.getElementById("pyr").innerHTML = menu_Menu.pyramidSvg(-1,56);
 		let tmp = menu_Menu.save.totalItems();
 		menu_Menu.doc.getElementById("count").textContent = Std.string(tmp);
@@ -1337,11 +1341,33 @@ class menu_Menu {
 			};
 		}
 		menu_Online.init();
+		menu_Online.onBack = function() {
+			menu_Menu.save = meta_Save.load();
+			menu_Menu.state = menu_Menu.quests.compute(menu_Menu.save.items);
+			let tmp = menu_Menu.save.totalItems();
+			menu_Menu.doc.getElementById("count").textContent = Std.string(tmp);
+			menu_Menu.show("multi");
+		};
 		window.onhashchange = function() {
 			menu_Menu.show(HxOverrides.substr($global.location.hash,1,null));
 		};
 		let code = new URLSearchParams($global.location.search).get("code");
 		menu_Menu.show(code != null ? "multi" : HxOverrides.substr($global.location.hash,1,null));
+	}
+	static reloadSave() {
+		meta_Save.sync(function() {
+			menu_Menu.save = meta_Save.load();
+			menu_Menu.state = menu_Menu.quests.compute(menu_Menu.save.items);
+			let count = menu_Menu.doc.getElementById("count");
+			if(count == null) {
+				return;
+			}
+			count.textContent = Std.string(menu_Menu.save.totalItems());
+			let v = HxOverrides.substr($global.location.hash,1,null);
+			if(v != "multi" && v != "parametres") {
+				menu_Menu.show(v);
+			}
+		});
 	}
 	static getPref(k,def) {
 		try {
@@ -1403,8 +1429,8 @@ class menu_Menu {
 			menu_Menu.showModes(main);
 		}
 	}
-	static itemIcon(id,size,dark) {
-		let key = id + ":" + size;
+	static itemIcon(id,size,dark,sub) {
+		let key = id + ":" + size + ":" + sub;
 		let url = menu_Menu.iconCache.h[key];
 		if(url == null) {
 			let dpr = window.devicePixelRatio;
@@ -1414,6 +1440,10 @@ class menu_Menu {
 			let mc = menu_Menu.root.attachMovie(id >= 1000 ? "hammer_item_score" : "hammer_item_special","ic" + menu_Menu.uniq,menu_Menu.uniq++);
 			if(mc != null) {
 				mc.gotoAndStop(Std.string(id >= 1000 ? id - 1000 + 1 : id + 1));
+				let inner = mc.sub;
+				if(sub != null && inner != null) {
+					inner.gotoAndStop(sub == null ? "null" : "" + sub);
+				}
 				let b = mc.getBounds(mc);
 				let w = b.xMax - b.xMin;
 				let h = b.yMax - b.yMin;
@@ -1712,7 +1742,21 @@ class menu_Menu {
 				let c = n == null ? 0 : n;
 				let cell = menu_Menu.el("div","cell" + (c > 0 ? "" : " unknown"));
 				if(c > 0) {
-					cell.appendChild(menu_Menu.itemIcon(i,40));
+					if(i == 0) {
+						cell.classList.add("letters");
+						let word = menu_Menu.el("div","word");
+						word.appendChild(menu_Menu.itemIcon(0,22,false,1));
+						word.appendChild(menu_Menu.itemIcon(0,22,false,2));
+						word.appendChild(menu_Menu.itemIcon(0,22,false,3));
+						word.appendChild(menu_Menu.itemIcon(0,22,false,4));
+						word.appendChild(menu_Menu.itemIcon(0,22,false,5));
+						word.appendChild(menu_Menu.itemIcon(0,22,false,6));
+						word.appendChild(menu_Menu.itemIcon(0,22,false,7));
+						cell.appendChild(word);
+						cell.title = "Alphabet Cristallin : lettres ramassées (toutes lettres confondues)";
+					} else {
+						cell.appendChild(menu_Menu.itemIcon(i,40));
+					}
 					cell.appendChild(menu_Menu.el("span","qty","×" + c));
 				} else {
 					cell.appendChild(menu_Menu.el("span","qmark","?"));
@@ -2422,6 +2466,8 @@ class menu_Online {
 		};
 		menu_Online.box.innerHTML = "";
 		menu_Online.box.appendChild(menu_Online.el("p","ok","Vous êtes connectés !"));
+		menu_Online.resultLine = menu_Online.el("p","result");
+		menu_Online.box.appendChild(menu_Online.resultLine);
 		let t = menu_Online.el("table","lobby");
 		let me = menu_Online.el("tr");
 		me.appendChild(menu_Online.el("td","who",isHost ? "Igor (hôte)" : "Sandy (invité)"));
@@ -2438,6 +2484,11 @@ class menu_Online {
 			}
 			menu_Online.send({ t : "name", name : menu_Online.myName()});
 		};
+		input.onchange = function() {
+			if(menu_Online.onNameChanged != null) {
+				menu_Online.onNameChanged();
+			}
+		};
 		td.appendChild(input);
 		td.appendChild(menu_Online.el("span","note"," ← vous"));
 		me.appendChild(td);
@@ -2453,6 +2504,7 @@ class menu_Online {
 		t.appendChild(isHost ? other : me);
 		menu_Online.box.appendChild(t);
 		let readyBtn = menu_Online.button("Je suis prêt !",function() {
+			menu_Online.resultLine.textContent = "";
 			menu_Online.myReady = !menu_Online.myReady;
 			menu_Online.send({ t : "ready", ready : menu_Online.myReady});
 			menu_Online.lobbyRefresh();
@@ -2485,8 +2537,14 @@ class menu_Online {
 	}
 	static onLobbyMessage(m) {
 		switch(m.t) {
-		case "again":
-			menu_Online.onAgain(1 - menu_Online.localIndex());
+		case "left":
+			if(menu_Online.inGame) {
+				let stop = window.kikiStop;
+				if(stop != null) {
+					stop();
+				}
+				menu_Online.backToLobby(menu_Online.otherName + " a quitté la partie.",false);
+			}
 			break;
 		case "hello":case "name":
 			let n = Std.string(m.name);
@@ -2523,11 +2581,52 @@ class menu_Online {
 		menu_Online.send(cfg);
 		menu_Online.launch(cfg);
 	}
-	static onAgain(who) {
-		menu_Online.again[who] = true;
-		if(menu_Online.peer != null && menu_Online.peer.role == "host" && menu_Online.again[0] && menu_Online.again[1]) {
-			menu_Online.myReady = menu_Online.otherReady = true;
-			menu_Online.maybeStart();
+	static backToLobby(msg,iQuit) {
+		if(!menu_Online.inGame) {
+			return;
+		}
+		menu_Online.inGame = false;
+		if(iQuit) {
+			menu_Online.send({ t : "left"});
+		}
+		menu_Online.doc.body.innerHTML = "";
+		menu_Online.doc.body.className = "";
+		let _g = 0;
+		let _g1 = menu_Online.savedBody;
+		while(_g < _g1.length) {
+			let n = _g1[_g];
+			++_g;
+			menu_Online.doc.body.appendChild(n);
+		}
+		menu_Online.doc.title = menu_Online.savedTitle;
+		let p = menu_Online.peer;
+		if(p != null) {
+			p.onclose = function(r) {
+				menu_Online.fail("L'autre joueur s'est déconnecté" + (r != null ? " (" + Std.string(r) + ")" : "") + ".");
+			};
+			p.onmessage = function(data,reliable) {
+				if(!reliable || typeof(data) != "string") {
+					return;
+				}
+				let m;
+				try {
+					m = JSON.parse(data);
+				} catch( _g ) {
+					m = null;
+				}
+				if(m != null) {
+					menu_Online.onLobbyMessage(m);
+				}
+			};
+		}
+		if(menu_Online.resultLine != null) {
+			menu_Online.resultLine.textContent = msg != null ? msg : "Vous avez quitté la partie.";
+		}
+		if(menu_Online.onBack != null) {
+			menu_Online.onBack();
+		}
+		if(menu_Online.lobbyRefresh != null) {
+			menu_Online.lobbyRefresh();
 		}
 	}
 	static launch(cfg) {
@@ -2536,9 +2635,28 @@ class menu_Online {
 		if(stop != null) {
 			stop();
 		}
-		menu_Online.again = [false,false];
 		menu_Online.myReady = menu_Online.otherReady = false;
 		p.onmessage = null;
+		if(!menu_Online.inGame) {
+			let _g = [];
+			let _g1 = 0;
+			let _g2 = menu_Online.doc.body.childNodes;
+			while(_g1 < _g2.length) {
+				let n = _g2[_g1];
+				++_g1;
+				_g.push(n);
+			}
+			menu_Online.savedBody = _g;
+			let _g3 = 0;
+			let _g4 = menu_Online.savedBody;
+			while(_g3 < _g4.length) {
+				let n = _g4[_g3];
+				++_g3;
+				n.parentNode.removeChild(n);
+			}
+			menu_Online.savedTitle = menu_Online.doc.title;
+		}
+		menu_Online.inGame = true;
 		let idx = menu_Online.localIndex();
 		let tmp = cfg.round != null ? cfg.round : 1;
 		window.KIKI_NET = { peer : p, mode : cfg.mode, options : cfg.options, families : cfg.families, seed : cfg.seed, round : tmp, names : cfg.names, onReliable : function(data) {
@@ -2554,9 +2672,8 @@ class menu_Online {
 			if(m != null) {
 				menu_Online.onLobbyMessage(m);
 			}
-		}, again : function() {
-			menu_Online.send({ t : "again"});
-			menu_Online.onAgain(idx);
+		}, backToLobby : function(msg) {
+			menu_Online.backToLobby(msg,msg == null);
 		}};
 		let names = cfg.names;
 		let me = idx == 0 ? "Igor" : "Sandy";
@@ -2586,6 +2703,11 @@ class menu_Online {
 		name.oninput = function() {
 			meta_Settings.setName(name.value);
 			onName(name.value);
+		};
+		name.onchange = function() {
+			if(menu_Online.onNameChanged != null) {
+				menu_Online.onNameChanged();
+			}
 		};
 		box.appendChild(name);
 		box.appendChild(menu_Online.el("p","note","Affiché à l'autre joueur en ligne, et au classement."));
@@ -2932,7 +3054,7 @@ class meta_Save {
 		this.games = 0;
 		this.items = new haxe_ds_IntMap();
 	}
-	store() {
+	toJson() {
 		let it = { };
 		let map = this.items;
 		let _g_map = map;
@@ -2945,8 +3067,11 @@ class meta_Save {
 			let v = _g_value;
 			it[k == null ? "null" : "" + k] = v;
 		}
+		return JSON.stringify({ v : 1, items : it, games : this.games, best : this.best, history : this.history, heroes : this.heroes});
+	}
+	store() {
 		try {
-			window.localStorage.setItem("kikifest.collection",JSON.stringify({ v : 1, items : it, games : this.games, best : this.best, history : this.history, heroes : this.heroes}));
+			window.localStorage.setItem("kikifest.collection",this.toJson());
 		} catch( _g ) {
 			let e = haxe_Exception.caught(_g).unwrap();
 			$global.console.warn("Sauvegarde impossible",e);
@@ -3013,6 +3138,64 @@ class meta_Save {
 			$global.console.warn("Sauvegarde illisible",e);
 		}
 		return s;
+	}
+	static pseudo() {
+		try {
+			let v = window.localStorage.getItem("kikifest.name");
+			if(v != null) {
+				return StringTools.trim(v);
+			} else {
+				return "";
+			}
+		} catch( _g ) {
+			return "";
+		}
+	}
+	static push(s) {
+		let n = meta_Save.pseudo();
+		if(n == "") {
+			return;
+		}
+		try {
+			window.fetch("api/save?name=" + encodeURIComponent(n),{ method : "POST", body : s.toJson()}).catch(function(_) {
+				return null;
+			});
+		} catch( _g ) {
+		}
+	}
+	static sync(done) {
+		let n = meta_Save.pseudo();
+		if(n == "" || $global.location.protocol == "file:") {
+			done();
+			return;
+		}
+		let local = meta_Save.load();
+		window.fetch("api/save?name=" + encodeURIComponent(n)).then(function(r) {
+			if(r.ok) {
+				return r.text();
+			} else {
+				return Promise.resolve(null);
+			}
+		}).then(function(t) {
+			let remoteGames = -1;
+			if(t != null && t != "null") {
+				try {
+					let d = JSON.parse(t);
+					remoteGames = d.games != null ? d.games : 0;
+					if(remoteGames > local.games) {
+						window.localStorage.setItem("kikifest.collection",t);
+					}
+				} catch( _g ) {
+				}
+			}
+			if(remoteGames < local.games) {
+				meta_Save.push(local);
+			}
+			done();
+			return null;
+		}).catch(function(_) {
+			done();
+		});
 	}
 }
 meta_Save.__name__ = "meta.Save";
@@ -4586,7 +4769,7 @@ menu_Online.myReady = false;
 menu_Online.otherReady = false;
 menu_Online.otherName = "";
 menu_Online.round = 0;
-menu_Online.again = [false,false];
+menu_Online.inGame = false;
 meta_Save.FLOORS = [369920,737965,3508030,11152196];
 meta_Settings.ACTIONS = [{ id : "up", name : "Sauter", bit : 1},{ id : "down", name : "Descendre", bit : 2},{ id : "left", name : "Gauche", bit : 4},{ id : "right", name : "Droite", bit : 8},{ id : "bomb", name : "Poser une bombe", bit : 16},{ id : "pause", name : "Pause", bit : 32},{ id : "map", name : "Carte", bit : 64}];
 mtlib_Rand.seed = 625341585;
