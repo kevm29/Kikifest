@@ -6,6 +6,38 @@ import js.html.audio.AudioBuffer;
 /** Sons du jeu en Web Audio. Muet pendant les re-simulations du rollback. */
 class SoundBank {
 	public static var muted:Bool = false;
+
+	/** Volumes réglés dans les paramètres (0 à 1) : musique d'un côté, bruitages de l'autre. */
+	public static var musicVolume(default, set):Float = 1;
+	public static var sfxVolume(default, set):Float = 1;
+
+	static var musicBus:js.html.audio.GainNode;
+	static var sfxBus:js.html.audio.GainNode;
+
+	static function set_musicVolume(v:Float) {
+		musicVolume = v;
+		if (musicBus != null) musicBus.gain.value = v;
+		return v;
+	}
+
+	static function set_sfxVolume(v:Float) {
+		sfxVolume = v;
+		if (sfxBus != null) sfxBus.gain.value = v;
+		return v;
+	}
+
+	/** Les musiques sont des fichiers (music.mp3...), les bruitages des sons du SWF. */
+	static function bus(c:AudioContext, linkage:String):js.html.audio.GainNode {
+		if (musicBus == null) {
+			musicBus = c.createGain();
+			musicBus.gain.value = musicVolume;
+			musicBus.connect(c.destination);
+			sfxBus = c.createGain();
+			sfxBus.gain.value = sfxVolume;
+			sfxBus.connect(c.destination);
+		}
+		return linkage.indexOf(".mp3") > 0 ? musicBus : sfxBus;
+	}
 	public static var base:String = "assets/sfx/";
 
 	static var ctx:AudioContext;
@@ -64,7 +96,8 @@ class SoundBank {
 	}
 
 	public static function play(linkage:String, volume:Float, loops:Int, onEnd:Void->Void):Dynamic {
-		if (muted || linkage == null) return null;
+		// pendant un rollback, seuls les bruitages sont coupés : une musique qui démarre doit démarrer
+		if ((muted && loops <= 1) || linkage == null) return null;
 		var c = context();
 		if (c == null) return null;
 		var b = buffers.get(linkage);
@@ -78,7 +111,7 @@ class SoundBank {
 		var g = c.createGain();
 		g.gain.value = safe(volume);
 		src.connect(g);
-		g.connect(c.destination);
+		g.connect(bus(c, linkage));
 		src.onended = () -> onEnd();
 		src.start();
 		return {src: src, gain: g};

@@ -135,7 +135,11 @@ class DemoGame implements RollbackGame<Array<Int>> {
 		}
 	}
 
+	/** Nombre d'appels à save (pour les tests). **/
+	public var saves = 0;
+
 	public function save():Array<Int> {
+		saves++;
 		var c = s.copy();
 		if (forgetRngInSave)
 			c[RNG] = 0;

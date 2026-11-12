@@ -16,16 +16,21 @@ Puis, dans le dossier de Kikifest :
 | Linux | `./heberger-linux.sh` |
 | Ou partout | `node server/serve.mjs` |
 
-Le navigateur s'ouvre sur `http://localhost:8080/`. Laissez la fenêtre noire ouverte pendant la partie.
+Le navigateur s'ouvre sur le menu du jeu, `http://localhost:8080/`. Laissez la fenêtre noire ouverte pendant la partie.
 
 Sous Windows, le pare-feu demande la première fois s'il faut autoriser Node.js :
 répondez **Autoriser**, sinon l'invité ne pourra pas se connecter.
 
 ## 2. Créer la partie et envoyer le lien
 
-Cliquez sur **Créer une partie**. La page affiche un code (par exemple `K7RQM`) et un lien à copier.
+Dans le menu, ouvrez l'onglet **Multijoueur** et cliquez sur **Créer une partie et inviter quelqu'un**. La page affiche un code (par exemple `K7RQM`) et un lien à copier.
 Envoyez le lien à l'autre joueur (SMS, Discord...). En l'ouvrant, il rejoint directement la partie.
-Il peut aussi ouvrir l'adresse sans le code et taper le code à la main.
+Il peut aussi ouvrir l'adresse sans le code et taper le code dans l'onglet Multijoueur.
+Dès qu'il est connecté, la partie (Aventure à deux) démarre chez les deux : l'hôte joue Igor, l'invité Sandy,
+chacun avec les touches réglées dans ses **Paramètres**. La partie démarre avec les bonus de quêtes et les options
+cochées de l'hôte ; à la fin, les objets ramassés s'ajoutent au frigo de chacun.
+
+Si personne ne vient, le lien « Jouer seul » lance l'Aventure en solo, sans Sandy.
 
 - **Même Wi-Fi** (vous êtes dans la même maison) : utilisez le lien « même Wi-Fi ». Rien d'autre à faire.
 - **Par internet** : utilisez le lien « par internet ». Il faut que votre box laisse entrer l'invité (étape 3).
@@ -59,7 +64,7 @@ Si le port 8080 est déjà pris, choisissez-en un autre : `node server/serve.mjs
   aident seulement à trouver le chemin ; aucune donnée de jeu ne passe par eux.
 - Si la connexion directe échoue (certaines box ou réseaux d'entreprise la bloquent), les messages passent
   automatiquement **par le serveur de l'hôte**. Comme ce serveur est chez l'hôte, c'est quasiment aussi rapide.
-  La page de salon indique le mode utilisé et le ping.
+  Sous le jeu, une ligne indique le mode utilisé et le ping.
 
 ## En cas de souci
 
@@ -80,8 +85,10 @@ un serveur TURN qui ne répond pas ralentit la connexion. Sans TURN, le repli pa
 Options de la ligne de commande : `node server/serve.mjs [port] [--no-upnp] [--no-open]`.
 Pour tester le mode relais : ajoutez `?relay=1` à l'adresse de la page, chez les deux joueurs.
 
-## Pour les développeurs : brancher le jeu
+## Pour les développeurs
 
-La page de salon (`web/salon.html`) charge `web/js/kikifest.js` s'il existe, puis, une fois les
-deux joueurs connectés, appelle `window.KikiGame.start(peer)` des deux côtés.
+L'onglet Multijoueur (`src/menu/Online.hx`) crée ou rejoint la partie avec `web/js/kikinet.js`,
+échange les pseudos puis la configuration de l'hôte (mode, options, familles, graine), et charge le jeu
+dans la même page (`window.KIKI_NET`), pour garder la connexion. Le jeu (`src/game/Boot.hx`) branche
+alors la session rollback (`src/net`, voir [NETCODE.md](NETCODE.md)).
 L'objet `peer` est décrit en tête de `web/js/kikinet.js` (`role`, `seed`, `send`, `sendReliable`, `onmessage`...).

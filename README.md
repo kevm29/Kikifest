@@ -10,8 +10,10 @@ crédit à Motion Twin, partage dans les mêmes conditions.
 
 ## Jouer à deux
 
-L'hôte double-clique sur `Heberger-Windows.bat` (ou `Heberger-Mac.command`, ou lance `node server/serve.mjs`),
-crée une partie et envoie le lien à l'autre joueur. Détails : [docs/HEBERGER.md](docs/HEBERGER.md).
+L'hôte double-clique sur `Heberger-Windows.bat` (ou `Heberger-Mac.command`, ou lance `node server/serve.mjs`) ;
+le menu s'ouvre. Dans l'onglet **Multijoueur**, il crée une partie et envoie le lien à l'autre joueur.
+Chacun joue sur son clavier, avec les touches de ses **Paramètres** (volumes musique et bruitages, pseudo, touches).
+Détails : [docs/HEBERGER.md](docs/HEBERGER.md), et pour le réseau [docs/NETCODE.md](docs/NETCODE.md).
 
 Le plan technique est dans [docs/PLAN.md](docs/PLAN.md).
 
@@ -21,14 +23,11 @@ Le plan technique est dans [docs/PLAN.md](docs/PLAN.md).
 node server/serve.mjs 8080
 ```
 
-Puis ouvrir http://localhost:8080/menu.html (menu façon site d'origine : modes de jeu, frigo, quêtes)
-ou directement http://localhost:8080/ pour le jeu. Le jeu démarre en mode **coopération à deux
-sur le même clavier** (en attendant le réseau) :
+Puis ouvrir http://localhost:8080/ : le menu (modes de jeu, frigo, quêtes, classement, multijoueur, paramètres).
+Le jeu seul est sur http://localhost:8080/jeu.html. Sans invité, on joue l'Aventure en solo (sans Sandy) ;
+l'Aventure à deux existe aussi sur un même clavier (2e jeu de touches dans les Paramètres).
 
-- Igor : flèches pour bouger et sauter, Entrée pour poser une bombe ;
-- Sandy : R D F G pour bouger et sauter, A pour poser une bombe.
-
-Paramètres d'adresse : `?mode=` (mode de jeu, `multicoop` par défaut), `?seed=` (graine du hasard).
+Paramètres d'adresse de `jeu.html` : `?mode=` (mode de jeu, `solo` par défaut : Aventure sans Sandy), `?seed=` (graine du hasard).
 `?families=` force les familles d'objets débloquées, `?nosave` n'enregistre pas la partie.
 
 ### Quêtes et collection

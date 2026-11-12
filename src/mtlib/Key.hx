@@ -39,7 +39,7 @@ class Key {
 			down.remove(code);
 	}
 
-	public static function clear() down = new Map();
+	public static function clear() down.clear();
 
 	public static function getCode():Int return 0;
 
