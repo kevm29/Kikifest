@@ -1,6 +1,8 @@
-// KikiNet : mise en relation des deux joueurs (script classique, expose window.KikiNet).
+// KikiNet : mise en relation des joueurs (script classique, expose window.KikiNet).
 //
-//   KikiNet.host({ onCode(code), onStatus(texte) })  -> Promise<Peer>   (crée une partie)
+//   KikiNet.host({ onCode(code), onStatus(texte), onPeer(peer), onClosed() }) -> Promise<{code, close}>
+//       (crée une partie : onPeer est appelé pour chaque invité, jusqu'à 3 ; sans onPeer,
+//        la promesse rend le premier invité, comme pour une partie à deux)
 //   KikiNet.join(code, { onStatus(texte) })          -> Promise<Peer>   (rejoint une partie)
 //
 // Peer :
@@ -200,47 +202,85 @@
     return Promise.race([p.then(() => true), wait(ms).then(() => false)]).catch(() => false);
   }
 
+  // Côté hôte, mise en relation avec un invité, sur la connexion « side » qui lui est dédiée.
+  async function connectGuest(ws, iceServers, seed, slot) {
+    const signal = (data) => ws.send(JSON.stringify({ t: "signal", data }));
+    const rtc = makeRtc(iceServers, signal);
+    let ackWaiter = null, gone = false;
+    const ack = new Promise((r) => (ackWaiter = r));
+    const onMsg = (e) => {
+      if (typeof e.data !== "string") return;
+      const msg = JSON.parse(e.data);
+      if (msg.t === "peer-left") { gone = true; ackWaiter("gone"); }
+      else if (msg.t === "signal") {
+        if (msg.data.type === "ack") ackWaiter(msg.data.transport);
+        else rtc.onSignal(msg.data);
+      }
+    };
+    ws.addEventListener("message", onMsg);
+    let ok = false;
+    if (!forceRelay) {
+      await rtc.pc.setLocalDescription(await rtc.pc.createOffer());
+      signal({ type: "sdp", sdp: rtc.pc.localDescription });
+      ok = await timeout(rtc.opened, RTC_TIMEOUT);
+    }
+    if (!gone) signal({ type: "ready", transport: ok ? "webrtc" : "relay", seed });
+    const guestTransport = await ack;
+    ws.removeEventListener("message", onMsg);
+    if (guestTransport === "gone") { rtc.pc.close(); ws.close(); throw new Error("L'invité est parti."); }
+    const peer = new Peer("host", seed, ws);
+    peer.slot = slot;
+    if (ok && guestTransport === "webrtc") peer._useWebrtc(rtc.pc, rtc.ch);
+    else { rtc.pc.close(); peer._useRelay(); }
+    return peer;
+  }
+
+  // Crée une partie (jusqu'à 3 invités). opts.onPeer(peer) est appelé pour chaque invité connecté.
+  // La promesse rend la partie : { code, close() }. Pour compatibilité, sans onPeer, elle rend le
+  // premier invité (partie à deux).
   async function host(opts = {}) {
     const status = opts.onStatus || (() => {});
     status("Connexion au serveur...");
     const ws = await openSignal();
-    const signal = (data) => ws.send(JSON.stringify({ t: "signal", data }));
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0];
     return new Promise((resolve, reject) => {
-      let rtc = null, peer = null, ackWaiter = null;
-      const onMsg = async (e) => {
+      let code = null, key = null, created = false;
+      const onPeer = opts.onPeer || ((p) => resolve(p));
+      const room = { get code() { return code; }, close() { try { ws.close(); } catch (e) {} } };
+      ws.addEventListener("message", async (e) => {
         if (typeof e.data !== "string") return;
         const msg = JSON.parse(e.data);
-        if (msg.t === "error") { reject(new Error(msg.msg)); ws.close(); }
-        else if (msg.t === "created") { opts.iceServers = msg.iceServers; opts.onCode && opts.onCode(msg.code); status("En attente de l'autre joueur..."); }
-        else if (msg.t === "peer-joined" && !peer) {
-          status("L'autre joueur arrive, connexion directe en cours...");
-          const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-          rtc = makeRtc(opts.iceServers, signal);
-          let ok = false;
-          if (!forceRelay) {
-            await rtc.pc.setLocalDescription(await rtc.pc.createOffer());
-            signal({ type: "sdp", sdp: rtc.pc.localDescription });
-            ok = await timeout(rtc.opened, RTC_TIMEOUT);
+        if (msg.t === "error") { if (!created) { reject(new Error(msg.msg)); ws.close(); } }
+        else if (msg.t === "created") {
+          created = true; code = msg.code; key = msg.key; opts.iceServers = msg.iceServers;
+          opts.onCode && opts.onCode(msg.code);
+          status("En attente des autres joueurs...");
+          if (opts.onPeer) resolve(room);
+        } else if (msg.t === "peer-joined") {
+          status("Un joueur arrive, connexion en cours...");
+          try {
+            const side = await openSignal();
+            await new Promise((ok, ko) => {
+              side.addEventListener("message", function f(ev) {
+                if (typeof ev.data !== "string") return;
+                const m = JSON.parse(ev.data);
+                side.removeEventListener("message", f);
+                if (m.t === "attached") ok(); else ko(new Error(m.msg));
+              });
+              side.send(JSON.stringify({ t: "attach", code, key, slot: msg.slot }));
+            });
+            const peer = await connectGuest(side, opts.iceServers, seed, msg.slot);
+            status("");
+            onPeer(peer);
+          } catch (err) {
+            status("Un joueur n'a pas pu se connecter (" + err.message + ").");
           }
-          const ack = new Promise((r) => (ackWaiter = r));
-          signal({ type: "ready", transport: ok ? "webrtc" : "relay", seed });
-          const guestTransport = await ack;
-          peer = new Peer("host", seed, ws);
-          ws.removeEventListener("message", onMsg);
-          if (ok && guestTransport === "webrtc") peer._useWebrtc(rtc.pc, rtc.ch);
-          else { rtc.pc.close(); peer._useRelay(); }
-          resolve(peer);
-        } else if (msg.t === "peer-left" && !peer) {
-          if (rtc) { rtc.pc.close(); rtc = null; }
-          if (ackWaiter) ackWaiter("relay");
-          status("L'autre joueur est parti. En attente d'un nouvel invité...");
-        } else if (msg.t === "signal") {
-          if (msg.data.type === "ack") ackWaiter && ackWaiter(msg.data.transport);
-          else if (rtc) rtc.onSignal(msg.data);
         }
-      };
-      ws.addEventListener("message", onMsg);
-      ws.addEventListener("close", () => { if (!peer) reject(new Error("Le serveur a fermé la connexion.")); });
+      });
+      ws.addEventListener("close", () => {
+        if (!created) reject(new Error("Le serveur a fermé la connexion."));
+        else if (opts.onClosed) opts.onClosed();
+      });
       ws.send(JSON.stringify({ t: "create" }));
     });
   }

@@ -166,6 +166,9 @@ class GroupSession<S> {
 	public function rttTo(p:Int):Float
 		return rtt[p];
 
+	/** Aller-retour affiché (le pire parmi les autres joueurs), comme `RollbackSession.rttMs` (simple champ : lisible sans typage). **/
+	public var rttMs(default, null):Float = 0;
+
 	/** Le pire aller-retour parmi les autres joueurs. **/
 	public function worstRtt():Float {
 		var m = 0.;
@@ -360,6 +363,7 @@ class GroupSession<S> {
 				if (target == localPlayer) {
 					var r = now() - t;
 					rtt[sender] = rtt[sender] == 0 ? r : rtt[sender] * 0.8 + r * 0.2;
+					rttMs = worstRtt();
 				}
 			case _:
 		}

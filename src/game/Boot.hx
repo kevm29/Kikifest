@@ -302,7 +302,9 @@ class Boot {
 
 	/** Configuration d'une partie en réseau, posée par le menu (window.KIKI_NET) : peer, mode, options, families, seed, names. **/
 	static var netCfg:Dynamic = null;
-	static var session:net.rollback.RollbackSession<net.Snapshot> = null;
+	/** `RollbackSession` à deux, `GroupSession` à 3 ou 4 (mêmes méthodes : tick, poll, rttMs, inputDelay…). **/
+	static var session:Dynamic = null;
+	static var netPlayers = 2;
 	static var netPlayer = 0;
 	static var netLost = false;
 	static var netGame:NetGame;
@@ -310,13 +312,28 @@ class Boot {
 
 	static function startNet() {
 		var peer:Dynamic = netCfg.peer;
-		netPlayer = peer.role == "host" ? 0 : 1;
+		netPlayer = netCfg.index != null ? Std.int(netCfg.index) : (peer.role == "host" ? 0 : 1);
+		netPlayers = netCfg.players != null ? Std.int(netCfg.players) : 2;
 		net.Snapshot.init(([manager, root] : Array<Dynamic>));
 		netGame = new NetGame();
-		var kt = new net.transport.KikiNetTransport(peer);
-		kt.onReliable = (msg:Dynamic) -> if (netCfg.onReliable != null) netCfg.onReliable(msg);
+		var links:Array<Dynamic> = netCfg.peers != null ? netCfg.peers : [peer];
+		var inner:net.transport.Transport;
+		if (netPlayers <= 2) {
+			var kt = new net.transport.KikiNetTransport(peer);
+			kt.onReliable = (msg:Dynamic) -> if (netCfg.onReliable != null) netCfg.onReliable(msg, peer);
+			inner = kt;
+		} else {
+			// à 3 ou 4 : les invités ne sont reliés qu'à l'hôte, qui fait suivre les touches de chacun aux autres
+			var group = new net.transport.GroupTransport(peer.role == "host");
+			for (l in links) {
+				var kt = new net.transport.KikiNetTransport(l);
+				kt.onReliable = (msg:Dynamic) -> if (netCfg.onReliable != null) netCfg.onReliable(msg, l);
+				group.add(kt);
+			}
+			inner = group;
+		}
 		// chaque partie (« Rejouer ensemble ») a son numéro : les messages en retard de la précédente sont ignorés
-		var transport:net.transport.Transport = new RoundTransport(kt, Std.int(netCfg.round));
+		var transport:net.transport.Transport = new RoundTransport(inner, Std.int(netCfg.round));
 		// test : ?lag=80 ajoute 80 ms de latence (et un peu de pertes) dans chaque sens
 		var lag = Std.parseInt(new js.html.URLSearchParams(Browser.location.search).get("lag"));
 		if (lag != null && lag > 0) {
@@ -324,19 +341,37 @@ class Boot {
 			lagTransport = lt;
 			transport = lt;
 		}
-		session = new net.rollback.RollbackSession(netGame, transport, {
-			localPlayer: netPlayer,
-			now: () -> Browser.window.performance.now(),
-			inputDelay: 2,
-			maxPrediction: 8,
-			saveEvery: 4,
-		});
+		if (netPlayers <= 2) {
+			var s = new net.rollback.RollbackSession(netGame, transport, {
+				localPlayer: netPlayer,
+				now: () -> Browser.window.performance.now(),
+				inputDelay: 2,
+				maxPrediction: 8,
+				saveEvery: 4,
+			});
+			s.onDesync = (f, a, b) -> {
+				Browser.console.warn('Désynchronisation à la frame $f ($a / $b)');
+				netWarning = "Attention : les deux parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
+			};
+			session = s;
+		} else {
+			var s = new net.rollback.GroupSession(netGame, transport, {
+				players: netPlayers,
+				localPlayer: netPlayer,
+				now: () -> Browser.window.performance.now(),
+				inputDelay: 2,
+				maxPrediction: 8,
+				saveEvery: 4,
+			});
+			s.onDesync = (f, who, a, b) -> {
+				Browser.console.warn('Désynchronisation à la frame $f avec le joueur ${who + 1} ($a / $b)');
+				netWarning = "Attention : les parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
+			};
+			session = s;
+		}
 		netGame.session = session;
-		session.onDesync = (f, a, b) -> {
-			Browser.console.warn('Désynchronisation à la frame $f ($a / $b)');
-			netWarning = "Attention : les deux parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
-		};
-		peer.onclose = (reason:Dynamic) -> {
+		// à plus de deux, le départ d'un joueur est géré par le salon (retour de tout le monde au salon)
+		if (netPlayers <= 2) peer.onclose = (reason:Dynamic) -> {
 			if (session == null)
 				return;
 			session = null;
@@ -344,7 +379,7 @@ class Boot {
 			SoundBank.muted = false;
 			status("L'autre joueur est parti" + (reason != null ? " (" + reason + ")" : "") + " : tu continues seul. Échap deux fois : menu.");
 		};
-		status("C'est parti ! Vous jouez " + (netPlayer == 0 ? "Igor" : "Sandy") + ".");
+		status("C'est parti ! Vous jouez " + ["Igor", "Sandy", "Igor vert", "Igor bleu"][netPlayer] + ".");
 		lastNetInfo = Browser.window.performance.now() + 3000;
 		untyped js.Browser.window.kiki.session = session;
 	}
@@ -362,7 +397,7 @@ class Boot {
 			lagTransport.update(Browser.window.performance.now());
 		var m = localMask(false) & ~meta.Settings.QUIT; // Échap ne quitte pas une partie à deux
 		var t0 = Browser.window.performance.now();
-		var r = session.tick(m);
+		var r:net.rollback.RollbackSession.TickResult = session.tick(m);
 		var dt = Browser.window.performance.now() - t0;
 		perf.ticks++;
 		perf.total += dt;
@@ -498,8 +533,17 @@ class Boot {
 		var sub:Dynamic = Reflect.field(data, "__S_data");
 		if (mode == "multicoop") {
 			if (sub != null)
-				total = toInt(Reflect.field(sub, "__S_s0")) + toInt(Reflect.field(sub, "__S_s1"));
-			name += " et " + (netCfg != null && netCfg.names != null ? Std.string(netCfg.names[1]) : pref("name2", "Sandy"));
+				total = toInt(Reflect.field(sub, "__S_s0")) + toInt(Reflect.field(sub, "__S_s1")) + toInt(Reflect.field(sub, "__S_s2"))
+					+ toInt(Reflect.field(sub, "__S_s3"));
+			var names:Array<String> = netCfg != null && netCfg.names != null ? [for (x in (netCfg.names : Array<Dynamic>)) Std.string(x)] : [name,
+				pref("name2", "Sandy")];
+			if (netCfg == null) {
+				var nj = Std.parseInt(Std.string(Reflect.field(root, "$joueurs")));
+				if (nj != null && nj > 2)
+					names = names.concat(["Igor vert", "Igor bleu"].slice(0, nj - 2));
+			}
+			// « A et B », « A, B et C »…
+			name = names.length > 1 ? names.slice(0, names.length - 1).join(", ") + " et " + names[names.length - 1] : names[0];
 		}
 		var hero = false;
 		if (mode == "solo" || mode == "multicoop") // seuls l'Aventure et l'Aventure à deux comptent au classement
@@ -583,7 +627,7 @@ class Boot {
 
 /** Le jeu vu par le rollback : avancer d'une frame, photographier, restaurer. **/
 class NetGame implements net.rollback.RollbackGame<net.Snapshot> {
-	public var session:net.rollback.RollbackSession<net.Snapshot>;
+	public var session:Dynamic;
 
 	public function new() {}
 

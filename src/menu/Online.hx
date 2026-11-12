@@ -34,21 +34,40 @@ class Online {
 	**/
 	static var box:Element = null;
 
-	static var peer:Dynamic = null;
+	/** Liaisons ouvertes : chez l'hôte, une par invité ; chez un invité, celle vers l'hôte. **/
+	static var peers:Array<Dynamic> = [];
+
+	static var peer(get, never):Dynamic;
+
+	static function get_peer():Dynamic
+		return peers.length > 0 ? peers[0] : null;
+
+	static var isHost = false;
 	static var hostGame:Void->Dynamic;
 	static var myReady = false;
-	static var otherReady = false;
-	static var otherName = "";
+
+	/** Mon numéro dans le salon : 0 pour l'hôte, sinon la place donnée par le serveur. **/
+	static var myId = 0;
+
+	/** Joueurs du salon, dans l'ordre (l'hôte d'abord) ; tenu par l'hôte, recopié chez les invités. **/
+	static var players:Array<{id:Int, name:String, ready:Bool}> = [];
+
+	/** Joueurs de la partie en cours (leurs numéros), dans l'ordre des personnages. **/
+	static var inGameIds:Array<Int> = [];
+
 	static var round = 0;
 	static var inGame = false;
 	static var savedBody:Array<js.html.Node> = null;
 	static var savedTitle:String;
 	static var resultLine:Element = null;
 
+	static inline var MAX_PLAYERS = 4;
+	static var CHARACTERS = ["Igor", "Sandy", "Igor vert", "Igor bleu"];
+
 	public static function showMulti(main:Element, hostGameF:Void->Dynamic, soloUrl:String) {
 		hostGame = hostGameF;
 		var p = el("div", "panel wide");
-		p.appendChild(el("h2", null, "Jouer à deux en ligne"));
+		p.appendChild(el("h2", null, "Jouer en ligne (2 à 4)"));
 		main.appendChild(p);
 		var kiki:Dynamic = untyped js.Browser.window.KikiNet;
 		if (kiki == null || Browser.location.protocol == "file:") {
@@ -70,9 +89,9 @@ class Online {
 			return;
 		}
 
-		body.appendChild(el("p", null, "1. Celui qui a lancé le serveur clique sur « Créer une partie » et envoie le lien à l'autre."));
-		body.appendChild(el("p", null, "2. L'autre ouvre le lien : vous vous retrouvez tous les deux dans le salon, où chacun choisit son pseudo."));
-		body.appendChild(el("p", null, "3. Chacun clique sur « Je suis prêt » : la partie démarre chez les deux. L'hôte joue Igor, l'invité Sandy, chacun sur son clavier avec ses touches (onglet Paramètres)."));
+		body.appendChild(el("p", null, "1. Celui qui a lancé le serveur clique sur « Créer une partie » et envoie le lien aux autres (jusqu'à 3)."));
+		body.appendChild(el("p", null, "2. Les autres ouvrent le lien : vous vous retrouvez dans le salon, où chacun choisit son pseudo."));
+		body.appendChild(el("p", null, "3. Chacun clique sur « Je suis prêt » : la partie démarre chez tout le monde, avec autant de personnages que de joueurs (Igor, Sandy, Igor vert, Igor bleu), chacun sur son clavier avec ses touches (onglet Paramètres)."));
 
 		var b1 = el("div", "options");
 		b1.appendChild(el("h3", null, "Créer une partie"));
@@ -117,9 +136,12 @@ class Online {
 
 	static function fail(e:Dynamic) {
 		var msg = e != null && e.message != null ? e.message : Std.string(e);
-		if (peer != null)
-			try peer.close() catch (_:Dynamic) {}
-		peer = null;
+		for (q in peers)
+			try q.close() catch (_:Dynamic) {}
+		peers = [];
+		if (hostRoom != null)
+			try hostRoom.close() catch (_:Dynamic) {}
+		hostRoom = null;
 		if (box == null)
 			return;
 		box.innerHTML = "";
@@ -142,20 +164,58 @@ class Online {
 		b.appendChild(el("p", "note", "Vous pouvez changer d'onglet en attendant (paramètres, frigo…) : la partie reste ouverte."));
 
 		var kiki:Dynamic = untyped js.Browser.window.KikiNet;
+		isHost = true;
+		myId = 0;
+		players = [{id: 0, name: myName(), ready: false}];
 		var pr:js.lib.Promise<Dynamic> = kiki.host({
 			onCode: (c:String) -> {
 				code.textContent = "Code : " + c;
 				showLinks(links, note, c);
 			},
-			onStatus: (s:String) -> st.textContent = s
+			onStatus: (s:String) -> st.textContent = s,
+			onPeer: (p:Dynamic) -> addGuest(p),
+			onClosed: () -> if (peers.length == 0) fail("Le serveur s'est arrêté.")
 		});
-		pr.then(p -> {
-			connected(p);
+		pr.then(r -> {
+			hostRoom = r;
 			return null;
 		}, e -> {
 			fail(e);
 			return null;
 		});
+	}
+
+	static var hostRoom:Dynamic = null;
+
+	/** Hôte : un invité vient de se connecter. **/
+	static function addGuest(p:Dynamic) {
+		var first = peers.length == 0;
+		peers.push(p);
+		var id:Int = p.slot != null ? Std.int(p.slot) : peers.length;
+		players.push({id: id, name: "Joueur " + (players.length + 1), ready: false});
+		p.onclose = (r:Dynamic) -> guestLeft(p, id);
+		listen(p);
+		if (first)
+			buildLobby();
+		broadcastLobby();
+		refresh();
+	}
+
+	/** Hôte : un invité est parti (fermeture de sa page, réseau coupé). **/
+	static function guestLeft(p:Dynamic, id:Int) {
+		peers.remove(p);
+		var name = nameOf(id);
+		players = players.filter(x -> x.id != id);
+		if (inGame && inGameIds.indexOf(id) >= 0) {
+			// à plus de deux, la partie ne peut pas continuer sans lui : tout le monde revient au salon
+			if (inGameIds.length > 2) {
+				sendAll({t: "left", name: name});
+				stopGameAndReturn(name + " a quitté la partie.");
+			}
+		} else if (resultLine != null)
+			resultLine.textContent = name + " est parti.";
+		broadcastLobby();
+		refresh();
 	}
 
 	static function copyable(label:String, url:String):Element {
@@ -236,9 +296,20 @@ class Online {
 		var st = el("p", "netstatus");
 		b.appendChild(st);
 		var kiki:Dynamic = untyped js.Browser.window.KikiNet;
+		isHost = false;
 		var pr:js.lib.Promise<Dynamic> = kiki.join(code, {onStatus: (s:String) -> st.textContent = s});
 		pr.then(p -> {
-			connected(p);
+			peers = [p];
+			myId = -1; // donné par l'hôte dans son premier message
+			players = [];
+			p.onclose = (r:Dynamic) -> {
+				if (inGame)
+					stopGameAndReturn(null);
+				fail("L'hôte s'est déconnecté" + (r != null ? " (" + r + ")" : "") + ".");
+			};
+			listen(p);
+			buildLobby();
+			send(p, {t: "hello", name: myName()});
 			return null;
 		}, e -> {
 			fail(e);
@@ -253,38 +324,72 @@ class Online {
 		catch (e:Dynamic) {}
 		if (v != null && StringTools.trim(v) != "")
 			return StringTools.trim(v).substr(0, 20);
-		return peer != null && peer.role == "guest" ? "Sandy" : "Igor";
+		return isHost ? "Igor" : "Sandy";
 	}
 
-	static function send(m:Dynamic) {
-		if (peer != null)
-			try peer.sendReliable(haxe.Json.stringify(m)) catch (e:Dynamic) {}
+	static function cleanName(n:Dynamic, def:String):String {
+		var s = StringTools.trim(Std.string(n));
+		return s == "" || n == null ? def : s.substr(0, 20);
 	}
 
-	static var lobbyRefresh:Void->Void = null;
+	static function nameOf(id:Int):String {
+		for (x in players)
+			if (x.id == id)
+				return x.name;
+		return "Un joueur";
+	}
 
-	/** Les deux joueurs sont reliés : salon d'attente (pseudos, « Je suis prêt »). **/
-	static function connected(p:Dynamic) {
-		peer = p;
-		var isHost = p.role == "host";
-		otherName = isHost ? "Sandy" : "Igor";
-		p.onclose = (r:Dynamic) -> fail("L'autre joueur s'est déconnecté" + (r != null ? " (" + r + ")" : "") + ".");
-		p.onmessage = (data:Dynamic, reliable:Bool) -> {
-			if (!reliable || !Std.isOfType(data, String))
-				return;
-			var m:Dynamic = try haxe.Json.parse(data) catch (e:Dynamic) null;
-			if (m != null)
-				onLobbyMessage(m);
-		};
+	static function send(p:Dynamic, m:Dynamic) {
+		if (p != null)
+			try p.sendReliable(haxe.Json.stringify(m)) catch (e:Dynamic) {}
+	}
 
+	/** Hôte : à tous les invités ; invité : à l'hôte. **/
+	static function sendAll(m:Dynamic) {
+		for (q in peers)
+			send(q, m);
+	}
+
+	/** Messages fiables du salon, reçus d'une liaison. **/
+	static function listen(p:Dynamic) {
+		p.onmessage = (data:Dynamic, reliable:Bool) -> onReliable(p, data);
+	}
+
+	static function onReliable(p:Dynamic, data:Dynamic) {
+		if (!Std.isOfType(data, String))
+			return;
+		var m:Dynamic = try haxe.Json.parse(data) catch (e:Dynamic) null;
+		if (m != null)
+			onLobbyMessage(p, m);
+	}
+
+	static function guestId(p:Dynamic):Int
+		return p.slot != null ? Std.int(p.slot) : 1;
+
+	/** Hôte : envoie à chaque invité l'état du salon (avec son propre numéro). **/
+	static function broadcastLobby() {
+		if (!isHost)
+			return;
+		for (q in peers)
+			send(q, {
+				t: "lobby",
+				you: guestId(q),
+				players: players,
+				inGame: inGame ? inGameIds : null
+			});
+	}
+
+	static var refresh:Void->Void = () -> {};
+
+	/** Salon d'attente : liste des joueurs, pseudo, « Je suis prêt ». **/
+	static function buildLobby() {
 		box.innerHTML = "";
 		box.appendChild(el("p", "ok", "Vous êtes connectés !"));
 		resultLine = el("p", "result");
 		box.appendChild(resultLine);
 		var t = el("table", "lobby");
-		var me = el("tr");
-		me.appendChild(el("td", "who", isHost ? "Igor (hôte)" : "Sandy (invité)"));
-		var td = el("td");
+		box.appendChild(t);
+
 		var input:js.html.InputElement = cast doc.createInputElement();
 		input.maxLength = 20;
 		input.value = myName();
@@ -294,85 +399,133 @@ class Online {
 			var head:js.html.InputElement = cast doc.getElementById("name");
 			if (head != null)
 				head.value = input.value;
-			send({t: "name", name: myName()});
+			setMine(x -> x.name = myName());
+			if (isHost)
+				broadcastLobby();
+			else
+				sendAll({t: "name", name: myName()});
+			refresh();
 		};
 		input.onchange = () -> if (onNameChanged != null) onNameChanged();
-		td.appendChild(input);
-		td.appendChild(el("span", "note", " ← vous"));
-		me.appendChild(td);
-		var meState = el("td", "state");
-		me.appendChild(meState);
-		var other = el("tr");
-		other.appendChild(el("td", "who", isHost ? "Sandy (invité)" : "Igor (hôte)"));
-		var otherTd = el("td", "other");
-		other.appendChild(otherTd);
-		var otherState = el("td", "state");
-		other.appendChild(otherState);
-		t.appendChild(isHost ? me : other);
-		t.appendChild(isHost ? other : me);
-		box.appendChild(t);
 
 		var readyBtn = button("Je suis prêt !", () -> {
 			resultLine.textContent = "";
 			myReady = !myReady;
-			send({t: "ready", ready: myReady});
-			lobbyRefresh();
-			maybeStart();
+			setMine(x -> x.ready = myReady);
+			if (isHost) {
+				broadcastLobby();
+				maybeStart();
+			} else
+				sendAll({t: "ready", ready: myReady});
+			refresh();
 		});
 		box.appendChild(readyBtn);
-		box.appendChild(el("p", "note", "Vos touches : " + keysText(false) + " · P : pause. La partie démarre quand vous êtes prêts tous les deux."));
+		var hint = el("p", "note");
+		box.appendChild(hint);
 		var ping = el("p", "note");
 		box.appendChild(ping);
+		var p0 = peer;
 
-		lobbyRefresh = () -> {
-			otherTd.textContent = otherName;
-			meState.textContent = myReady ? "✔ prêt" : "pas encore prêt";
-			otherState.textContent = otherReady ? "✔ prêt" : "pas encore prêt";
+		refresh = () -> {
+			// le champ du pseudo est gardé d'un affichage à l'autre (sinon il perdrait le focus)
+			if (input.parentNode != null)
+				input.parentNode.removeChild(input);
+			t.innerHTML = "";
+			var k = 0;
+			for (x in players) {
+				var tr = el("tr");
+				var mine = x.id == myId;
+				var role = k < MAX_PLAYERS ? CHARACTERS[k] : "?";
+				tr.appendChild(el("td", "who", role + (x.id == 0 ? " (hôte)" : "")));
+				var td = el("td", mine ? null : "other");
+				if (mine) {
+					td.appendChild(input);
+					td.appendChild(el("span", "note", " ← vous"));
+				} else
+					td.textContent = x.name;
+				tr.appendChild(td);
+				var waiting = inGame && inGameIds.indexOf(x.id) < 0;
+				tr.appendChild(el("td", "state", waiting ? "attend la prochaine partie" : (x.ready ? "✔ prêt" : "pas encore prêt")));
+				t.appendChild(tr);
+				k++;
+			}
 			readyBtn.textContent = myReady ? "Finalement, pas encore" : "Je suis prêt !";
-			ping.textContent = (p.transport == "webrtc" ? "Liaison directe" : "Liaison par le serveur de l'hôte") + " · ping " + Math.round(p.rtt) + " ms";
+			hint.textContent = "Vos touches : " + keysText(false) + " · P : pause. La partie démarre quand tout le monde est prêt"
+				+ (isHost ? " (vous pouvez encore inviter " + (MAX_PLAYERS - players.length) + " joueur" + (MAX_PLAYERS - players.length > 1 ? "s" : "") + " avec le même lien)." : ".");
+			if (players.length >= MAX_PLAYERS && isHost)
+				hint.textContent = "Vos touches : " + keysText(false) + " · P : pause. La partie est complète (4 joueurs) : elle démarre quand tout le monde est prêt.";
+			var q = peer;
+			ping.textContent = q == null ? "" : peers.map(z -> (z.transport == "webrtc" ? "liaison directe" : "liaison par le serveur") + " · ping " + Math.round(z.rtt) + " ms").join(" — ");
 		};
-		lobbyRefresh();
+		refresh();
 		var timer = 0;
-		timer = Browser.window.setInterval(() -> if (peer == p && box.isConnected) lobbyRefresh() else if (peer != p) Browser.window.clearInterval(timer), 1000);
-		send({t: "hello", name: myName()});
-		// petit signal sonore/visuel : on ramène l'onglet Multijoueur au premier plan
+		timer = Browser.window.setInterval(() -> if (peers.length > 0 && box.isConnected) refresh() else if (peers.length == 0) Browser.window.clearInterval(timer), 1000);
+		// on ramène l'onglet Multijoueur au premier plan
 		if (Browser.location.hash != "#multi")
 			Browser.location.hash = "multi";
 	}
 
-	static function onLobbyMessage(m:Dynamic) {
-		switch (m.t) {
-			case "hello", "name":
-				var n:String = Std.string(m.name);
-				if (StringTools.trim(n) != "")
-					otherName = StringTools.trim(n).substr(0, 20);
-			case "ready":
-				otherReady = m.ready == true;
-				maybeStart();
-			case "start":
-				launch(m);
-			case "left":
-				// l'autre a quitté la partie en cours : on revient au salon nous aussi
-				if (inGame) {
-					var stop:Dynamic = untyped js.Browser.window.kikiStop;
-					if (stop != null)
-						stop();
-					backToLobby(otherName + " a quitté la partie.", false);
-				}
-		}
-		if (lobbyRefresh != null)
-			lobbyRefresh();
+	static function setMine(f:{id:Int, name:String, ready:Bool}->Void) {
+		for (x in players)
+			if (x.id == myId)
+				f(x);
 	}
 
-	static function localIndex():Int
-		return peer != null && peer.role == "host" ? 0 : 1;
+	static function onLobbyMessage(from:Dynamic, m:Dynamic) {
+		if (isHost) {
+			var id = guestId(from);
+			var x = null;
+			for (y in players)
+				if (y.id == id)
+					x = y;
+			switch (m.t) {
+				case "hello", "name":
+					if (x != null)
+						x.name = cleanName(m.name, x.name);
+					broadcastLobby();
+				case "ready":
+					if (x != null)
+						x.ready = m.ready == true;
+					broadcastLobby();
+					maybeStart();
+				case "left":
+					// un invité a quitté la partie en cours : tout le monde revient au salon
+					if (inGame) {
+						sendAll({t: "left", name: nameOf(id)});
+						stopGameAndReturn(nameOf(id) + " a quitté la partie.");
+					}
+			}
+		} else {
+			switch (m.t) {
+				case "lobby":
+					myId = Std.int(m.you);
+					var ps:Array<Dynamic> = m.players;
+					players = [for (y in ps) {id: Std.int(y.id), name: Std.string(y.name), ready: y.ready == true}];
+					for (y in players)
+						if (y.id == myId)
+							myReady = y.ready;
+					if (!inGame && m.inGame != null)
+						inGameIds = m.inGame;
+				case "start":
+					launch(m);
+				case "left":
+					if (inGame)
+						stopGameAndReturn(Std.string(m.name) + " a quitté la partie.");
+			}
+		}
+		refresh();
+	}
 
-	/** L'hôte lance la partie quand les deux sont prêts. **/
+	/** L'hôte lance la partie quand tous les joueurs du salon (au moins deux) sont prêts. **/
 	static function maybeStart() {
-		if (peer == null || peer.role != "host" || !myReady || !otherReady)
+		if (!isHost || inGame || players.length < 2)
 			return;
+		for (x in players)
+			if (!x.ready)
+				return;
 		var g:Dynamic = hostGame();
 		round++;
+		var list = players.slice(0, MAX_PLAYERS);
 		var cfg = {
 			t: "start",
 			mode: g.mode,
@@ -380,41 +533,57 @@ class Online {
 			families: g.families,
 			seed: (Std.int(peer.seed) + round * 7919) & 0x7fffffff,
 			round: round,
-			names: [myName(), otherName]
+			names: [for (x in list) x.name],
+			ids: [for (x in list) x.id]
 		};
-		send(cfg);
+		for (x in players)
+			x.ready = false;
+		sendAll(cfg);
 		launch(cfg);
 	}
 
-	/** Fin de partie (ou départ de l'un) : retour au salon, la connexion reste ouverte. **/
+	/** Arrête la partie en cours et revient au salon. **/
+	static function stopGameAndReturn(msg:String) {
+		if (!inGame)
+			return;
+		var stop:Dynamic = untyped js.Browser.window.kikiStop;
+		if (stop != null)
+			stop();
+		backToLobby(msg, false);
+	}
+
+	/** Fin de partie (ou départ de l'un) : retour au salon, les connexions restent ouvertes. **/
 	static function backToLobby(msg:String, iQuit:Bool) {
 		if (!inGame)
 			return;
 		inGame = false;
+		inGameIds = [];
 		if (iQuit)
-			send({t: "left"});
+			sendAll(isHost ? {t: "left", name: myName()} : {t: "left"});
 		doc.body.innerHTML = "";
 		doc.body.className = "";
 		for (n in savedBody)
 			doc.body.appendChild(n);
 		doc.title = savedTitle;
-		var p = peer;
-		if (p != null) {
-			p.onclose = (r:Dynamic) -> fail("L'autre joueur s'est déconnecté" + (r != null ? " (" + r + ")" : "") + ".");
-			p.onmessage = (data:Dynamic, reliable:Bool) -> {
-				if (!reliable || !Std.isOfType(data, String))
-					return;
-				var m:Dynamic = try haxe.Json.parse(data) catch (e:Dynamic) null;
-				if (m != null)
-					onLobbyMessage(m);
-			};
+		for (q in peers) {
+			listen(q);
+			if (isHost) {
+				var id = guestId(q);
+				q.onclose = (r:Dynamic) -> guestLeft(q, id);
+			} else
+				q.onclose = (r:Dynamic) -> fail("L'hôte s'est déconnecté" + (r != null ? " (" + r + ")" : "") + ".");
 		}
+		// à deux, si l'autre est parti pendant la partie, sa liaison est fermée
+		if (isHost)
+			for (q in peers.copy())
+				if (q.closed == true)
+					guestLeft(q, guestId(q));
 		if (resultLine != null)
 			resultLine.textContent = msg != null ? msg : "Vous avez quitté la partie.";
+		broadcastLobby();
 		if (onBack != null)
 			onBack();
-		if (lobbyRefresh != null)
-			lobbyRefresh();
+		refresh();
 	}
 
 	/** Appelé au retour au salon (le menu recharge sa sauvegarde et réaffiche l'onglet). **/
@@ -423,15 +592,26 @@ class Online {
 	/** Pseudo modifié (salon ou paramètres) : le menu recharge la sauvegarde de ce pseudo. **/
 	public static var onNameChanged:Void->Void = null;
 
-	/** Remplace le menu par le jeu, dans la même page (la connexion doit rester ouverte). **/
+	/** Remplace le menu par le jeu, dans la même page (les connexions doivent rester ouvertes). **/
 	static function launch(cfg:Dynamic) {
-		var p = peer;
 		var stop:Dynamic = untyped js.Browser.window.kikiStop;
 		if (stop != null)
-			stop(); // partie précédente (« Rejouer ensemble »)
-		myReady = otherReady = false;
-		p.onmessage = null;
-		// le menu est mis de côté (avec ses gestionnaires) pour y revenir après la partie
+			stop();
+		var ids:Array<Int> = cfg.ids != null ? cfg.ids : [0, myId];
+		var idx = ids.indexOf(myId);
+		if (idx < 0) {
+			// arrivé pendant le lancement : on attend la partie suivante
+			inGameIds = ids;
+			refresh();
+			return;
+		}
+		myReady = false;
+		for (x in players)
+			x.ready = false;
+		// pendant la partie, les liaisons des joueurs qui ne jouent pas restent au salon
+		var gamePeers = isHost ? peers.filter(q -> ids.indexOf(guestId(q)) >= 0) : peers.copy();
+		for (q in gamePeers)
+			q.onmessage = null;
 		if (!inGame) {
 			savedBody = [for (n in doc.body.childNodes) n];
 			for (n in savedBody)
@@ -439,32 +619,31 @@ class Online {
 			savedTitle = doc.title;
 		}
 		inGame = true;
-		var idx = localIndex();
+		inGameIds = ids;
+		broadcastLobby();
+		var n = ids.length;
 		untyped js.Browser.window.KIKI_NET = {
-			peer: p,
+			peer: gamePeers[0],
+			peers: gamePeers,
+			players: n,
+			index: idx,
 			mode: cfg.mode,
 			options: cfg.options,
 			families: cfg.families,
 			seed: cfg.seed,
 			round: cfg.round != null ? cfg.round : 1,
 			names: cfg.names,
-			// messages fiables reçus pendant la partie (rejouer)
-			onReliable: (data:Dynamic) -> {
-				if (!Std.isOfType(data, String))
-					return;
-				var m:Dynamic = try haxe.Json.parse(data) catch (e:Dynamic) null;
-				if (m != null)
-					onLobbyMessage(m);
-			},
+			// messages fiables reçus pendant la partie (salon, départ d'un joueur)
+			onReliable: (data:Dynamic, from:Dynamic) -> onReliable(from != null ? from : gamePeers[0], data),
 			backToLobby: (msg:String) -> backToLobby(msg, msg == null)
 		};
 		var names:Array<String> = cfg.names;
-		var me = idx == 0 ? "Igor" : "Sandy";
-		doc.title = "Kikifest à deux";
+		var others = [for (i in 0...n) if (i != idx) StringTools.htmlEscape(names[i]) + " joue " + CHARACTERS[i]];
+		doc.title = n > 2 ? "Kikifest à " + n : "Kikifest à deux";
 		doc.body.className = "playing";
 		doc.body.innerHTML = '<canvas id="game"></canvas><div id="status">Chargement…</div>'
-			+ '<div class="help">Vous jouez <b>' + me + '</b> (' + StringTools.htmlEscape(names[idx]) + ') avec ' + StringTools.htmlEscape(keysText(false))
-			+ ' · ' + StringTools.htmlEscape(names[1 - idx]) + ' joue ' + (idx == 0 ? "Sandy" : "Igor") + ' · P : pause · Échap deux fois : quitter</div>';
+			+ '<div class="help">Vous jouez <b>' + CHARACTERS[idx] + '</b> (' + StringTools.htmlEscape(names[idx]) + ') avec '
+			+ StringTools.htmlEscape(keysText(false)) + ' · ' + others.join(" · ") + ' · P : pause · Échap deux fois : quitter</div>';
 		var s = doc.createScriptElement();
 		s.src = "js/game.js?r=" + Std.string(cfg.round);
 		doc.body.appendChild(s);
