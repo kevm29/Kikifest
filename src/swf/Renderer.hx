@@ -102,6 +102,28 @@ class Renderer {
 				op = c;
 		}
 		if (Std.isOfType(o, MovieClip)) {
+			if (o.__blend == "layer") {
+				// mode « calque » : les enfants sont composés à part (les modes effacer/alpha
+				// n'agissent qu'à l'intérieur), puis le tout est posé avec l'opacité du clip
+				var layer = acquireLayer();
+				var lg = layer.getContext2d();
+				lg.setTransform(1, 0, 0, 1, 0, 0);
+				lg.globalCompositeOperation = "source-over";
+				lg.globalAlpha = 1;
+				lg.clearRect(0, 0, layer.width, layer.height);
+				var inner = __cx.copy();
+				var alpha = inner[3];
+				inner[3] = 1;
+				drawChildren(lg, (cast o : MovieClip), m, inner, null);
+				g.setTransform(1, 0, 0, 1, 0, 0);
+				g.globalAlpha = Math.max(0, Math.min(1, alpha));
+				g.globalCompositeOperation = op != null ? op : "source-over";
+				g.drawImage(layer, 0, 0);
+				g.globalAlpha = 1;
+				g.globalCompositeOperation = "source-over";
+				layerIndex--;
+				return;
+			}
 			drawChildren(g, (cast o : MovieClip), m, __cx, op);
 			return;
 		}
@@ -226,35 +248,27 @@ class Renderer {
 		var d:Dynamic = t.__def != null ? t.__def : {};
 		var lb = t.__localBounds();
 		var b:Array<Float> = [lb.xMin, lb.yMin, lb.xMax, lb.yMax];
-		var size:Float = t.fontSize();
-		var font:Dynamic = d.font != null ? Library.inst.char(d.font) : (t.format.font != null ? {name: t.format.font, bold: t.format.bold} : null);
-		var name = font != null && font.name != null ? font.name : "Verdana";
 		g.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
 		g.globalCompositeOperation = op != null ? op : "source-over";
-		var col = t.textColor;
-		var r = clamp(((col >> 16) & 255) * __cx[0] + __cx[4]);
-		var gg = clamp(((col >> 8) & 255) * __cx[1] + __cx[5]);
-		var bb = clamp((col & 255) * __cx[2] + __cx[6]);
 		g.globalAlpha = Math.max(0, Math.min(1, __cx[3] + __cx[7] / 255));
-		g.fillStyle = 'rgb($r,$gg,$bb)';
-		g.font = (font != null && font.bold ? "bold " : "") + size + "px " + name + ", Verdana, sans-serif";
+		g.font = t.fontCss();
 		g.textBaseline = "top";
+		g.textAlign = "left";
 		var align:Int = d.align != null ? d.align : (t.format.align == "right" ? 1 : (t.format.align == "center" ? 2 : 0));
-		var x = b[0] + 2;
-		if (align == 1) {
-			g.textAlign = "right";
-			x = b[2] - 2;
-		} else if (align == 2) {
-			g.textAlign = "center";
-			x = (b[0] + b[2]) / 2;
-		} else
-			g.textAlign = "left";
-		var lines = t.__plainText().split("\n");
 		var y = b[1] + 2;
-		var leading:Float = d.leading != null ? d.leading : 0;
-		for (l in lines) {
-			g.fillText(l, x, y);
-			y += size + leading + 2;
+		var lh = t.lineHeight();
+		for (l in t.__layout().lines) {
+			var x = align == 1 ? b[2] - 2 - l.w : (align == 2 ? (b[0] + b[2] - l.w) / 2 : b[0] + 2);
+			for (r in l.runs) {
+				var col:Int = r.c != null ? r.c : t.textColor;
+				var rr = clamp(((col >> 16) & 255) * __cx[0] + __cx[4]);
+				var gg = clamp(((col >> 8) & 255) * __cx[1] + __cx[5]);
+				var bb = clamp((col & 255) * __cx[2] + __cx[6]);
+				g.fillStyle = 'rgb($rr,$gg,$bb)';
+				g.fillText(r.t, x, y);
+				x += g.measureText(r.t).width;
+			}
+			y += lh;
 		}
 		g.globalAlpha = 1;
 	}

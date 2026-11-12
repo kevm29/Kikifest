@@ -398,8 +398,11 @@ class MovieClip extends DisplayObject {
 		}
 		c.__ratio = e.r != null ? e.r : 0;
 		c.__clipDepth = e.clip != null ? e.clip + TIMELINE_DEPTH : 0;
-		c.__blend = e.blend;
-		c.__filters = e.filters;
+		// un mode de fusion ou des filtres posés par script ne sont plus écrasés par la timeline
+		if (!c.__blendScripted || fresh)
+			c.__blend = e.blend;
+		if (!c.__filtersScripted || fresh)
+			c.__filters = e.filters;
 	}
 
 	function __runActions(frame:Int, acts:Array<Dynamic>) {

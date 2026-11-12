@@ -1293,6 +1293,58 @@ class DateTools {
 }
 $hxClasses["DateTools"] = DateTools;
 DateTools.__name__ = "DateTools";
+class EReg {
+	constructor(r,opt) {
+		this.r = new RegExp(r,opt.split("u").join(""));
+	}
+	match(s) {
+		if(this.r.global) {
+			this.r.lastIndex = 0;
+		}
+		this.r.m = this.r.exec(s);
+		this.r.s = s;
+		return this.r.m != null;
+	}
+	matched(n) {
+		if(this.r.m != null && n >= 0 && n < this.r.m.length) {
+			return this.r.m[n];
+		} else {
+			throw haxe_Exception.thrown("EReg::matched");
+		}
+	}
+	matchedPos() {
+		if(this.r.m == null) {
+			throw haxe_Exception.thrown("No string matched");
+		}
+		return { pos : this.r.m.index, len : this.r.m[0].length};
+	}
+	matchSub(s,pos,len) {
+		if(len == null) {
+			len = -1;
+		}
+		if(this.r.global) {
+			this.r.lastIndex = pos;
+			this.r.m = this.r.exec(len < 0 ? s : HxOverrides.substr(s,0,pos + len));
+			let b = this.r.m != null;
+			if(b) {
+				this.r.s = s;
+			}
+			return b;
+		} else {
+			let b = this.match(len < 0 ? HxOverrides.substr(s,pos,null) : HxOverrides.substr(s,pos,len));
+			if(b) {
+				this.r.s = s;
+				this.r.m.index += pos;
+			}
+			return b;
+		}
+	}
+}
+$hxClasses["EReg"] = EReg;
+EReg.__name__ = "EReg";
+Object.assign(EReg.prototype, {
+	__class__: EReg
+});
 class swf_DisplayObject {
 	constructor(__charId) {
 		if(swf_DisplayObject._hx_skip_constructor) {
@@ -1307,6 +1359,8 @@ class swf_DisplayObject {
 		this.__ratio = 0;
 		this.__clipDepth = 0;
 		this.__filters = null;
+		this.__filtersScripted = false;
+		this.__blendScripted = false;
 		this.__blend = null;
 		this.__cx = null;
 		this.__rotY = 0;
@@ -1515,6 +1569,7 @@ class swf_DisplayObject {
 		}
 	}
 	set_filters(v) {
+		this.__filtersScripted = true;
 		this.__filters = v == null || v.length == 0 ? null : v.slice();
 		return v;
 	}
@@ -1527,6 +1582,7 @@ class swf_DisplayObject {
 		}
 	}
 	set_blendMode(v) {
+		this.__blendScripted = true;
 		if(typeof(v) == "number" && ((v | 0) === v)) {
 			this.__blend = swf_DisplayObject.BLENDS[v];
 		} else {
@@ -1990,8 +2046,12 @@ class swf_MovieClip extends swf_DisplayObject {
 		}
 		c.__ratio = e.r != null ? e.r : 0;
 		c.__clipDepth = e.clip != null ? e.clip + (-16384) : 0;
-		c.__blend = e.blend;
-		c.__filters = e.filters;
+		if(!c.__blendScripted || fresh) {
+			c.__blend = e.blend;
+		}
+		if(!c.__filtersScripted || fresh) {
+			c.__filters = e.filters;
+		}
 	}
 	__runActions(frame,acts) {
 		if(this._parent == null && !this.__isRoot) {
@@ -31406,6 +31466,26 @@ class swf_Renderer {
 			}
 		}
 		if(((o) instanceof swf_MovieClip)) {
+			if(o.__blend == "layer") {
+				let layer = this.acquireLayer();
+				let lg = layer.getContext("2d",null);
+				lg.setTransform(1,0,0,1,0,0);
+				lg.globalCompositeOperation = "source-over";
+				lg.globalAlpha = 1;
+				lg.clearRect(0,0,layer.width,layer.height);
+				let inner = __cx.slice();
+				let alpha = inner[3];
+				inner[3] = 1;
+				this.drawChildren(lg,o,m,inner,null);
+				g.setTransform(1,0,0,1,0,0);
+				g.globalAlpha = Math.max(0,Math.min(1,alpha));
+				g.globalCompositeOperation = op != null ? op : "source-over";
+				g.drawImage(layer,0,0);
+				g.globalAlpha = 1;
+				g.globalCompositeOperation = "source-over";
+				this.layerIndex--;
+				return;
+			}
 			this.drawChildren(g,o,m,__cx,op);
 			return;
 		}
@@ -31536,37 +31616,32 @@ class swf_Renderer {
 		let b_0 = lb.xMin;
 		let b_1 = lb.yMin;
 		let b_2 = lb.xMax;
-		let size = t.fontSize();
-		let font = d.font != null ? Reflect.field(swf_Library.inst.data.chars,Std.string(d.font)) : t.format.font != null ? { name : t.format.font, bold : t.format.bold} : null;
-		let name = font != null && font.name != null ? font.name : "Verdana";
 		g.setTransform(m[0],m[1],m[2],m[3],m[4],m[5]);
 		g.globalCompositeOperation = op != null ? op : "source-over";
-		let col = t.textColor;
-		let r = Math.max(0,Math.min(255,(col >> 16 & 255) * __cx[0] + __cx[4])) | 0;
-		let gg = Math.max(0,Math.min(255,(col >> 8 & 255) * __cx[1] + __cx[5])) | 0;
-		let bb = Math.max(0,Math.min(255,(col & 255) * __cx[2] + __cx[6])) | 0;
 		g.globalAlpha = Math.max(0,Math.min(1,__cx[3] + __cx[7] / 255));
-		g.fillStyle = "rgb(" + r + "," + gg + "," + bb + ")";
-		g.font = (font != null && font.bold ? "bold " : "") + size + "px " + name + ", Verdana, sans-serif";
+		g.font = t.fontCss();
 		g.textBaseline = "top";
+		g.textAlign = "left";
 		let align = d.align != null ? d.align : t.format.align == "right" ? 1 : t.format.align == "center" ? 2 : 0;
-		let x = b_0 + 2;
-		if(align == 1) {
-			g.textAlign = "right";
-			x = b_2 - 2;
-		} else if(align == 2) {
-			g.textAlign = "center";
-			x = (b_0 + b_2) / 2;
-		} else {
-			g.textAlign = "left";
-		}
-		let lines = t.__plainText().split("\n");
 		let y = b_1 + 2;
-		let leading = d.leading != null ? d.leading : 0;
+		let lh = t.lineHeight();
 		let _g = 0;
-		while(_g < lines.length) {
-			g.fillText(lines[_g++],x,y);
-			y += size + leading + 2;
+		let _g1 = t.__layout().lines;
+		while(_g < _g1.length) {
+			let l = _g1[_g];
+			++_g;
+			let x = align == 1 ? b_2 - 2 - l.w : align == 2 ? (b_0 + b_2 - l.w) / 2 : b_0 + 2;
+			let _g2 = 0;
+			let _g3 = l.runs;
+			while(_g2 < _g3.length) {
+				let r = _g3[_g2];
+				++_g2;
+				let col = r.c != null ? r.c : t.textColor;
+				g.fillStyle = "rgb(" + (Math.max(0,Math.min(255,(col >> 16 & 255) * __cx[0] + __cx[4])) | 0) + "," + (Math.max(0,Math.min(255,(col >> 8 & 255) * __cx[1] + __cx[5])) | 0) + "," + (Math.max(0,Math.min(255,(col & 255) * __cx[2] + __cx[6])) | 0) + ")";
+				g.fillText(r.t,x,y);
+				x += g.measureText(r.t).width;
+			}
+			y += lh;
 		}
 		g.globalAlpha = 1;
 	}
@@ -31725,6 +31800,8 @@ class swf_TextField extends swf_DisplayObject {
 				this.variable = this.__def.variable;
 			}
 			this.html = this.__def.html == true;
+			this.wordWrap = this.__def.wordWrap == true;
+			this.multiline = this.__def.multiline == true;
 			if(this.__def.color != null) {
 				let c = this.__def.color;
 				this.textColor = c[0] << 16 | c[1] << 8 | c[2];
@@ -31732,10 +31809,141 @@ class swf_TextField extends swf_DisplayObject {
 		}
 	}
 	get_textWidth() {
-		return (this.text == null ? 0 : this.text.length) * this.fontSize() * 0.6;
+		let w = 0.0;
+		let _g = 0;
+		let _g1 = this.__layout().lines;
+		while(_g < _g1.length) {
+			let l = _g1[_g];
+			++_g;
+			if(l.w > w) {
+				w = l.w;
+			}
+		}
+		return w;
 	}
 	get_textHeight() {
-		return this.fontSize() * 1.2;
+		let n = this.__layout().lines.length;
+		if(n == 0) {
+			return 0;
+		} else {
+			return n * this.lineHeight() - this.leading();
+		}
+	}
+	leading() {
+		if(this.__def != null && this.__def.leading != null) {
+			return this.__def.leading;
+		} else {
+			return 0;
+		}
+	}
+	lineHeight() {
+		return this.fontSize() + this.leading() + 2;
+	}
+	fontCss() {
+		let font = this.__def != null && this.__def.font != null ? Reflect.field(swf_Library.inst.data.chars,Std.string(this.__def.font)) : this.format.font != null ? { name : this.format.font, bold : this.format.bold} : null;
+		let name = font != null && font.name != null ? font.name : "Verdana";
+		return (font != null && font.bold ? "bold " : "") + this.fontSize() + "px " + name + ", Verdana, sans-serif";
+	}
+	__layout() {
+		let lb = this.__localBounds();
+		let width = lb.xMax - lb.xMin - 4;
+		let font = this.fontCss();
+		let key = this.text + "|" + font + "|" + width + "|" + Std.string(this.wordWrap) + "|" + Std.string(this.html);
+		if(key == this.__layoutKey) {
+			return this.__layoutCache;
+		}
+		if(swf_TextField.measureCtx == null) {
+			swf_TextField.measureCtx = window.document.createElement("canvas").getContext("2d",null);
+		}
+		let g = swf_TextField.measureCtx;
+		g.font = font;
+		let pieces = [];
+		let t = this.text == null ? "" : this.text;
+		if(this.html || t.indexOf("<") >= 0) {
+			let colors = [null];
+			let re = new EReg("<[^>]*>|[^<]+","g");
+			let pos = 0;
+			while(re.matchSub(t,pos)) {
+				let m = re.matched(0);
+				let mp = re.matchedPos();
+				pos = mp.pos + mp.len;
+				if(m.charAt(0) == "<") {
+					let tag = m.toLowerCase();
+					if(new EReg("^<br","").match(tag) || tag == "</p>") {
+						pieces.push({ t : "\n", c : null});
+					} else if(tag.startsWith("<font")) {
+						let cm = new EReg("color\\s*=\\s*[\"']?#([0-9a-f]{6})","i");
+						colors.push(cm.match(m) ? Std.parseInt("0x" + cm.matched(1)) : colors[colors.length - 1]);
+					} else if(tag == "</font>" && colors.length > 1) {
+						colors.pop();
+					}
+				} else {
+					pieces.push({ t : StringTools.htmlUnescape(m), c : colors[colors.length - 1]});
+				}
+			}
+			if(pieces.length > 0 && pieces[pieces.length - 1].t == "\n") {
+				pieces.pop();
+			}
+		} else {
+			pieces.push({ t : t, c : null});
+		}
+		let lines = [];
+		let cur = { w : 0.0, runs : []};
+		lines.push(cur);
+		let _gthis = this;
+		let add = function(word,c) {
+			let w = g.measureText(word).width;
+			if(_gthis.wordWrap && width > 0 && cur.w > 0 && cur.w + w > width && StringTools.trim(word) != "") {
+				let last = cur.runs[cur.runs.length - 1];
+				if(last != null && last.t.endsWith(" ")) {
+					last.t = HxOverrides.substr(last.t,0,last.t.length - 1);
+					cur.w -= g.measureText(" ").width;
+				}
+				cur = { w : 0.0, runs : []};
+				lines.push(cur);
+				if(StringTools.trim(word) == "") {
+					return;
+				}
+			}
+			let last = cur.runs[cur.runs.length - 1];
+			if(last != null && last.c == c) {
+				last.t += word;
+			} else {
+				cur.runs.push({ t : word, c : c});
+			}
+			cur.w += w;
+		};
+		let _g = 0;
+		while(_g < pieces.length) {
+			let p = pieces[_g];
+			++_g;
+			if(p.t == "\n") {
+				cur = { w : 0.0, runs : []};
+				lines.push(cur);
+				continue;
+			}
+			let parts = p.t.split("\n");
+			let _g1 = 0;
+			let _g2 = parts.length;
+			while(_g1 < _g2) {
+				let i = _g1++;
+				if(i > 0) {
+					cur = { w : 0.0, runs : []};
+					lines.push(cur);
+				}
+				let wr = new EReg("[^ ]+ *| +","g");
+				let q = 0;
+				let str = parts[i];
+				while(q < str.length && wr.matchSub(str,q)) {
+					let mp = wr.matchedPos();
+					add(wr.matched(0),p.c);
+					q = mp.pos + mp.len;
+				}
+			}
+		}
+		this.__layoutKey = key;
+		this.__layoutCache = { lines : lines};
+		return this.__layoutCache;
 	}
 	get_length() {
 		if(this.text == null) {

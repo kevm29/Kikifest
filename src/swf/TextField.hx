@@ -36,6 +36,8 @@ class TextField extends DisplayObject {
 			if (__def.variable != null)
 				variable = __def.variable;
 			html = __def.html == true;
+			wordWrap = __def.wordWrap == true;
+			multiline = __def.multiline == true;
 			if (__def.color != null) {
 				var c:Array<Int> = __def.color;
 				textColor = (c[0] << 16) | (c[1] << 8) | c[2];
@@ -43,9 +45,127 @@ class TextField extends DisplayObject {
 		}
 	}
 
-	function get_textWidth():Float return (text == null ? 0 : text.length) * fontSize() * 0.6;
+	function get_textWidth():Float {
+		var w = 0.0;
+		for (l in __layout().lines)
+			if (l.w > w)
+				w = l.w;
+		return w;
+	}
 
-	function get_textHeight():Float return fontSize() * 1.2;
+	function get_textHeight():Float {
+		var n = __layout().lines.length;
+		return n == 0 ? 0 : n * lineHeight() - leading();
+	}
+
+	public function leading():Float return __def != null && __def.leading != null ? __def.leading : 0;
+
+	public function lineHeight():Float return fontSize() + leading() + 2;
+
+	/** Police CSS du champ (police du SWF si connue, sinon Verdana). */
+	public function fontCss():String {
+		var font:Dynamic = __def != null && __def.font != null ? Library.inst.char(__def.font) : (format.font != null ? {name: format.font, bold: format.bold} : null);
+		var name = font != null && font.name != null ? font.name : "Verdana";
+		return (font != null && font.bold ? "bold " : "") + fontSize() + "px " + name + ", Verdana, sans-serif";
+	}
+
+	static var measureCtx:js.html.CanvasRenderingContext2D;
+	var __layoutKey:String;
+	var __layoutCache:Dynamic;
+
+	/**
+		Mise en page : découpe en lignes (retours à la ligne, et coupure des mots à la largeur du
+		champ si wordWrap), chaque ligne étant une suite de morceaux colorés (<font color> en HTML).
+	**/
+	public function __layout():{lines:Array<{w:Float, runs:Array<{t:String, c:Null<Int>}>}>} {
+		var lb = __localBounds();
+		var width = lb.xMax - lb.xMin - 4;
+		var font = fontCss();
+		var key = text + "|" + font + "|" + width + "|" + wordWrap + "|" + html;
+		if (key == __layoutKey)
+			return __layoutCache;
+		if (measureCtx == null)
+			measureCtx = js.Browser.document.createCanvasElement().getContext2d();
+		var g = measureCtx;
+		g.font = font;
+		// morceaux : {t, c} avec "\n" pour les retours à la ligne
+		var pieces:Array<{t:String, c:Null<Int>}> = [];
+		var t = text == null ? "" : text;
+		if (html || t.indexOf("<") >= 0) {
+			var colors:Array<Null<Int>> = [null];
+			var re = ~/<[^>]*>|[^<]+/g;
+			var pos = 0;
+			while (re.matchSub(t, pos)) {
+				var m = re.matched(0);
+				var mp = re.matchedPos();
+				pos = mp.pos + mp.len;
+				if (m.charAt(0) == "<") {
+					var tag = m.toLowerCase();
+					if (~/^<br/.match(tag) || tag == "</p>")
+						pieces.push({t: "\n", c: null});
+					else if (StringTools.startsWith(tag, "<font")) {
+						var cm = ~/color\s*=\s*["']?#([0-9a-f]{6})/i;
+						colors.push(cm.match(m) ? Std.parseInt("0x" + cm.matched(1)) : colors[colors.length - 1]);
+					} else if (tag == "</font>" && colors.length > 1)
+						colors.pop();
+				} else
+					pieces.push({t: StringTools.htmlUnescape(m), c: colors[colors.length - 1]});
+			}
+			if (pieces.length > 0 && pieces[pieces.length - 1].t == "\n")
+				pieces.pop();
+		} else
+			pieces.push({t: t, c: null});
+		var lines:Array<{w:Float, runs:Array<{t:String, c:Null<Int>}>}> = [];
+		var cur = {w: 0.0, runs: []};
+		lines.push(cur);
+		function add(word:String, c:Null<Int>) {
+			var w = g.measureText(word).width;
+			if (wordWrap && width > 0 && cur.w > 0 && cur.w + w > width && StringTools.trim(word) != "") {
+				// supprime l'espace final de la ligne coupée
+				var last = cur.runs[cur.runs.length - 1];
+				if (last != null && StringTools.endsWith(last.t, " ")) {
+					last.t = last.t.substr(0, last.t.length - 1);
+					cur.w -= g.measureText(" ").width;
+				}
+				cur = {w: 0.0, runs: []};
+				lines.push(cur);
+				if (StringTools.trim(word) == "")
+					return;
+			}
+			var last = cur.runs[cur.runs.length - 1];
+			if (last != null && last.c == c)
+				last.t += word;
+			else
+				cur.runs.push({t: word, c: c});
+			cur.w += w;
+		}
+		for (p in pieces) {
+			if (p.t == "\n") {
+				cur = {w: 0.0, runs: []};
+				lines.push(cur);
+				continue;
+			}
+			var parts = p.t.split("\n");
+			for (i in 0...parts.length) {
+				if (i > 0) {
+					cur = {w: 0.0, runs: []};
+					lines.push(cur);
+				}
+				// mots avec leur espace final
+				var wr = ~/[^ ]+ *| +/g;
+				var q = 0;
+				var str = parts[i];
+				while (q < str.length && wr.matchSub(str, q)) {
+					var mp = wr.matchedPos();
+					add(wr.matched(0), p.c);
+					q = mp.pos + mp.len;
+				}
+			}
+		}
+		__layoutKey = key;
+		__layoutCache = {lines: lines};
+		return __layoutCache;
+	}
 
 	function get_length():Int return text == null ? 0 : text.length;
 

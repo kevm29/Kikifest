@@ -23,6 +23,8 @@ class DisplayObject {
 	public var __cx:Null<Array<Float>> = null;
 
 	public var __blend:Null<String> = null;
+	public var __blendScripted = false;
+	public var __filtersScripted = false;
 	public var __filters:Null<Array<Dynamic>> = null;
 	public var __clipDepth:Int = 0;
 	public var __ratio:Int = 0;
@@ -259,6 +261,7 @@ class DisplayObject {
 	function get_filters():Array<Dynamic> return __filters == null ? [] : __filters.copy();
 
 	function set_filters(v:Array<Dynamic>):Array<Dynamic> {
+		__filtersScripted = true;
 		__filters = v == null || v.length == 0 ? null : v.copy();
 		return v;
 	}
@@ -273,6 +276,7 @@ class DisplayObject {
 	}
 
 	function set_blendMode(v:Dynamic):Dynamic {
+		__blendScripted = true;
 		if (Std.isOfType(v, Int))
 			__blend = BLENDS[v];
 		else
