@@ -120,7 +120,7 @@ class MultiCoop extends mode.Adventure
 			{
 				__S_reachedLevel	: dimensions[0].currentId,
 				__S_item2			: getPicks2(),
-				__S_data			: { __S_s0:savedScores[0], __S_s1:savedScores[1] },
+				__S_data			: { __S_s0:savedScores[0], __S_s1:savedScores[1], __S_s2:savedScores[2], __S_s3:savedScores[3] }, // Kikifest : 3e et 4e joueurs
 			}
 		);
 	}
