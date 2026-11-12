@@ -29,11 +29,14 @@ class DemoGame implements RollbackGame<Array<Int>> {
 	static inline var RNG = 1;
 	static inline var PLAYERS = 2;
 	static inline var P_STRIDE = 6; // x, y, vx, vy, score, recharge
-	static inline var BALLS_AT = PLAYERS + 2 * P_STRIDE;
 	static inline var B_STRIDE = 4; // x, y, vx, vy
-	static inline var STATE_SIZE = BALLS_AT + BALLS * B_STRIDE;
 
 	public var s:Array<Int>;
+
+	/** Nombre de joueurs (2 par défaut, jusqu'à 4). **/
+	public var players(default, null):Int;
+
+	var BALLS_AT:Int;
 
 	/** Pour les tests : altère l'état à cette frame (simule un bug de désynchro). **/
 	public var corruptAtFrame = -1;
@@ -41,11 +44,13 @@ class DemoGame implements RollbackGame<Array<Int>> {
 	/** Pour les tests : oublie la graine dans save() (bug que SyncTest doit trouver). **/
 	public var forgetRngInSave = false;
 
-	public function new(seed:Int) {
-		s = [for (i in 0...STATE_SIZE) 0];
+	public function new(seed:Int, players = 2) {
+		this.players = players;
+		BALLS_AT = PLAYERS + players * P_STRIDE;
+		s = [for (i in 0...BALLS_AT + BALLS * B_STRIDE) 0];
 		s[RNG] = seed == 0 ? 0x1234567 : seed;
-		for (p in 0...2) {
-			s[PLAYERS + p * P_STRIDE] = (p == 0 ? 160 : 480) * FP;
+		for (p in 0...players) {
+			s[PLAYERS + p * P_STRIDE] = (players == 2 ? (p == 0 ? 160 : 480) : 80 + p * Std.int(480 / (players - 1))) * FP;
 			s[PLAYERS + p * P_STRIDE + 1] = (HEIGHT - PLAYER_SIZE) * FP;
 		}
 		for (b in 0...BALLS) {
@@ -64,7 +69,7 @@ class DemoGame implements RollbackGame<Array<Int>> {
 
 	public function advance(inputs:Array<Int>):Void {
 		var f = s[FRAME];
-		for (p in 0...2)
+		for (p in 0...players)
 			updatePlayer(p, inputs[p]);
 		var wind = 0;
 		if (f % 40 == 0)

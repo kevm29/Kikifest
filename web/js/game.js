@@ -217,6 +217,8 @@ class Boot {
 		let mode = Boot.netCfg != null ? Boot.netCfg.mode : params.get("mode");
 		Boot.root["$mode"] = mode != null ? mode : "solo";
 		Boot.root["$version"] = "WIN 8,0,0,0";
+		let nj = Boot.netCfg != null && Boot.netCfg.players != null ? Boot.netCfg.players | 0 : Std.parseInt(params.get("joueurs"));
+		Boot.root["$joueurs"] = nj != null ? "" + nj : "2";
 		let _g = 0;
 		let _g1 = [["$options",""],["$lang","fr"],["$shake","1"],["$detail","1"],["$sound","1"],["$music","1"],["$volume","100"]];
 		while(_g < _g1.length) {
@@ -233,6 +235,11 @@ class Boot {
 		mtlib_SoundBank.set_musicVolume(Boot.settings.music / 100);
 		mtlib_SoundBank.set_sfxVolume(Boot.settings.sfx / 100);
 		let canvas = window.document.getElementById("game");
+		if(nj != null && nj > 2) {
+			let hh = Data.DOC_HEIGHT + gui_GameInterface.ROW2_DY;
+			canvas.style.setProperty("aspect-ratio","" + Data.DOC_WIDTH + " / " + hh);
+			canvas.style.height = "min(92vh, calc(96vw * " + hh + " / " + Data.DOC_WIDTH + "))";
+		}
 		Boot.renderer = new swf_Renderer(canvas);
 		Boot.renderer.background = "#000";
 		let _g2 = [];
@@ -367,7 +374,7 @@ class Boot {
 			++_g1;
 			let c = p.ctrl;
 			let pid = p.pid;
-			if(c == null || pid == null || pid < 0 || pid > 1) {
+			if(c == null || pid == null || pid < 0 || pid > 3) {
 				continue;
 			}
 			let base = 1000 + pid * 10;
@@ -392,6 +399,29 @@ class Boot {
 			}
 		}
 	}
+	static robotMask(k) {
+		let r = Boot.robots[k];
+		if(--r.until <= 0) {
+			r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			r.until = 10 + (r.seed & 2147483647) % 40;
+			r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			r.mask = [0,4,8,4,8,1][(r.seed & 2147483647) % 6];
+			r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			if((r.seed & 2147483647) % 3 == 0) {
+				r.mask |= 16;
+			}
+		}
+		let m = r.mask;
+		r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+		r.seed ^= r.seed << 5;
+		if((r.seed & 2147483647) % 8 == 0) {
+			r.mask &= -17;
+		}
+		return m;
+	}
 	static localStep() {
 		try {
 			Boot.step();
@@ -403,6 +433,8 @@ class Boot {
 		Boot.localInputs[0] = Boot.localMask(false);
 		let mode = Reflect.field(Boot.root,"$mode");
 		Boot.localInputs[1] = Boot.netCfg == null && (mode == "multicoop" || mode == "soccer" || mode == "multitime") ? Boot.localMask(true) : 0;
+		Boot.localInputs[2] = Boot.netCfg == null && mode == "multicoop" ? Boot.robotMask(0) : 0;
+		Boot.localInputs[3] = Boot.netCfg == null && mode == "multicoop" ? Boot.robotMask(1) : 0;
 		if(Boot.netLost) {
 			Boot.localInputs = Boot.netPlayer == 0 ? [Boot.localMask(false) & -129,0] : [0,Boot.localMask(false) & -129];
 		}
@@ -4390,6 +4422,20 @@ class Reflect {
 		}
 		delete(o[field]);
 		return true;
+	}
+	static copy(o) {
+		if(o == null) {
+			return null;
+		}
+		let o2 = { };
+		let _g = 0;
+		let _g1 = Reflect.fields(o);
+		while(_g < _g1.length) {
+			let f = _g1[_g];
+			++_g;
+			o2[f] = Reflect.field(o,f);
+		}
+		return o2;
 	}
 }
 $hxClasses["Reflect"] = Reflect;
@@ -18073,6 +18119,38 @@ class gui_GameInterface {
 		this.baseColor = Data.BASE_COLORS[0];
 		this.update();
 	}
+	kikiField(tf,x,w,align) {
+		if(tf == null || tf.__def == null) {
+			return;
+		}
+		let d = Reflect.copy(tf.__def);
+		d.size = 14;
+		d.align = align;
+		d.b = [0,-2,w,20.15];
+		tf.__def = d;
+		tf._x = x;
+		tf._y = -19.2;
+	}
+	maxLives() {
+		if(this.fl_multi) {
+			return 4;
+		} else {
+			return gui_GameInterface.MAX_LIVES;
+		}
+	}
+	tintLife(m,pid) {
+		if(m == null) {
+			return;
+		}
+		if(this.mc2 != null) {
+			m._xscale = 80;
+			m._yscale = 80;
+			m._y += 2;
+		}
+		if(gui_GameInterface.LIFE_TINTS[pid] != null) {
+			new mtlib_Color(m).setTransform(gui_GameInterface.LIFE_TINTS[pid]);
+		}
+	}
 	initSingle() {
 		this.fl_multi = false;
 		let tmp = this.game;
@@ -18244,12 +18322,97 @@ class gui_GameInterface {
 			let tmp = this.mc;
 			tmp19.push(tmp != null ? tmp.letter1_6 : null);
 		}
+		let tmp20 = this.game;
+		if((tmp20 != null ? tmp20.countList(Data.PLAYER) : null) > 2) {
+			let tmp = this.game;
+			let tmp1 = tmp != null ? tmp.depthMan : null;
+			this.mc2 = tmp1 != null ? tmp1.attach("hammer_interf_game",Data.DP_TOP) : null;
+			if(this.mc2 != null) {
+				let tmp = this.game;
+				this.mc2.set__x(-(tmp != null ? tmp.xOffset : null));
+			}
+			if(this.mc2 != null) {
+				this.mc2.set__y(Data.DOC_HEIGHT + gui_GameInterface.ROW2_DY);
+			}
+			let tmp2 = this.mc2;
+			if(tmp2 != null) {
+				tmp2.gotoAndStop("2");
+			}
+			if(this.mc2 != null) {
+				this.mc2.cacheAsBitmap = true;
+			}
+			let tmp3 = this.game;
+			let npl = tmp3 != null ? tmp3.countList(Data.PLAYER) : null;
+			let tmp4 = this.mc2;
+			this.scores[2] = tmp4 != null ? tmp4.score0 : null;
+			let k = 2;
+			while(k < 4) {
+				if(k < npl) {
+					this.letters[k] = [];
+					let j = 0;
+					while(j < 7) {
+						let tmp = this.letters[k];
+						if(tmp != null) {
+							tmp.push(mtlib_MtStd.getVar(this.mc2,"letter" + (k - 2) + "_" + Std.string(j)));
+						}
+						j += 1;
+					}
+				} else {
+					let j = 0;
+					while(j < 7) {
+						let l = mtlib_MtStd.getVar(this.mc2,"letter" + (k - 2) + "_" + Std.string(j));
+						if(l != null) {
+							l._visible = false;
+						}
+						j += 1;
+					}
+					let tmp = this.mc2;
+					if((tmp != null ? tmp.score1 : null) != null) {
+						this.mc2.score1._visible = false;
+					}
+				}
+				k += 1;
+			}
+			if(npl > 3) {
+				let tmp = this.mc2;
+				this.scores[3] = tmp != null ? tmp.score1 : null;
+			}
+		}
+		this.kikiField(this.scores[0],122,80,1);
+		this.kikiField(this.scores[1],220,80,0);
+		this.kikiField(this.scores[2],122,80,1);
+		this.kikiField(this.scores[3],220,80,0);
+		let top = -Data.DOC_HEIGHT;
+		let arrow = new swf_DisplayObject(gui_GameInterface.LEVEL_ARROW);
+		if(arrow != null) {
+			let tmp = this.game;
+			arrow._x = (tmp != null ? tmp.xOffset : null) + 4 - 261;
+		}
+		if(arrow != null) {
+			arrow._y = top + 22;
+		}
+		let tmp21 = this.mc;
+		if(tmp21 != null) {
+			tmp21.__addChildAt(arrow,949);
+		}
+		let tmp22 = this.mc;
+		let lv = tmp22 != null ? tmp22.createTextField("$kikiLevel",950,0,0,40,20) : null;
+		if(lv != null) {
+			let tmp = this.scores[0];
+			lv.__def = Reflect.copy(tmp != null ? tmp.__def : null);
+		}
+		let tmp23 = this.game;
+		this.kikiField(lv,(tmp23 != null ? tmp23.xOffset : null) + 24,40,0);
+		if(lv != null) {
+			lv._y = top + 2;
+		}
+		this.level = lv;
 		this.fakeScores = [];
 		this.realScores = [];
 		this.currentLives = [];
 		this.lives = [];
-		let tmp20 = this.game;
-		let pl = tmp20 != null ? tmp20.getPlayerList() : null;
+		let tmp24 = this.game;
+		let pl = tmp24 != null ? tmp24.getPlayerList() : null;
 		let i = 0;
 		while(i < (pl != null ? pl.length : null)) {
 			let p = pl[i];
@@ -18369,12 +18532,13 @@ class gui_GameInterface {
 		}
 	}
 	setLives(pid,v) {
+		let host = pid >= 2 ? this.mc2 : this.mc;
 		let baseX = gui_GameInterface.BASE_X;
 		let baseWid = gui_GameInterface.BASE_WIDTH;
 		if(this.fl_multi) {
 			baseWid = 0.6 * gui_GameInterface.BASE_WIDTH;
 		}
-		if(pid == 1) {
+		if(pid % 2 == 1) {
 			baseWid *= -1;
 			baseX = gui_GameInterface.BASE_X_RIGHT;
 		}
@@ -18396,30 +18560,31 @@ class gui_GameInterface {
 				this.currentLives[pid]--;
 			}
 		} else {
-			while(this.currentLives[pid] < v && this.currentLives[pid] < gui_GameInterface.MAX_LIVES) {
-				let mc = mtlib_MtStd.attachMC(this.mc,"hammer_interf_life",this.game.manager.uniq++);
+			while(this.currentLives[pid] < v && this.currentLives[pid] < this.maxLives()) {
+				let mc = mtlib_MtStd.attachMC(host,"hammer_interf_life",this.game.manager.uniq++);
 				if(mc != null) {
 					mc._x = baseX + this.currentLives[pid] * baseWid;
 				}
 				if(mc != null) {
 					mc._y = -19;
 				}
+				this.tintLife(mc,pid);
 				plives[this.currentLives[pid]] = mc;
 				this.currentLives[pid]++;
 			}
 			let tmp;
-			if(v > gui_GameInterface.MAX_LIVES) {
+			if(v > this.maxLives()) {
 				let tmp1 = this.more[pid];
 				tmp = (tmp1 != null ? tmp1._name : null) == null;
 			} else {
 				tmp = false;
 			}
 			if(tmp) {
-				this.more[pid] = mtlib_MtStd.attachMC(this.mc,"hammer_interf_more",this.game.manager.uniq++);
+				this.more[pid] = mtlib_MtStd.attachMC(host,"hammer_interf_more",this.game.manager.uniq++);
 				if(this.more[pid] != null) {
-					this.more[pid].set__x(baseX + baseWid * gui_GameInterface.MAX_LIVES - 4);
+					this.more[pid].set__x(baseX + baseWid * this.maxLives() - 4);
 				}
-				if(pid > 0) {
+				if(pid % 2 == 1) {
 					if(this.more[pid] != null) {
 						let fh = this.more[pid];
 						fh.set__x(fh.get__x() - baseWid);
@@ -18430,7 +18595,7 @@ class gui_GameInterface {
 				}
 			}
 			let tmp1;
-			if(v <= gui_GameInterface.MAX_LIVES) {
+			if(v <= this.maxLives()) {
 				let tmp = this.more[pid];
 				tmp1 = (tmp != null ? tmp._name : null) != null;
 			} else {
@@ -18486,6 +18651,10 @@ class gui_GameInterface {
 		let tmp = this.mc;
 		if(tmp != null) {
 			tmp.removeMovieClip();
+		}
+		let tmp1 = this.mc2;
+		if(tmp1 != null) {
+			tmp1.removeMovieClip();
 		}
 	}
 	update() {
@@ -27250,6 +27419,13 @@ class mode_MultiCoop extends mode_Adventure {
 			if(tmp != null) {
 				tmp.setKeys(82,70,68,71,65);
 			}
+			let n = Std.parseInt("" + Std.string(mtlib_MtStd.getVar(mtlib_MtStd.getRoot(),"$joueurs")));
+			let cols = [9,10];
+			let k = 2;
+			while(n != null && k < n && k < 4) {
+				this.insertPlayer(cols[k - 2],-2);
+				k += 1;
+			}
 		} else {
 			let tmp = p1 != null ? p1.ctrl : null;
 			if(tmp != null) {
@@ -27315,6 +27491,28 @@ class mode_MultiCoop extends mode_Adventure {
 			if(p != null) {
 				p.head = p != null ? p.defaultHead : null;
 			}
+		}
+		if((p != null ? p.pid : null) >= 2) {
+			if(p != null) {
+				p.name = (p != null ? p.pid : null) == 2 ? "Joueur 3" : "Joueur 4";
+			}
+			if(p != null) {
+				p.darkColor = (p != null ? p.pid : null) == 2 ? 2058794 : 2237050;
+			}
+		}
+	}
+	main() {
+		super.main();
+		let pl = this.getPlayerList();
+		let i = 0;
+		while(i < (pl != null ? pl.length : null)) {
+			let p = pl[i];
+			if((p != null ? p.pid : null) >= 2 && (p != null ? p.color : null) == null && ((p != null ? p.fl_alphaBlink : null) || !(p != null ? p.fl_blinked : null))) {
+				if(p != null) {
+					p.setColorHex(45,(p != null ? p.pid : null) == 2 ? 2791994 : 3824895);
+				}
+			}
+			i += 1;
 		}
 	}
 	saveScore() {
@@ -32285,7 +32483,8 @@ Boot.SET_VARS = (function($this) {
 }(this));
 Boot.pressed = new haxe_ds_StringMap();
 Boot.VKEY = 1000;
-Boot.localInputs = [0,0];
+Boot.localInputs = [0,0,0,0];
+Boot.robots = [{ seed : 39083849, mask : 0, until : 0},{ seed : 63369015, mask : 0, until : 0}];
 Boot.netPlayer = 0;
 Boot.netLost = false;
 Boot.lastNetInfo = 0.0;
@@ -32794,6 +32993,9 @@ gui_GameInterface.BASE_X = 92;
 gui_GameInterface.BASE_X_RIGHT = 300;
 gui_GameInterface.BASE_WIDTH = 20;
 gui_GameInterface.MAX_LIVES = 8;
+gui_GameInterface.ROW2_DY = 20;
+gui_GameInterface.LEVEL_ARROW = 3971;
+gui_GameInterface.LIFE_TINTS = [null,{ ra : 100, ga : 25, ba : 25, rb : 20, gb : 0, bb : 0},{ ra : 30, ga : 100, ba : 60, rb : 0, gb : 20, bb : 0},{ ra : 25, ga : 45, ba : 100, rb : 0, gb : 10, bb : 150}];
 gui_SoccerInterface.GLOW_COLOR = gui_GameInterface.GLOW_COLOR;
 haxe_io_FPHelper.i64tmp = new haxe__$Int64__$_$_$Int64(0,0);
 haxe_io_FPHelper.helper = new DataView(new ArrayBuffer(8));

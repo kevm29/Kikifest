@@ -90,6 +90,9 @@ class Boot {
 		var mode = netCfg != null ? netCfg.mode : params.get("mode");
 		Reflect.setField(root, "$mode", mode != null ? mode : "solo"); // sans précision : Aventure en solo, sans Sandy
 		Reflect.setField(root, "$version", "WIN 8,0,0,0");
+		// étude 3-4 joueurs : nombre de joueurs en Coop (?joueurs=3 ou 4 ; les joueurs 3 et 4 sont des robots en local)
+		var nj = netCfg != null && netCfg.players != null ? Std.int(netCfg.players) : Std.parseInt(params.get("joueurs"));
+		Reflect.setField(root, "$joueurs", nj != null ? "" + nj : "2");
 		// options que le chargeur Flash d'origine fixait (son, musique, détails, tremblements)
 		for (kv in [["$options", ""], ["$lang", "fr"], ["$shake", "1"], ["$detail", "1"], ["$sound", "1"], ["$music", "1"], ["$volume", "100"]])
 			if (Reflect.field(root, kv[0]) == null)
@@ -100,6 +103,12 @@ class Boot {
 		SoundBank.sfxVolume = settings.sfx / 100;
 
 		var canvas:js.html.CanvasElement = cast Browser.document.getElementById("game");
+		if (nj != null && nj > 2) {
+			// étude 3-4 joueurs : une 2e barre de scores sous le jeu, le canevas s'allonge d'autant
+			var hh = Data.DOC_HEIGHT + gui.GameInterface.ROW2_DY;
+			canvas.style.setProperty("aspect-ratio", '${Data.DOC_WIDTH} / $hh');
+			canvas.style.height = 'min(92vh, calc(96vw * $hh / ${Data.DOC_WIDTH}))';
+		}
 		renderer = new Renderer(canvas);
 		renderer.background = "#000";
 
@@ -224,7 +233,7 @@ class Boot {
 		for (p in players) {
 			var c:Dynamic = p.ctrl;
 			var pid:Int = p.pid;
-			if (c == null || pid == null || pid < 0 || pid > 1)
+			if (c == null || pid == null || pid < 0 || pid > 3)
 				continue;
 			var base = VKEY + pid * 10;
 			if (c.jump != base + 1)
@@ -243,7 +252,30 @@ class Boot {
 		}
 	}
 
-	static var localInputs = [0, 0];
+	static var localInputs = [0, 0, 0, 0];
+
+	/** Étude 3-4 joueurs, en local : les joueurs 3 et 4 se promènent au hasard (robots). **/
+	static var robots = [{seed: 0x2545F49, mask: 0, until: 0}, {seed: 0x3C6EF37, mask: 0, until: 0}];
+
+	static function robotMask(k:Int):Int {
+		var r = robots[k];
+		inline function rnd(n:Int):Int {
+			r.seed ^= r.seed << 13;
+			r.seed ^= r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			return (r.seed & 0x7fffffff) % n;
+		}
+		if (--r.until <= 0) {
+			r.until = 10 + rnd(40);
+			r.mask = [0, meta.Settings.LEFT, meta.Settings.RIGHT, meta.Settings.LEFT, meta.Settings.RIGHT, meta.Settings.UP][rnd(6)];
+			if (rnd(3) == 0)
+				r.mask |= meta.Settings.BOMB;
+		}
+		var m = r.mask;
+		if (rnd(8) == 0)
+			r.mask &= ~meta.Settings.BOMB; // relâche la bombe pour pouvoir en reposer une
+		return m;
+	}
 
 	static function localStep() {
 		try {
@@ -258,6 +290,8 @@ class Boot {
 		localInputs[0] = localMask(false);
 		var mode:String = Reflect.field(root, "$mode");
 		localInputs[1] = netCfg == null && (mode == "multicoop" || mode == "soccer" || mode == "multitime") ? localMask(true) : 0;
+		localInputs[2] = netCfg == null && mode == "multicoop" ? robotMask(0) : 0;
+		localInputs[3] = netCfg == null && mode == "multicoop" ? robotMask(1) : 0;
 		if (netLost)
 			localInputs = netPlayer == 0 ? [localMask(false) & ~meta.Settings.QUIT, 0] : [0, localMask(false) & ~meta.Settings.QUIT];
 		applyInputs(localInputs);

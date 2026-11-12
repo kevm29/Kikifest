@@ -38,6 +38,10 @@ class MultiCoop extends mode.Adventure
 		if ( !fl_bombControl ) {
 			var p2:Dynamic = insertPlayer(14,-2);
 			p2?.ctrl?.setKeys(82/*R*/, 70/*F*/, 68/*D*/, 71/*G*/, 65/*A*/) ;
+			// Kikifest (étude) : 3e et 4e joueurs, ?joueurs=3 ou 4
+			var n:Dynamic = Std.parseInt(""+MtStd.getVar(MtStd.getRoot(),"$joueurs"));
+			var cols:Array<Int> = [9, 10];
+			{ var k:Dynamic=2; while (n!=null && k<n && k<4) { insertPlayer(cols[k-2],-2); k++; } }
 		}
 		else {
 			p1?.ctrl?.setAlt(p1?.ctrl?.attack, Key.CONTROL);
@@ -81,7 +85,27 @@ class MultiCoop extends mode.Adventure
 			{ if (p != null) p.defaultHead	= RootData.HEAD_SANDY; }
 			{ if (p != null) p.head			= p?.defaultHead; }
 		}
+		if ( p?.pid>=2 ) {
+			// Kikifest (étude) : joueurs 3 et 4 = Igor vert et Igor bleu
+			{ if (p != null) p.name			= p?.pid==2 ? "Joueur 3" : "Joueur 4"; }
+			{ if (p != null) p.darkColor		= p?.pid==2 ? 0x1f6a2a : 0x22227a; }
+		}
 //		p.ctrl.fl_upKick = false;
+	}
+
+
+	/*------------------------------------------------------------------------
+	Kikifest (étude) : teinte des joueurs 3 et 4 (remise après un clignotement)
+	------------------------------------------------------------------------*/
+	override public function main()  untyped {
+		super.main();
+		var pl:Dynamic = getPlayerList();
+		{ var i:Dynamic=0; while (i<pl?.length) {
+			var p:Dynamic = pl[i];
+			if ( p?.pid>=2 && p?.color==null && (p?.fl_alphaBlink || !p?.fl_blinked) ) {
+				p?.setColorHex( 45, p?.pid==2 ? 0x2a9a3a : 0x3a5cff );
+			}
+		i++; } }
 	}
 
 
