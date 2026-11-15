@@ -44,6 +44,17 @@ Si personne ne vient, le lien « Jouer seul » lance l'Aventure en solo, sans Sa
 
 - **Même Wi-Fi** (vous êtes dans la même maison) : utilisez le lien « même Wi-Fi ». Rien d'autre à faire.
 - **Par internet** : utilisez le lien « par internet ». Sous le lien, le menu indique s'il a été vérifié.
+  Quand le port est ouvert (vérifié, ou accepté par la box en UPnP), le **lien direct** `http://IP:8080/` est
+  donné en premier ; le tunnel Cloudflare n'apparaît alors qu'en « lien de secours ».
+  Dans tous les cas, une fois la partie lancée, le jeu passe en pair à pair : la barre du bas indique
+  « Liaison directe » quand les touches ne passent ni par le tunnel ni par le serveur.
+
+### Rapport de débogage
+
+En pleine partie, **F9** (ou le petit bouton « 🐞 Rapport de débogage » en bas à droite) télécharge un fichier
+`kikifest-debug-….json` dans le dossier Téléchargements : images par seconde, temps de simulation et de dessin,
+rollback (photos, retours en arrière, frames rejouées), ping, type de liaison, images lentes avec le niveau et
+le nombre de bombes à ce moment-là. C'est ce fichier à envoyer quand ça rame. **F3** affiche ces mesures en direct.
 
 ## 3. Facultatif : ouvrir le port de la box à la main
 
