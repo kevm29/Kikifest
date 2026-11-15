@@ -30,6 +30,14 @@ l'Aventure à deux existe aussi sur un même clavier (2e jeu de touches dans les
 Paramètres d'adresse de `jeu.html` : `?mode=` (mode de jeu, `solo` par défaut : Aventure sans Sandy), `?seed=` (graine du hasard).
 `?families=` force les familles d'objets débloquées, `?nosave` n'enregistre pas la partie.
 
+### Musiques
+
+Le thème d'origine est dans `web/assets/sfx/music.mp3` (avec `boss.mp3` et `hurryUp.mp3`, la musique « vite ! »).
+Pour en ajouter, déposer des morceaux (MP3, OGG, WAV, FLAC, M4A) dans `web/assets/musiques/` : le serveur les liste
+(`/api/musiques`) et le jeu en tire un au hasard à chaque partie. Touche **M** : morceau suivant, puis musique coupée.
+En réseau, l'hôte choisit et l'invité suit. Un morceau ajouté est joué 1,25 fois plus vite quand « vite ! » apparaît.
+Ces morceaux restent chez l'hôte (dossier ignoré par git), voir `src/meta/Jukebox.hx`.
+
 ### Quêtes et collection
 
 Comme sur le site d'origine, les objets ramassés s'additionnent d'une partie à l'autre et débloquent

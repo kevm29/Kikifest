@@ -655,7 +655,7 @@ class Online {
 		doc.body.className = "playing";
 		doc.body.innerHTML = '<canvas id="game"></canvas><div id="status">Chargement…</div>'
 			+ '<div class="help">Vous jouez <b>' + CHARACTERS[idx] + '</b> (' + StringTools.htmlEscape(names[idx]) + ') avec '
-			+ StringTools.htmlEscape(keysText(false)) + ' · ' + others.join(" · ") + ' · P : pause · Échap deux fois : quitter</div>';
+			+ StringTools.htmlEscape(keysText(false)) + ' · ' + others.join(" · ") + ' · P : pause' + (idx == 0 ? ' · M : musique' : '') + ' · Échap deux fois : quitter</div>';
 		var s = doc.createScriptElement();
 		s.src = "js/game.js?r=" + Std.string(cfg.round);
 		doc.body.appendChild(s);
