@@ -1,0 +1,6 @@
+-cp src
+-cp tests
+-main GroupTest
+-js build/grouptest.js
+-D js-es=6
+--cmd node build/grouptest.js

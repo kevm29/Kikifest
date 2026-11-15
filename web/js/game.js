@@ -229,6 +229,8 @@ class Boot {
 		let mode = Boot.netCfg != null ? Boot.netCfg.mode : params.get("mode");
 		Boot.root["$mode"] = mode != null ? mode : "solo";
 		Boot.root["$version"] = "WIN 8,0,0,0";
+		let nj = Boot.netCfg != null && Boot.netCfg.players != null ? Boot.netCfg.players | 0 : Std.parseInt(params.get("joueurs"));
+		Boot.root["$joueurs"] = nj != null ? "" + nj : "2";
 		let _g = 0;
 		let _g1 = [["$options",""],["$lang","fr"],["$shake","1"],["$detail","1"],["$sound","1"],["$music","1"],["$volume","100"]];
 		while(_g < _g1.length) {
@@ -246,6 +248,11 @@ class Boot {
 		mtlib_SoundBank.set_sfxVolume(Boot.settings.sfx / 100);
 		meta_Jukebox.pick(Boot.netCfg != null ? Boot.netCfg.seed | 0 : Std.random(1000000));
 		let canvas = window.document.getElementById("game");
+		if(nj != null && nj > 2) {
+			let hh = Data.DOC_HEIGHT + gui_GameInterface.ROW2_DY;
+			canvas.style.setProperty("aspect-ratio","" + Data.DOC_WIDTH + " / " + hh);
+			canvas.style.height = "min(92vh, calc(96vw * " + hh + " / " + Data.DOC_WIDTH + "))";
+		}
 		Boot.renderer = new swf_Renderer(canvas);
 		Boot.renderer.background = "#000";
 		let _g2 = [];
@@ -383,7 +390,7 @@ class Boot {
 			++_g1;
 			let c = p.ctrl;
 			let pid = p.pid;
-			if(c == null || pid == null || pid < 0 || pid > 1) {
+			if(c == null || pid == null || pid < 0 || pid > 3) {
 				continue;
 			}
 			let base = 1000 + pid * 10;
@@ -408,6 +415,29 @@ class Boot {
 			}
 		}
 	}
+	static robotMask(k) {
+		let r = Boot.robots[k];
+		if(--r.until <= 0) {
+			r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			r.until = 10 + (r.seed & 2147483647) % 40;
+			r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			r.mask = [0,4,8,4,8,1][(r.seed & 2147483647) % 6];
+			r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+			r.seed ^= r.seed << 5;
+			if((r.seed & 2147483647) % 3 == 0) {
+				r.mask |= 16;
+			}
+		}
+		let m = r.mask;
+		r.seed = (r.seed ^= r.seed << 13) ^ r.seed >>> 17;
+		r.seed ^= r.seed << 5;
+		if((r.seed & 2147483647) % 8 == 0) {
+			r.mask &= -17;
+		}
+		return m;
+	}
 	static localStep() {
 		try {
 			Boot.step();
@@ -419,62 +449,103 @@ class Boot {
 		Boot.localInputs[0] = Boot.localMask(false);
 		let mode = Reflect.field(Boot.root,"$mode");
 		Boot.localInputs[1] = Boot.netCfg == null && (mode == "multicoop" || mode == "soccer" || mode == "multitime") ? Boot.localMask(true) : 0;
+		Boot.localInputs[2] = Boot.netCfg == null && mode == "multicoop" ? Boot.robotMask(0) : 0;
+		Boot.localInputs[3] = Boot.netCfg == null && mode == "multicoop" ? Boot.robotMask(1) : 0;
 		if(Boot.netLost) {
 			Boot.localInputs = Boot.netPlayer == 0 ? [Boot.localMask(false) & -129,0] : [0,Boot.localMask(false) & -129];
 		}
 		Boot.applyInputs(Boot.localInputs);
 		Boot.tick();
 	}
-	static startNet() {
-		let peer = Boot.netCfg.peer;
-		Boot.netPlayer = peer.role == "host" ? 0 : 1;
-		net_Snapshot.init([Boot.manager,Boot.root]);
-		Boot.netGame = new NetGame();
-		let kt = new net_transport_KikiNetTransport(peer);
-		kt.onReliable = function(msg) {
-			let m;
-			if(typeof(msg) == "string" && msg.startsWith("{\"t\":\"music\"")) {
-				try {
-					m = JSON.parse(msg);
-				} catch( _g ) {
-					m = null;
-				}
-			} else {
+	static onReliable(msg,link) {
+		let m;
+		if(typeof(msg) == "string" && msg.startsWith("{\"t\":\"music\"")) {
+			try {
+				m = JSON.parse(msg);
+			} catch( _g ) {
 				m = null;
 			}
-			if(m != null) {
-				let i = meta_Jukebox.tracks.indexOf(Std.string(m.f));
-				meta_Jukebox.set(i < 0 ? 0 : i,m.off == true);
-				Boot.notice("Musique (choisie par l'hôte) : " + meta_Jukebox.label());
-			} else if(Boot.netCfg.onReliable != null) {
-				Boot.netCfg.onReliable(msg);
+		} else {
+			m = null;
+		}
+		if(m != null) {
+			if(Boot.netPlayer == 0) {
+				return;
 			}
-		};
-		let transport = new RoundTransport(kt,Boot.netCfg.round | 0);
+			let i = meta_Jukebox.tracks.indexOf(Std.string(m.f));
+			meta_Jukebox.set(i < 0 ? 0 : i,m.off == true);
+			Boot.notice("Musique (choisie par l'hôte) : " + meta_Jukebox.label());
+		} else if(Boot.netCfg.onReliable != null) {
+			Boot.netCfg.onReliable(msg,link);
+		}
+	}
+	static startNet() {
+		let peer = Boot.netCfg.peer;
+		Boot.netPlayer = Boot.netCfg.index != null ? Boot.netCfg.index | 0 : peer.role == "host" ? 0 : 1;
+		Boot.netPlayers = Boot.netCfg.players != null ? Boot.netCfg.players | 0 : 2;
+		net_Snapshot.init([Boot.manager,Boot.root]);
+		Boot.netGame = new NetGame();
+		let links = Boot.netCfg.peers != null ? Boot.netCfg.peers : [peer];
+		let inner;
+		if(Boot.netPlayers <= 2) {
+			let kt = new net_transport_KikiNetTransport(peer);
+			kt.onReliable = function(msg) {
+				Boot.onReliable(msg,peer);
+			};
+			inner = kt;
+		} else {
+			let group = new net_transport_GroupTransport(peer.role == "host");
+			let _g = 0;
+			while(_g < links.length) {
+				let l = links[_g];
+				++_g;
+				let kt = new net_transport_KikiNetTransport(l);
+				kt.onReliable = function(msg) {
+					Boot.onReliable(msg,l);
+				};
+				group.add(kt);
+			}
+			inner = group;
+		}
+		let transport = new RoundTransport(inner,Boot.netCfg.round | 0);
 		let lag = Std.parseInt(new URLSearchParams($global.location.search).get("lag"));
 		if(lag != null && lag > 0) {
 			let lt = new net_transport_LagTransport(transport,lag,lag / 4,0.03,0.01,Boot.netPlayer + 1);
 			Boot.lagTransport = lt;
 			transport = lt;
 		}
-		Boot.session = new net_rollback_RollbackSession(Boot.netGame,transport,{ localPlayer : Boot.netPlayer, now : function() {
-			return window.performance.now();
-		}, inputDelay : 2, maxPrediction : 8, saveEvery : 4});
+		if(Boot.netPlayers <= 2) {
+			let s = new net_rollback_RollbackSession(Boot.netGame,transport,{ localPlayer : Boot.netPlayer, now : function() {
+				return window.performance.now();
+			}, inputDelay : 2, maxPrediction : 8, saveEvery : 4});
+			s.onDesync = function(f,a,b) {
+				$global.console.warn("Désynchronisation à la frame " + f + " (" + a + " / " + b + ")");
+				Boot.netWarning = "Attention : les deux parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
+			};
+			Boot.session = s;
+		} else {
+			let s = new net_rollback_GroupSession(Boot.netGame,transport,{ players : Boot.netPlayers, localPlayer : Boot.netPlayer, now : function() {
+				return window.performance.now();
+			}, inputDelay : 2, maxPrediction : 8, saveEvery : 4});
+			s.onDesync = function(f,who,a,b) {
+				$global.console.warn("Désynchronisation à la frame " + f + " avec le joueur " + (who + 1) + " (" + a + " / " + b + ")");
+				Boot.netWarning = "Attention : les parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
+			};
+			Boot.session = s;
+		}
 		Boot.netGame.session = Boot.session;
-		Boot.session.onDesync = function(f,a,b) {
-			$global.console.warn("Désynchronisation à la frame " + f + " (" + a + " / " + b + ")");
-			Boot.netWarning = "Attention : les deux parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
-		};
-		peer.onclose = function(reason) {
-			if(Boot.session == null) {
-				return;
-			}
-			Boot.session = null;
-			Boot.netLost = true;
-			mtlib_SoundBank.muted = false;
-			Boot.status("L'autre joueur est parti" + (reason != null ? " (" + Std.string(reason) + ")" : "") + " : tu continues seul. Échap deux fois : menu.");
-		};
-		Boot.status("C'est parti ! Vous jouez " + (Boot.netPlayer == 0 ? "Igor" : "Sandy") + ".");
+		if(Boot.netPlayers <= 2) {
+			peer.onclose = function(reason) {
+				if(Boot.session == null) {
+					return;
+				}
+				Boot.session = null;
+				Boot.netLost = true;
+				mtlib_SoundBank.muted = false;
+				Boot.status("L'autre joueur est parti" + (reason != null ? " (" + Std.string(reason) + ")" : "") + " : tu continues seul. Échap deux fois : menu.");
+			};
+		}
+		Boot.status("C'est parti ! Vous jouez " + ["Igor","Sandy","Igor vert","Igor bleu"][Boot.netPlayer] + ".");
 		Boot.lastNetInfo = window.performance.now() + 3000;
 		window.kiki.session = Boot.session;
 	}
@@ -499,11 +570,9 @@ class Boot {
 			Boot.lastDelayCheck = now;
 			let want = Math.max(2,Math.min(4,Math.ceil((Boot.session.rttMs / 2 - 10) / 25))) | 0;
 			if(want > Boot.session.inputDelay) {
-				let fh = Boot.session;
-				fh.set_inputDelay(fh.inputDelay + 1);
+				Boot.session.inputDelay++;
 			} else if(want < Boot.session.inputDelay) {
-				let fh = Boot.session;
-				fh.set_inputDelay(fh.inputDelay - 1);
+				Boot.session.inputDelay--;
 			}
 		}
 		if(now - Boot.lastNetInfo > 1000 && !Boot.gameEnded) {
@@ -580,10 +649,15 @@ class Boot {
 		meta_Jukebox.next();
 		Boot.notice("Musique : " + meta_Jukebox.label() + " (M : changer)");
 		if(Boot.session != null) {
-			let peer = Boot.netCfg.peer;
-			try {
-				peer.sendReliable("{\"t\":\"music\",\"f\":" + JSON.stringify(meta_Jukebox.tracks[meta_Jukebox.current]) + ",\"off\":" + Std.string(meta_Jukebox.off) + "}");
-			} catch( _g ) {
+			let links = Boot.netCfg.peers != null ? Boot.netCfg.peers : [Boot.netCfg.peer];
+			let msg = "{\"t\":\"music\",\"f\":" + JSON.stringify(meta_Jukebox.tracks[meta_Jukebox.current]) + ",\"off\":" + Std.string(meta_Jukebox.off) + "}";
+			let _g = 0;
+			while(_g < links.length) {
+				let l = links[_g++];
+				try {
+					l.sendReliable(msg);
+				} catch( _g ) {
+				}
 			}
 		}
 	}
@@ -667,9 +741,25 @@ class Boot {
 		let sub = Reflect.field(data,"$data");
 		if(mode == "multicoop") {
 			if(sub != null) {
-				total = Boot.toInt(Reflect.field(sub,"$s0")) + Boot.toInt(Reflect.field(sub,"$s1"));
+				total = Boot.toInt(Reflect.field(sub,"$s0")) + Boot.toInt(Reflect.field(sub,"$s1")) + Boot.toInt(Reflect.field(sub,"$s2")) + Boot.toInt(Reflect.field(sub,"$s3"));
 			}
-			name += " et " + (Boot.netCfg != null && Boot.netCfg.names != null ? Std.string(Boot.netCfg.names[1]) : Boot.pref("name2","Sandy"));
+			let names;
+			if(Boot.netCfg != null && Boot.netCfg.names != null) {
+				let _g = [];
+				let _g1 = 0;
+				let _g2 = Boot.netCfg.names;
+				while(_g1 < _g2.length) _g.push(Std.string(_g2[_g1++]));
+				names = _g;
+			} else {
+				names = [name,Boot.pref("name2","Sandy")];
+			}
+			if(Boot.netCfg == null) {
+				let nj = Std.parseInt(Std.string(Reflect.field(Boot.root,"$joueurs")));
+				if(nj != null && nj > 2) {
+					names = names.concat(["Igor vert","Igor bleu"].slice(0,nj - 2));
+				}
+			}
+			name = names.length > 1 ? names.slice(0,names.length - 1).join(", ") + " et " + names[names.length - 1] : names[0];
 		}
 		let hero = false;
 		if(mode == "solo" || mode == "multicoop") {
@@ -4465,6 +4555,20 @@ class Reflect {
 		}
 		delete(o[field]);
 		return true;
+	}
+	static copy(o) {
+		if(o == null) {
+			return null;
+		}
+		let o2 = { };
+		let _g = 0;
+		let _g1 = Reflect.fields(o);
+		while(_g < _g1.length) {
+			let f = _g1[_g];
+			++_g;
+			o2[f] = Reflect.field(o,f);
+		}
+		return o2;
 	}
 }
 $hxClasses["Reflect"] = Reflect;
@@ -18155,6 +18259,38 @@ class gui_GameInterface {
 		this.baseColor = Data.BASE_COLORS[0];
 		this.update();
 	}
+	kikiField(tf,x,w,align) {
+		if(tf == null || tf.__def == null) {
+			return;
+		}
+		let d = Reflect.copy(tf.__def);
+		d.size = 14;
+		d.align = align;
+		d.b = [0,-2,w,20.15];
+		tf.__def = d;
+		tf._x = x;
+		tf._y = -19.2;
+	}
+	maxLives() {
+		if(this.fl_multi) {
+			return 4;
+		} else {
+			return gui_GameInterface.MAX_LIVES;
+		}
+	}
+	tintLife(m,pid) {
+		if(m == null) {
+			return;
+		}
+		if(this.mc2 != null) {
+			m._xscale = 80;
+			m._yscale = 80;
+			m._y += 2;
+		}
+		if(gui_GameInterface.LIFE_TINTS[pid] != null) {
+			new mtlib_Color(m).setTransform(gui_GameInterface.LIFE_TINTS[pid]);
+		}
+	}
 	initSingle() {
 		this.fl_multi = false;
 		let tmp = this.game;
@@ -18326,12 +18462,97 @@ class gui_GameInterface {
 			let tmp = this.mc;
 			tmp19.push(tmp != null ? tmp.letter1_6 : null);
 		}
+		let tmp20 = this.game;
+		if((tmp20 != null ? tmp20.countList(Data.PLAYER) : null) > 2) {
+			let tmp = this.game;
+			let tmp1 = tmp != null ? tmp.depthMan : null;
+			this.mc2 = tmp1 != null ? tmp1.attach("hammer_interf_game",Data.DP_TOP) : null;
+			if(this.mc2 != null) {
+				let tmp = this.game;
+				this.mc2.set__x(-(tmp != null ? tmp.xOffset : null));
+			}
+			if(this.mc2 != null) {
+				this.mc2.set__y(Data.DOC_HEIGHT + gui_GameInterface.ROW2_DY);
+			}
+			let tmp2 = this.mc2;
+			if(tmp2 != null) {
+				tmp2.gotoAndStop("2");
+			}
+			if(this.mc2 != null) {
+				this.mc2.cacheAsBitmap = true;
+			}
+			let tmp3 = this.game;
+			let npl = tmp3 != null ? tmp3.countList(Data.PLAYER) : null;
+			let tmp4 = this.mc2;
+			this.scores[2] = tmp4 != null ? tmp4.score0 : null;
+			let k = 2;
+			while(k < 4) {
+				if(k < npl) {
+					this.letters[k] = [];
+					let j = 0;
+					while(j < 7) {
+						let tmp = this.letters[k];
+						if(tmp != null) {
+							tmp.push(mtlib_MtStd.getVar(this.mc2,"letter" + (k - 2) + "_" + Std.string(j)));
+						}
+						j += 1;
+					}
+				} else {
+					let j = 0;
+					while(j < 7) {
+						let l = mtlib_MtStd.getVar(this.mc2,"letter" + (k - 2) + "_" + Std.string(j));
+						if(l != null) {
+							l._visible = false;
+						}
+						j += 1;
+					}
+					let tmp = this.mc2;
+					if((tmp != null ? tmp.score1 : null) != null) {
+						this.mc2.score1._visible = false;
+					}
+				}
+				k += 1;
+			}
+			if(npl > 3) {
+				let tmp = this.mc2;
+				this.scores[3] = tmp != null ? tmp.score1 : null;
+			}
+		}
+		this.kikiField(this.scores[0],122,80,1);
+		this.kikiField(this.scores[1],220,80,0);
+		this.kikiField(this.scores[2],122,80,1);
+		this.kikiField(this.scores[3],220,80,0);
+		let top = -Data.DOC_HEIGHT;
+		let arrow = new swf_DisplayObject(gui_GameInterface.LEVEL_ARROW);
+		if(arrow != null) {
+			let tmp = this.game;
+			arrow._x = (tmp != null ? tmp.xOffset : null) + 4 - 261;
+		}
+		if(arrow != null) {
+			arrow._y = top + 22;
+		}
+		let tmp21 = this.mc;
+		if(tmp21 != null) {
+			tmp21.__addChildAt(arrow,949);
+		}
+		let tmp22 = this.mc;
+		let lv = tmp22 != null ? tmp22.createTextField("$kikiLevel",950,0,0,40,20) : null;
+		if(lv != null) {
+			let tmp = this.scores[0];
+			lv.__def = Reflect.copy(tmp != null ? tmp.__def : null);
+		}
+		let tmp23 = this.game;
+		this.kikiField(lv,(tmp23 != null ? tmp23.xOffset : null) + 24,40,0);
+		if(lv != null) {
+			lv._y = top + 2;
+		}
+		this.level = lv;
 		this.fakeScores = [];
 		this.realScores = [];
 		this.currentLives = [];
 		this.lives = [];
-		let tmp20 = this.game;
-		let pl = tmp20 != null ? tmp20.getPlayerList() : null;
+		let tmp24 = this.game;
+		let pl = tmp24 != null ? tmp24.getPlayerList() : null;
 		let i = 0;
 		while(i < (pl != null ? pl.length : null)) {
 			let p = pl[i];
@@ -18451,12 +18672,13 @@ class gui_GameInterface {
 		}
 	}
 	setLives(pid,v) {
+		let host = pid >= 2 ? this.mc2 : this.mc;
 		let baseX = gui_GameInterface.BASE_X;
 		let baseWid = gui_GameInterface.BASE_WIDTH;
 		if(this.fl_multi) {
 			baseWid = 0.6 * gui_GameInterface.BASE_WIDTH;
 		}
-		if(pid == 1) {
+		if(pid % 2 == 1) {
 			baseWid *= -1;
 			baseX = gui_GameInterface.BASE_X_RIGHT;
 		}
@@ -18478,30 +18700,31 @@ class gui_GameInterface {
 				this.currentLives[pid]--;
 			}
 		} else {
-			while(this.currentLives[pid] < v && this.currentLives[pid] < gui_GameInterface.MAX_LIVES) {
-				let mc = mtlib_MtStd.attachMC(this.mc,"hammer_interf_life",this.game.manager.uniq++);
+			while(this.currentLives[pid] < v && this.currentLives[pid] < this.maxLives()) {
+				let mc = mtlib_MtStd.attachMC(host,"hammer_interf_life",this.game.manager.uniq++);
 				if(mc != null) {
 					mc._x = baseX + this.currentLives[pid] * baseWid;
 				}
 				if(mc != null) {
 					mc._y = -19;
 				}
+				this.tintLife(mc,pid);
 				plives[this.currentLives[pid]] = mc;
 				this.currentLives[pid]++;
 			}
 			let tmp;
-			if(v > gui_GameInterface.MAX_LIVES) {
+			if(v > this.maxLives()) {
 				let tmp1 = this.more[pid];
 				tmp = (tmp1 != null ? tmp1._name : null) == null;
 			} else {
 				tmp = false;
 			}
 			if(tmp) {
-				this.more[pid] = mtlib_MtStd.attachMC(this.mc,"hammer_interf_more",this.game.manager.uniq++);
+				this.more[pid] = mtlib_MtStd.attachMC(host,"hammer_interf_more",this.game.manager.uniq++);
 				if(this.more[pid] != null) {
-					this.more[pid].set__x(baseX + baseWid * gui_GameInterface.MAX_LIVES - 4);
+					this.more[pid].set__x(baseX + baseWid * this.maxLives() - 4);
 				}
-				if(pid > 0) {
+				if(pid % 2 == 1) {
 					if(this.more[pid] != null) {
 						let fh = this.more[pid];
 						fh.set__x(fh.get__x() - baseWid);
@@ -18512,7 +18735,7 @@ class gui_GameInterface {
 				}
 			}
 			let tmp1;
-			if(v <= gui_GameInterface.MAX_LIVES) {
+			if(v <= this.maxLives()) {
 				let tmp = this.more[pid];
 				tmp1 = (tmp != null ? tmp._name : null) != null;
 			} else {
@@ -18568,6 +18791,10 @@ class gui_GameInterface {
 		let tmp = this.mc;
 		if(tmp != null) {
 			tmp.removeMovieClip();
+		}
+		let tmp1 = this.mc2;
+		if(tmp1 != null) {
+			tmp1.removeMovieClip();
 		}
 	}
 	update() {
@@ -27405,6 +27632,13 @@ class mode_MultiCoop extends mode_Adventure {
 			if(tmp != null) {
 				tmp.setKeys(82,70,68,71,65);
 			}
+			let n = Std.parseInt("" + Std.string(mtlib_MtStd.getVar(mtlib_MtStd.getRoot(),"$joueurs")));
+			let cols = [9,10];
+			let k = 2;
+			while(n != null && k < n && k < 4) {
+				this.insertPlayer(cols[k - 2],-2);
+				k += 1;
+			}
 		} else {
 			let tmp = p1 != null ? p1.ctrl : null;
 			if(tmp != null) {
@@ -27471,10 +27705,32 @@ class mode_MultiCoop extends mode_Adventure {
 				p.head = p != null ? p.defaultHead : null;
 			}
 		}
+		if((p != null ? p.pid : null) >= 2) {
+			if(p != null) {
+				p.name = (p != null ? p.pid : null) == 2 ? "Joueur 3" : "Joueur 4";
+			}
+			if(p != null) {
+				p.darkColor = (p != null ? p.pid : null) == 2 ? 2058794 : 2237050;
+			}
+		}
+	}
+	main() {
+		super.main();
+		let pl = this.getPlayerList();
+		let i = 0;
+		while(i < (pl != null ? pl.length : null)) {
+			let p = pl[i];
+			if((p != null ? p.pid : null) >= 2 && (p != null ? p.color : null) == null && ((p != null ? p.fl_alphaBlink : null) || !(p != null ? p.fl_blinked : null))) {
+				if(p != null) {
+					p.setColorHex(45,(p != null ? p.pid : null) == 2 ? 2791994 : 3824895);
+				}
+			}
+			i += 1;
+		}
 	}
 	saveScore() {
 		let pl = this.getPlayerList();
-		(mtlib_MtStd.getGlobal("gameOver"))(-1,null,{ $reachedLevel : this.dimensions[0].currentId, $item2 : this.getPicks2(), $data : { $s0 : this.savedScores[0], $s1 : this.savedScores[1]}});
+		(mtlib_MtStd.getGlobal("gameOver"))(-1,null,{ $reachedLevel : this.dimensions[0].currentId, $item2 : this.getPicks2(), $data : { $s0 : this.savedScores[0], $s1 : this.savedScores[1], $s2 : this.savedScores[2], $s3 : this.savedScores[3]}});
 	}
 }
 $hxClasses["mode.MultiCoop"] = mode_MultiCoop;
@@ -30918,6 +31174,582 @@ class net_rollback_Checksum {
 }
 $hxClasses["net.rollback.Checksum"] = net_rollback_Checksum;
 net_rollback_Checksum.__name__ = "net.rollback.Checksum";
+class net_rollback_GroupSession {
+	constructor(game,transport,options) {
+		this.rttMs = 0;
+		this.localChecks = new haxe_ds_IntMap();
+		this.lastPing = -1e9;
+		this.ticks = 0;
+		this.slowdownBudget = 0;
+		this.advantageCount = 0;
+		this.incoming = [];
+		this.firstMispredict = -1;
+		this.lastSave = -1;
+		let _g = [];
+		let _g1 = 0;
+		while(_g1 < 256) {
+			++_g1;
+			_g.push(-1);
+		}
+		this.savedAt = _g;
+		let _g2 = [];
+		let _g11 = 0;
+		while(_g11 < 256) {
+			++_g11;
+			_g2.push(0);
+		}
+		this.stateChecksums = _g2;
+		this.states = [];
+		this.lastLocalInput = 0;
+		this.lastLocalFrame = -1;
+		let _g3 = [];
+		let _g12 = 0;
+		while(_g12 < 256) {
+			++_g12;
+			_g3.push(0);
+		}
+		this.localInputs = _g3;
+		this.stats = { rollbacks : 0, maxRollback : 0, resimulatedFrames : 0, waitingTicks : 0, slowdownTicks : 0, messagesSent : 0, messagesReceived : 0, checksumsCompared : 0};
+		this.desynced = false;
+		this.resimulating = false;
+		this.currentFrame = 0;
+		this.game = game;
+		this.transport = transport;
+		let v = options.players;
+		this.players = v < 2 ? 2 : v > 8 ? 8 : v;
+		this.localPlayer = options.localPlayer;
+		if(this.localPlayer < 0 || this.localPlayer >= this.players) {
+			throw haxe_Exception.thrown("joueur " + this.localPlayer + " hors de 0.." + (this.players - 1));
+		}
+		this.now = options.now;
+		let v1 = options.maxPrediction == null ? 8 : options.maxPrediction;
+		this.maxPrediction = v1 < 1 ? 1 : v1 > 30 ? 30 : v1;
+		this.set_inputDelay(options.inputDelay == null ? 2 : options.inputDelay);
+		this.checksumInterval = options.checksumInterval == null ? 20 : options.checksumInterval;
+		this.frameMs = options.frameMs == null ? 25 : options.frameMs;
+		this.saveEvery = options.saveEvery == null || options.saveEvery < 1 ? 0 : options.saveEvery;
+		this.nextChecksumFrame = this.checksumInterval;
+		let t = this.now();
+		let _g4 = [];
+		let _g13 = 0;
+		let _g21 = this.players;
+		while(_g13 < _g21) {
+			++_g13;
+			let _g2 = [];
+			let _g3 = 0;
+			while(_g3 < 256) {
+				++_g3;
+				_g2.push(0);
+			}
+			_g4.push(_g2);
+		}
+		this.inputs = _g4;
+		let _g31 = [];
+		let _g41 = 0;
+		let _g5 = this.players;
+		while(_g41 < _g5) {
+			++_g41;
+			let _g = [];
+			let _g1 = 0;
+			while(_g1 < 256) {
+				++_g1;
+				_g.push(0);
+			}
+			_g31.push(_g);
+		}
+		this.used = _g31;
+		let _g6 = [];
+		let _g7 = 0;
+		let _g8 = this.players;
+		while(_g7 < _g8) {
+			++_g7;
+			_g6.push(-1);
+		}
+		this.confirmed = _g6;
+		let _g9 = [];
+		let _g10 = 0;
+		let _g111 = this.players;
+		while(_g10 < _g111) {
+			++_g10;
+			_g9.push(-1);
+		}
+		this.ackedLocal = _g9;
+		let _g121 = [];
+		let _g131 = 0;
+		let _g14 = this.players;
+		while(_g131 < _g14) {
+			++_g131;
+			_g121.push(0);
+		}
+		this.remoteFrame = _g121;
+		let _g15 = [];
+		let _g16 = 0;
+		let _g17 = this.players;
+		while(_g16 < _g17) {
+			++_g16;
+			_g15.push(0.);
+		}
+		this.remoteAdvantage = _g15;
+		let _g18 = [];
+		let _g19 = 0;
+		let _g20 = this.players;
+		while(_g19 < _g20) {
+			++_g19;
+			_g18.push(0.);
+		}
+		this.advantage = _g18;
+		let _g211 = [];
+		let _g22 = 0;
+		let _g23 = this.players;
+		while(_g22 < _g23) {
+			++_g22;
+			_g211.push(0.);
+		}
+		this.advantageSum = _g211;
+		let _g24 = [];
+		let _g25 = 0;
+		let _g26 = this.players;
+		while(_g25 < _g26) {
+			++_g25;
+			_g24.push(false);
+		}
+		this.heard = _g24;
+		let _g27 = [];
+		let _g28 = 0;
+		let _g29 = this.players;
+		while(_g28 < _g29) {
+			++_g28;
+			_g27.push(0.);
+		}
+		this.rtt = _g27;
+		let _g30 = [];
+		let _g311 = 0;
+		let _g32 = this.players;
+		while(_g311 < _g32) {
+			++_g311;
+			_g30.push(t);
+		}
+		this.lastReceive = _g30;
+		let _g33 = [];
+		let _g34 = 0;
+		let _g35 = this.players;
+		while(_g34 < _g35) {
+			++_g34;
+			_g33.push(new haxe_ds_IntMap());
+		}
+		this.remoteChecks = _g33;
+		let _g36 = [];
+		let _g37 = 0;
+		let _g38 = this.players;
+		while(_g37 < _g38) {
+			++_g37;
+			_g36.push(0);
+		}
+		this.frameInputs = _g36;
+		let _gthis = this;
+		transport.onMessage = function(data) {
+			_gthis.incoming.push(data);
+		};
+	}
+	set_inputDelay(v) {
+		return this.inputDelay = v < 0 ? 0 : v > 30 ? 30 : v;
+	}
+	get_confirmedFrame() {
+		let m = 2147483647;
+		let _g = 0;
+		let _g1 = this.players;
+		while(_g < _g1) {
+			let p = _g++;
+			if(p != this.localPlayer && this.confirmed[p] < m) {
+				m = this.confirmed[p];
+			}
+		}
+		return m;
+	}
+	minAcked() {
+		let m = 2147483647;
+		let _g = 0;
+		let _g1 = this.players;
+		while(_g < _g1) {
+			let p = _g++;
+			if(p != this.localPlayer && this.ackedLocal[p] < m) {
+				m = this.ackedLocal[p];
+			}
+		}
+		return m;
+	}
+	rttTo(p) {
+		return this.rtt[p];
+	}
+	worstRtt() {
+		let m = 0.;
+		let _g = 0;
+		let _g1 = this.players;
+		while(_g < _g1) {
+			let p = _g++;
+			if(p != this.localPlayer && this.rtt[p] > m) {
+				m = this.rtt[p];
+			}
+		}
+		return m;
+	}
+	silenceMsOf(p) {
+		return this.now() - this.lastReceive[p];
+	}
+	silenceMs() {
+		let m = 0.;
+		let _g = 0;
+		let _g1 = this.players;
+		while(_g < _g1) {
+			let p = _g++;
+			if(p != this.localPlayer && this.silenceMsOf(p) > m) {
+				m = this.silenceMsOf(p);
+			}
+		}
+		return m;
+	}
+	tick(localInput) {
+		this.ticks++;
+		this.processIncoming();
+		this.rollbackIfNeeded();
+		this.updateTimeSync();
+		let result = net_rollback_TickResult.Advanced;
+		if(this.currentFrame > this.get_confirmedFrame() + this.maxPrediction || this.lastLocalFrame - this.minAcked() >= 254) {
+			result = net_rollback_TickResult.WaitingForRemote;
+			this.stats.waitingTicks++;
+		} else if(this.slowdownBudget > 0 && this.ticks % 3 == 0) {
+			this.slowdownBudget--;
+			result = net_rollback_TickResult.SlowingDown;
+			this.stats.slowdownTicks++;
+		} else {
+			this.addLocalInput(localInput);
+			this.advanceFrame();
+		}
+		this.sendInputs();
+		this.sendChecksums();
+		this.maybePing();
+		return result;
+	}
+	poll() {
+		this.processIncoming();
+		this.rollbackIfNeeded();
+		this.sendInputs();
+		this.sendChecksums();
+		this.maybePing();
+	}
+	inputsAt(frame) {
+		let i = frame & 255;
+		let _g = [];
+		let _g1 = 0;
+		let _g2 = this.players;
+		while(_g1 < _g2) {
+			let p = _g1++;
+			_g.push(p == this.localPlayer ? frame <= this.lastLocalFrame ? this.localInputs[i] : 0 : frame <= this.confirmed[p] ? this.inputs[p][i] : this.used[p][i]);
+		}
+		return _g;
+	}
+	addLocalInput(input) {
+		let target = this.currentFrame + this.inputDelay;
+		while(this.lastLocalFrame < target) {
+			this.lastLocalFrame++;
+			if(this.lastLocalFrame == target) {
+				this.lastLocalInput = input & 65535;
+			}
+			this.localInputs[this.lastLocalFrame & 255] = this.lastLocalInput;
+		}
+	}
+	advanceFrame() {
+		let f = this.currentFrame;
+		let i = f & 255;
+		let allKnown = this.get_confirmedFrame();
+		if(this.saveEvery == 0) {
+			this.states[i] = this.game.save();
+		} else if(f > allKnown && (f == allKnown + 1 || f - this.lastSave >= this.saveEvery || this.lastSave > f)) {
+			this.states[i] = this.game.save();
+			this.savedAt[i] = f;
+			this.lastSave = f;
+		} else {
+			this.savedAt[i] = -1;
+		}
+		if(f % this.checksumInterval == 0) {
+			this.stateChecksums[i] = this.game.checksum();
+		}
+		let _g = 0;
+		let _g1 = this.players;
+		while(_g < _g1) {
+			let p = _g++;
+			if(p == this.localPlayer) {
+				this.frameInputs[p] = f <= this.lastLocalFrame ? this.localInputs[i] : this.lastLocalInput;
+				continue;
+			}
+			let c = this.confirmed[p];
+			let v = f <= c ? this.inputs[p][i] : c >= 0 ? this.inputs[p][c & 255] : 0;
+			this.used[p][i] = v;
+			this.frameInputs[p] = v;
+		}
+		this.game.advance(this.frameInputs);
+		this.currentFrame++;
+	}
+	rollbackIfNeeded() {
+		if(this.firstMispredict < 0) {
+			return;
+		}
+		let target = this.currentFrame;
+		let from = this.firstMispredict;
+		this.firstMispredict = -1;
+		if(this.saveEvery > 0) {
+			let lim = from - 256;
+			while(this.savedAt[from & 255] != from && from > lim) --from;
+		}
+		this.game.load(this.states[from & 255]);
+		this.currentFrame = from;
+		this.resimulating = true;
+		while(this.currentFrame < target) this.advanceFrame();
+		this.resimulating = false;
+		let depth = target - from;
+		this.stats.rollbacks++;
+		this.stats.resimulatedFrames += depth;
+		if(depth > this.stats.maxRollback) {
+			this.stats.maxRollback = depth;
+		}
+	}
+	processIncoming() {
+		if(this.incoming.length == 0) {
+			return;
+		}
+		let list = this.incoming;
+		this.incoming = [];
+		let _g = 0;
+		while(_g < list.length) {
+			let data = list[_g++];
+			try {
+				let inp = new haxe_io_BytesInput(data);
+				let type = inp.readByte();
+				let sender = inp.readByte();
+				if(sender == this.localPlayer || sender >= this.players) {
+					continue;
+				}
+				this.readMessage(type,sender,inp);
+				this.stats.messagesReceived++;
+				this.lastReceive[sender] = this.now();
+			} catch( _g ) {
+			}
+		}
+	}
+	readMessage(type,sender,inp) {
+		switch(type) {
+		case 11:
+			let start = inp.readInt32();
+			let count = inp.readByte();
+			let senderFrame = inp.readInt32();
+			let _g = 0;
+			let _g1 = this.players;
+			while(_g < _g1) {
+				let seen = inp.readInt32();
+				let adv = inp.readInt16() / 16;
+				if(_g++ == this.localPlayer) {
+					if(seen > this.ackedLocal[sender]) {
+						this.ackedLocal[sender] = seen;
+					}
+					if(senderFrame >= this.remoteFrame[sender]) {
+						this.remoteAdvantage[sender] = adv;
+					}
+				}
+			}
+			this.heard[sender] = true;
+			if(senderFrame >= this.remoteFrame[sender]) {
+				this.remoteFrame[sender] = senderFrame;
+			}
+			let mine = this.inputs[sender];
+			let guess = this.used[sender];
+			let _g2 = 0;
+			while(_g2 < count) {
+				let v = inp.readUInt16();
+				let f = start + _g2++;
+				if(f != this.confirmed[sender] + 1) {
+					continue;
+				}
+				let i = f & 255;
+				mine[i] = v;
+				this.confirmed[sender] = f;
+				if(f < this.currentFrame && guess[i] != v && (this.firstMispredict < 0 || f < this.firstMispredict)) {
+					this.firstMispredict = f;
+				}
+			}
+			break;
+		case 12:
+			let f = inp.readInt32();
+			let this1 = this.remoteChecks[sender];
+			let value = inp.readInt32();
+			this1.h[f] = value;
+			this.compareChecksum(f,sender);
+			break;
+		case 13:
+			let t = inp.readDouble();
+			let out = this.header(14);
+			out.writeByte(sender);
+			out.writeDouble(t);
+			this.send(out);
+			break;
+		case 14:
+			let target = inp.readByte();
+			let t1 = inp.readDouble();
+			if(target == this.localPlayer) {
+				let r = this.now() - t1;
+				this.rtt[sender] = this.rtt[sender] == 0 ? r : this.rtt[sender] * 0.8 + r * 0.2;
+				this.rttMs = this.worstRtt();
+			}
+			break;
+		default:
+		}
+	}
+	header(type) {
+		let out = new haxe_io_BytesOutput();
+		out.writeByte(type);
+		out.writeByte(this.localPlayer);
+		return out;
+	}
+	sendInputs() {
+		let start = this.minAcked() + 1;
+		let v = this.lastLocalFrame - start + 1;
+		let count = v < 0 ? 0 : v > 255 ? 255 : v;
+		let out = this.header(11);
+		out.writeInt32(start);
+		out.writeByte(count);
+		out.writeInt32(this.currentFrame);
+		let _g = 0;
+		let _g1 = this.players;
+		while(_g < _g1) {
+			let q = _g++;
+			out.writeInt32(q == this.localPlayer ? this.lastLocalFrame : this.confirmed[q]);
+			let v = Math.round(this.advantage[q] * 16);
+			out.writeInt16(v < -32000 ? -32000 : v > 32000 ? 32000 : v);
+		}
+		let _g2 = 0;
+		let _g3 = count;
+		while(_g2 < _g3) out.writeUInt16(this.localInputs[start + _g2++ & 255]);
+		this.send(out);
+	}
+	sendChecksums() {
+		while(this.nextChecksumFrame < this.currentFrame && this.nextChecksumFrame - 1 <= this.get_confirmedFrame() && this.firstMispredict < 0) {
+			let f = this.nextChecksumFrame;
+			this.nextChecksumFrame += this.checksumInterval;
+			if(f < this.currentFrame - 256) {
+				continue;
+			}
+			let c = this.stateChecksums[f & 255];
+			this.localChecks.h[f] = c;
+			let out = this.header(12);
+			out.writeInt32(f);
+			out.writeInt32(c);
+			this.send(out);
+			let _g = 0;
+			let _g1 = this.players;
+			while(_g < _g1) {
+				let p = _g++;
+				if(p != this.localPlayer) {
+					this.compareChecksum(f,p);
+				}
+			}
+		}
+		let k = this.localChecks.keys();
+		while(k.hasNext()) {
+			let k1 = k.next();
+			if(k1 < this.currentFrame - 1024) {
+				this.localChecks.remove(k1);
+			}
+		}
+	}
+	compareChecksum(f,p) {
+		let theirs = this.remoteChecks[p];
+		if(!this.localChecks.h.hasOwnProperty(f) || !theirs.h.hasOwnProperty(f)) {
+			return;
+		}
+		let l = this.localChecks.h[f];
+		let r = theirs.h[f];
+		theirs.remove(f);
+		this.stats.checksumsCompared++;
+		if(l != r && !this.desynced) {
+			this.desynced = true;
+			if(this.onDesync != null) {
+				this.onDesync(f,p,l,r);
+			}
+		}
+		let k = theirs.keys();
+		while(k.hasNext()) {
+			let k1 = k.next();
+			if(k1 < f - 1024) {
+				theirs.remove(k1);
+			}
+		}
+	}
+	maybePing() {
+		let t = this.now();
+		if(t - this.lastPing < 250.) {
+			return;
+		}
+		this.lastPing = t;
+		let out = this.header(13);
+		out.writeDouble(t);
+		this.send(out);
+	}
+	send(out) {
+		this.stats.messagesSent++;
+		this.transport.send(out.getBytes());
+	}
+	updateTimeSync() {
+		let any = false;
+		let _g = 0;
+		let _g1 = this.players;
+		while(_g < _g1) {
+			let p = _g++;
+			if(p == this.localPlayer || !this.heard[p]) {
+				continue;
+			}
+			any = true;
+			this.advantageSum[p] += this.currentFrame - (this.remoteFrame[p] + this.rtt[p] / 2 / this.frameMs);
+		}
+		if(!any) {
+			return;
+		}
+		this.advantageCount++;
+		if(this.advantageCount < 40) {
+			return;
+		}
+		let wait = 0;
+		let _g2 = 0;
+		let _g3 = this.players;
+		while(_g2 < _g3) {
+			let p = _g2++;
+			if(p == this.localPlayer || !this.heard[p]) {
+				continue;
+			}
+			this.advantage[p] = this.advantageSum[p] / this.advantageCount;
+			this.advantageSum[p] = 0;
+			let w = Math.round((this.advantage[p] - this.remoteAdvantage[p]) / 2);
+			if(w > wait) {
+				wait = w;
+			}
+		}
+		this.advantageCount = 0;
+		this.slowdownBudget = wait > 8 ? 8 : wait;
+	}
+	static clamp(v,lo,hi) {
+		if(v < lo) {
+			return lo;
+		} else if(v > hi) {
+			return hi;
+		} else {
+			return v;
+		}
+	}
+}
+$hxClasses["net.rollback.GroupSession"] = net_rollback_GroupSession;
+net_rollback_GroupSession.__name__ = "net.rollback.GroupSession";
+Object.assign(net_rollback_GroupSession.prototype, {
+	__class__: net_rollback_GroupSession
+	,__properties__: {set_inputDelay: "set_inputDelay",get_confirmedFrame: "get_confirmedFrame"}
+});
 var net_rollback_TickResult = $hxEnums["net.rollback.TickResult"] = { __ename__:true,__constructs__:null
 	,Advanced: {_hx_name:"Advanced",_hx_index:0,__enum__:"net.rollback.TickResult",toString:$estr}
 	,WaitingForRemote: {_hx_name:"WaitingForRemote",_hx_index:1,__enum__:"net.rollback.TickResult",toString:$estr}
@@ -31334,6 +32166,49 @@ $hxClasses["net.rollback.SyncTest"] = net_rollback_SyncTest;
 net_rollback_SyncTest.__name__ = "net.rollback.SyncTest";
 Object.assign(net_rollback_SyncTest.prototype, {
 	__class__: net_rollback_SyncTest
+});
+class net_transport_GroupTransport {
+	constructor(relay) {
+		if(relay == null) {
+			relay = false;
+		}
+		this.links = [];
+		this.relay = relay;
+	}
+	add(link) {
+		this.links.push(link);
+		let _gthis = this;
+		link.onMessage = function(data) {
+			if(_gthis.relay) {
+				let _g = 0;
+				let _g1 = _gthis.links;
+				while(_g < _g1.length) {
+					let other = _g1[_g];
+					++_g;
+					if(other != link) {
+						other.send(data);
+					}
+				}
+			}
+			if(_gthis.onMessage != null) {
+				_gthis.onMessage(data);
+			}
+		};
+	}
+	remove(link) {
+		HxOverrides.remove(this.links,link);
+		link.onMessage = null;
+	}
+	send(data) {
+		let _g = 0;
+		let _g1 = this.links;
+		while(_g < _g1.length) _g1[_g++].send(data);
+	}
+}
+$hxClasses["net.transport.GroupTransport"] = net_transport_GroupTransport;
+net_transport_GroupTransport.__name__ = "net.transport.GroupTransport";
+Object.assign(net_transport_GroupTransport.prototype, {
+	__class__: net_transport_GroupTransport
 });
 class net_transport_KikiNetTransport {
 	constructor(peer) {
@@ -32467,7 +33342,9 @@ Boot.SET_VARS = (function($this) {
 }(this));
 Boot.pressed = new haxe_ds_StringMap();
 Boot.VKEY = 1000;
-Boot.localInputs = [0,0];
+Boot.localInputs = [0,0,0,0];
+Boot.robots = [{ seed : 39083849, mask : 0, until : 0},{ seed : 63369015, mask : 0, until : 0}];
+Boot.netPlayers = 2;
 Boot.netPlayer = 0;
 Boot.netLost = false;
 Boot.lastNetInfo = 0.0;
@@ -32977,6 +33854,9 @@ gui_GameInterface.BASE_X = 92;
 gui_GameInterface.BASE_X_RIGHT = 300;
 gui_GameInterface.BASE_WIDTH = 20;
 gui_GameInterface.MAX_LIVES = 8;
+gui_GameInterface.ROW2_DY = 20;
+gui_GameInterface.LEVEL_ARROW = 3971;
+gui_GameInterface.LIFE_TINTS = [null,{ ra : 100, ga : 25, ba : 25, rb : 20, gb : 0, bb : 0},{ ra : 30, ga : 100, ba : 60, rb : 0, gb : 20, bb : 0},{ ra : 25, ga : 45, ba : 100, rb : 0, gb : 10, bb : 150}];
 gui_SoccerInterface.GLOW_COLOR = gui_GameInterface.GLOW_COLOR;
 haxe_io_FPHelper.i64tmp = new haxe__$Int64__$_$_$Int64(0,0);
 haxe_io_FPHelper.helper = new DataView(new ArrayBuffer(8));
@@ -33114,6 +33994,14 @@ mtlib_Tools.__y = "$y".substring(1);
 net_Snapshot.SKIP_FIELDS = ["__def","__scope","playing","__cache","__img","__canvas","__ctx"];
 net_Snapshot.SKIP_CLASSES = ["swf.Library","swf.Renderer","swf.FrameScripts","mtlib.SoundBank","net.Snapshot","Boot","net.rollback.RollbackSession","Lang","Data","meta.Quests","meta.Settings","meta.Jukebox"];
 net_rollback_Checksum.START = -2128831035;
+net_rollback_GroupSession.SIZE = 256;
+net_rollback_GroupSession.MASK = 255;
+net_rollback_GroupSession.MSG_INPUT = 11;
+net_rollback_GroupSession.MSG_CHECKSUM = 12;
+net_rollback_GroupSession.MSG_PING = 13;
+net_rollback_GroupSession.MSG_PONG = 14;
+net_rollback_GroupSession.PING_EVERY_MS = 250.;
+net_rollback_GroupSession.SYNC_EVERY = 40;
 net_rollback_RollbackSession.SIZE = 256;
 net_rollback_RollbackSession.MASK = 255;
 net_rollback_RollbackSession.MSG_INPUT = 1;

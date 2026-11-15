@@ -36,6 +36,40 @@ class GameInterface
 
 	public var baseColor		: Int;
 
+	// Kikifest (étude 3-4 joueurs) : 2e barre, placée sous la 1re (le canevas est agrandi d'autant)
+	public var mc2				: MovieClip;
+	public static var ROW2_DY:Int	= 20;
+	public static var LEVEL_ARROW:Int	= 3971; // forme de la flèche rouge du niveau (barre du solo)
+	public static var LIFE_TINTS:Array<Dynamic> = [
+		null,
+		{ra:100, ga:25, ba:25, rb:20, gb:0, bb:0},		// Sandy : cornet rouge
+		{ra:30, ga:100, ba:60, rb:0, gb:20, bb:0},		// joueur 3 : vert
+		{ra:25, ga:45, ba:100, rb:0, gb:10, bb:150},	// joueur 4 : bleu
+	];
+
+	/** Kikifest : place un champ de la barre Coop et lui donne la taille de police du solo. **/
+	function kikiField(tf:Dynamic, x:Float, w:Float, align:Int) {
+		if ( tf == null || tf.__def == null ) return;
+		var d:Dynamic = Reflect.copy(tf.__def);
+		d.size = 14;
+		d.align = align;
+		d.b = [0, -2, w, 20.15];
+		tf.__def = d;
+		tf._x = x;
+		tf._y = -19.2;
+	}
+
+	/** Kikifest : à plusieurs, au-delà de 4 cornets on affiche le « + » (les scores sont au milieu). **/
+	function maxLives():Int {
+		return fl_multi ? 4 : MAX_LIVES;
+	}
+
+	function tintLife(m:Dynamic, pid:Dynamic) {
+		if ( m == null ) return;
+		if ( mc2 != null ) { m._xscale = 80; m._yscale = 80; m._y = m._y + 2; }
+		if ( LIFE_TINTS[pid] != null ) new Color(m).setTransform(LIFE_TINTS[pid]);
+	}
+
 
 	/*------------------------------------------------------------------------
 	CONSTRUCTEUR
@@ -145,6 +179,47 @@ class GameInterface
 		letters[1]?.push( ((mc):Dynamic)?.letter1_5 );
 		letters[1]?.push( ((mc):Dynamic)?.letter1_6 );
 
+
+		// Kikifest (étude 3-4 joueurs) : une 2e barre en dessous pour les joueurs 3 et 4
+		if ( game?.countList(RootData.PLAYER) > 2 ) {
+			mc2 = game?.depthMan?.attach("hammer_interf_game",RootData.DP_TOP);
+			{ if (mc2 != null) mc2._x = -game?.xOffset; }
+			{ if (mc2 != null) mc2._y = RootData.DOC_HEIGHT + ROW2_DY; }
+			mc2?.gotoAndStop("2");
+			{ if (mc2 != null) mc2.cacheAsBitmap = true; }
+			var npl:Dynamic = game?.countList(RootData.PLAYER);
+			scores[2] = ((mc2):Dynamic)?.score0;
+			{ var k:Dynamic=2; while (k<4) {
+				if ( k<npl ) {
+					letters[k] = new Array();
+					{ var j:Dynamic=0; while (j<7) { letters[k]?.push( MtStd.getVar(mc2, "letter"+(k-2)+"_"+j) ); j++; } }
+				}
+				else {
+					// à 3 joueurs, la moitié droite de la 2e ligne reste vide
+					{ var j:Dynamic=0; while (j<7) { var l:Dynamic = MtStd.getVar(mc2, "letter"+(k-2)+"_"+j); if (l != null) l._visible = false; j++; } }
+					{ if (((mc2):Dynamic)?.score1 != null) ((mc2):Dynamic).score1._visible = false; }
+				}
+			k++; } }
+			if ( npl>3 ) scores[3] = ((mc2):Dynamic)?.score1;
+		}
+
+		// Kikifest : comme la barre du solo, numéro du niveau dans l'angle gauche et scores
+		// côte à côte au milieu, dans la police du solo (14 px au lieu de 13)
+		kikiField(scores[0], 122, 80, 1);
+		kikiField(scores[1], 220, 80, 0);
+		kikiField(scores[2], 122, 80, 1);
+		kikiField(scores[3], 220, 80, 0);
+		// niveau : flèche rouge du solo + numéro, dans l'angle en haut à gauche de l'écran
+		var top:Dynamic = -RootData.DOC_HEIGHT;
+		var arrow:Dynamic = new DisplayObject(LEVEL_ARROW);
+		{ if (arrow != null) arrow._x = game?.xOffset + 4 - 261; }
+		{ if (arrow != null) arrow._y = top + 22; }
+		mc?.__addChildAt(arrow, 949);
+		var lv:Dynamic = mc?.createTextField("$kikiLevel", 950, 0, 0, 40, 20);
+		{ if (lv != null) lv.__def = Reflect.copy(scores[0]?.__def); }
+		kikiField(lv, game?.xOffset + 24, 40, 0);
+		{ if (lv != null) lv._y = top + 2; }
+		level = lv;
 
 		// Init spécifiques aux players
 		fakeScores		= new Array();
@@ -265,12 +340,13 @@ i-=3; } }
 	MODIFIE LE NOMBRE DE VIES
 	------------------------------------------------------------------------*/
 	public function setLives(pid:Dynamic,v:Dynamic)  untyped {
+		var host:Dynamic	= pid>=2 ? mc2 : mc; // Kikifest (étude) : joueurs 3-4 sur la 2e barre
 		var baseX:Dynamic	= BASE_X;
 		var baseWid:Dynamic	= BASE_WIDTH;
 		if ( fl_multi ) {
 			baseWid	= 0.6 * BASE_WIDTH;
 		}
-		if ( pid==1 ) {
+		if ( pid%2==1 ) {
 			baseWid	*= -1;
 			baseX	= BASE_X_RIGHT;
 		}
@@ -287,22 +363,23 @@ i-=3; } }
 			}
 		}
 		else {
-			while ( currentLives[pid]<v && currentLives[pid]<MAX_LIVES ) {
-				var mc:Dynamic = MtStd.attachMC(mc, "hammer_interf_life", game.manager.uniq++);
+			while ( currentLives[pid]<v && currentLives[pid]<maxLives() ) {
+				var mc:Dynamic = MtStd.attachMC(host, "hammer_interf_life", game.manager.uniq++);
 				{ if (mc != null) mc._x = baseX+currentLives[pid]*baseWid; }
 				{ if (mc != null) mc._y = -19; }
+				tintLife(mc, pid);
 				plives[currentLives[pid]]=mc;
 				currentLives[pid]++;
 			}
-			if ( v>MAX_LIVES && more[pid]?._name==null ) {
-				more[pid] = MtStd.attachMC(mc,"hammer_interf_more", game.manager.uniq++);
-				{ if (more[pid] != null) more[pid]._x = baseX + baseWid*MAX_LIVES - 4; }
-				if ( pid>0 ) {
+			if ( v>maxLives() && more[pid]?._name==null ) {
+				more[pid] = MtStd.attachMC(host,"hammer_interf_more", game.manager.uniq++);
+				{ if (more[pid] != null) more[pid]._x = baseX + baseWid*maxLives() - 4; }
+				if ( pid%2==1 ) {
 					{ if (more[pid] != null) more[pid]._x-=baseWid; }
 				}
 				{ if (more[pid] != null) more[pid]._y = -25; }
 			}
-			if ( v<=MAX_LIVES && more[pid]?._name!=null ) {
+			if ( v<=maxLives() && more[pid]?._name!=null ) {
 				more[pid]?.removeMovieClip();
 			}
 		}
@@ -348,6 +425,7 @@ i++; } }
 	------------------------------------------------------------------------*/
 	public function destroy()  untyped {
 		mc?.removeMovieClip();
+		mc2?.removeMovieClip();
 	}
 
 

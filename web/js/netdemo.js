@@ -913,59 +913,35 @@ class net_transport_LagTransport {
 }
 net_transport_LagTransport.__name__ = true;
 class netdemo_DemoGame {
-	constructor(seed) {
+	constructor(seed,players) {
+		if(players == null) {
+			players = 2;
+		}
 		this.saves = 0;
 		this.forgetRngInSave = false;
 		this.corruptAtFrame = -1;
+		this.players = players;
+		this.BALLS_AT = 2 + players * 6;
 		let _g = [];
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
-		_g.push(0);
+		let _g1 = 0;
+		let _g2 = this.BALLS_AT + 24;
+		while(_g1 < _g2) {
+			let i = _g1++;
+			_g.push(0);
+		}
 		this.s = _g;
 		this.s[1] = seed == 0 ? 19088743 : seed;
-		this.s[2] = 40960;
-		this.s[3] = 86016;
-		this.s[8] = 122880;
-		this.s[9] = 86016;
-		let _g1 = 0;
-		while(_g1 < 6) {
-			let b = _g1++;
-			let o = 14 + b * 4;
+		let _g3 = 0;
+		let _g4 = players;
+		while(_g3 < _g4) {
+			let p = _g3++;
+			this.s[2 + p * 6] = (players == 2 ? p == 0 ? 160 : 480 : 80 + p * (480 / (players - 1) | 0)) * 256;
+			this.s[2 + p * 6 + 1] = 86016;
+		}
+		let _g5 = 0;
+		while(_g5 < 6) {
+			let b = _g5++;
+			let o = this.BALLS_AT + b * 4;
 			this.s[o] = (40 + this.random(560)) * 256;
 			this.s[o + 1] = (20 + this.random(120)) * 256;
 			this.s[o + 2] = (this.random(7) - 3) * 256;
@@ -974,8 +950,12 @@ class netdemo_DemoGame {
 	}
 	advance(inputs) {
 		let f = this.s[0];
-		this.updatePlayer(0,inputs[0]);
-		this.updatePlayer(1,inputs[1]);
+		let _g = 0;
+		let _g1 = this.players;
+		while(_g < _g1) {
+			let p = _g++;
+			this.updatePlayer(p,inputs[p]);
+		}
 		let wind = 0;
 		if(f % 40 == 0) {
 			wind = this.random(5) - 2;
@@ -987,7 +967,7 @@ class netdemo_DemoGame {
 		this.updateBall(4,wind);
 		this.updateBall(5,wind);
 		if(f == this.corruptAtFrame) {
-			this.s[14] += 256;
+			this.s[this.BALLS_AT] += 256;
 		}
 		this.s[0] = f + 1;
 	}
@@ -1027,7 +1007,7 @@ class netdemo_DemoGame {
 			let _g = 0;
 			while(_g < 6) {
 				let b = _g++;
-				let q = 14 + b * 4;
+				let q = this.BALLS_AT + b * 4;
 				let dx = this.s[q] + 1536 - cx >> 8;
 				let dy = this.s[q + 1] + 1536 - cy >> 8;
 				if(dx * dx + dy * dy < 2304) {
@@ -1039,7 +1019,7 @@ class netdemo_DemoGame {
 		}
 	}
 	updateBall(b,wind) {
-		let q = 14 + b * 4;
+		let q = this.BALLS_AT + b * 4;
 		this.s[q + 2] += wind * 16;
 		this.s[q + 3] += 90;
 		this.s[q] += this.s[q + 2];
@@ -1087,10 +1067,10 @@ class netdemo_DemoGame {
 		return this.s[2 + p * 6 + 4];
 	}
 	ballX(b) {
-		return this.s[14 + b * 4] / 256 | 0;
+		return this.s[this.BALLS_AT + b * 4] / 256 | 0;
 	}
 	ballY(b) {
-		return this.s[14 + b * 4 + 1] / 256 | 0;
+		return this.s[this.BALLS_AT + b * 4 + 1] / 256 | 0;
 	}
 	random(n) {
 		let x = this.s[1];
