@@ -63,6 +63,15 @@ const base = "http://localhost:8080/";
     }
     await host.waitForTimeout(120);
   }
+  // rapport de débogage : F9 chez l'hôte, F3 chez l'invité
+  const dl = host.waitForEvent("download", { timeout: 15000 });
+  await host.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "F9", bubbles: true })));
+  await guest.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "F3", bubbles: true })));
+  const d = await dl;
+  const rep = JSON.parse(require("fs").readFileSync(await d.path(), "utf8"));
+  console.log("rapport", d.suggestedFilename(), JSON.stringify({ s10: rep.dernieres10s, cx: rep.connexion, sys: rep.systeme, lentes: rep.imagesLentes.length, ev: rep.evenements.slice(0, 5) }).slice(0, 1800));
+  await host.waitForTimeout(600);
+  console.log("panneau F3 :", await guest.evaluate(() => document.querySelector("pre") && document.querySelector("pre").textContent));
   const info = async (p) => p.evaluate(() => {
     const s = kiki.session, st = document.getElementById("status");
     if (!st) return { lobby: true, status: (document.querySelector(".result") || {}).textContent, stats: {} };

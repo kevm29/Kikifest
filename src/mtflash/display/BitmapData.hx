@@ -25,10 +25,14 @@ class BitmapData {
 		swf.Renderer.drawInto(canvas, mc, 0, 0);
 	}
 
-	public function dispose() {
-		canvas.width = 1;
-		canvas.height = 1;
-	}
+	/**
+		Flash libérait la mémoire de l'image ici. On ne touche plus au canvas : avec le rollback,
+		une photo de l'état peut encore pointer vers ce bitmap (niveau d'avant, décor en cache).
+		Le vider (le réduire à 1×1) faisait disparaître le décor après un retour en arrière :
+		écran noir avec seulement les personnages et les objets. Le navigateur libère le canvas
+		tout seul quand plus rien ne le référence.
+	**/
+	public function dispose() {}
 
 	public function fillRect(r:Dynamic, c:Int) {}
 

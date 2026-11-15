@@ -44,7 +44,8 @@ const iceServers = config.iceServers ?? [
 // ready passe à true quand toutes les vérifications du démarrage sont finies.
 // reachable : le port est-il joignable depuis internet (true / false / null = inconnu).
 // tunnelUrl : adresse du tunnel, à donner à l'invité en priorité quand elle existe.
-const info = { port, lan: lanAddresses(), publicIp: null, upnp: null, reachable: null, tunnelUrl: null, ready: false, iceServers };
+// preferDirect : le lien direct http://IP:port est à donner en premier (le tunnel n'est alors qu'un lien de secours).
+const info = { port, lan: lanAddresses(), publicIp: null, upnp: null, reachable: null, tunnelUrl: null, preferDirect: false, ready: false, iceServers };
 let tunnel = null;
 
 // ---------- Fichiers statiques ----------
@@ -233,10 +234,14 @@ server.listen(port, async () => {
   if (!info.publicIp) console.log("Adresse internet introuvable (pas d'accès à internet, ou STUN bloqué).");
   else if (info.reachable === true) console.log(`Vérification depuis internet : le port ${port} est bien joignable.`);
   else if (info.reachable === false) console.log(`Vérification depuis internet : le port ${port} n'est PAS joignable.`);
-  else console.log("Vérification depuis internet impossible (service de test injoignable).");
+  else console.log("Vérification depuis internet impossible (service de test injoignable)." + (upnp.ok ? " La box a accepté l'ouverture du port : on suppose qu'il est joignable." : ""));
+  // Lien direct en premier quand le port est joignable, ou quand on ne peut pas le vérifier mais que la box
+  // a accepté l'ouverture (UPnP) : avant, le tunnel passait devant dès que la vérification échouait.
+  info.preferDirect = !!info.publicIp && tunnelMode !== true && (info.reachable === true || (info.reachable === null && upnp.ok));
 
   if (tunnelMode === true || (tunnelMode === "auto" && info.reachable !== true)) {
-    if (tunnelMode === "auto") console.log("\nPassage en mode « sans toucher à la box » : ouverture d'un tunnel gratuit.");
+    if (tunnelMode === "auto" && info.preferDirect) console.log("\nOuverture d'un tunnel gratuit en secours (au cas où le lien direct ne marcherait pas).");
+    else if (tunnelMode === "auto") console.log("\nPassage en mode « sans toucher à la box » : ouverture d'un tunnel gratuit.");
     try {
       tunnel = await startTunnel(port, path.join(here, "bin"));
       info.tunnelUrl = tunnel.url;
@@ -249,7 +254,11 @@ server.listen(port, async () => {
   info.ready = true;
 
   console.log("\n--- Liens à envoyer à l'autre joueur (le menu Multijoueur les affiche aussi) ---");
-  if (info.tunnelUrl) {
+  if (info.preferDirect) {
+    console.log(`Par internet, en direct :   http://${info.publicIp}:${port}/   (le plus rapide)`);
+    if (info.tunnelUrl) console.log(`Lien de secours (tunnel) :  ${info.tunnelUrl}/   (si le lien direct ne marche pas)`);
+  }
+  else if (info.tunnelUrl) {
     console.log(`Par internet :              ${info.tunnelUrl}/`);
     if (info.publicIp) console.log(`Par internet, en direct :   http://${info.publicIp}:${port}/   (si votre port est ouvert)`);
   }

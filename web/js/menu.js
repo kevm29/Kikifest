@@ -2438,10 +2438,18 @@ class menu_Online {
 			if(!local) {
 				links.appendChild(menu_Online.copyable("Lien à envoyer",$global.location.protocol + "//" + $global.location.host + "/?code=" + code));
 			} else if(info != null) {
-				if(info.tunnelUrl != null) {
-					links.appendChild(menu_Online.copyable("Lien à envoyer (par internet)",Std.string(info.tunnelUrl) + "/?code=" + code));
-				} else if(info.publicIp != null) {
-					links.appendChild(menu_Online.copyable("Lien à envoyer (par internet)","http://" + Std.string(info.publicIp) + port + "/?code=" + code));
+				let direct = info.publicIp != null ? "http://" + Std.string(info.publicIp) + port + "/?code=" + code : null;
+				let tunnel = info.tunnelUrl != null ? Std.string(info.tunnelUrl) + "/?code=" + code : null;
+				if(direct != null && (info.preferDirect == true || tunnel == null)) {
+					links.appendChild(menu_Online.copyable("Lien à envoyer (par internet, en direct)",direct));
+					if(tunnel != null) {
+						links.appendChild(menu_Online.copyable("Lien de secours (tunnel Cloudflare), si le premier ne marche pas",tunnel));
+					}
+				} else if(tunnel != null) {
+					links.appendChild(menu_Online.copyable("Lien à envoyer (par internet)",tunnel));
+					if(direct != null) {
+						links.appendChild(menu_Online.copyable("Lien direct (seulement si le port " + Std.string(info.port) + " est ouvert sur la box)",direct));
+					}
 				}
 				let _g = 0;
 				while(_g < lan.length) {
@@ -2452,7 +2460,11 @@ class menu_Online {
 			}
 			if(info != null && local) {
 				note.className = "note";
-				if(info.tunnelUrl != null) {
+				if(info.preferDirect == true && info.reachable == true) {
+					note.textContent = "Vérifié : votre ordinateur est bien joignable par internet (port " + Std.string(info.port) + "). Envoyez le lien direct.";
+				} else if(info.preferDirect == true) {
+					note.textContent = "La box a ouvert le port " + Std.string(info.port) + " (vérification depuis internet impossible) : essayez d'abord le lien direct.";
+				} else if(info.tunnelUrl != null) {
 					note.textContent = "Le lien par internet passe par un tunnel gratuit : rien à régler sur votre box. Il change à chaque lancement du serveur.";
 				} else if(info.reachable == true) {
 					note.textContent = "Vérifié : votre ordinateur est bien joignable par internet (port " + Std.string(info.port) + ").";
@@ -4655,6 +4667,7 @@ class swf_Renderer {
 		}
 	}
 	acquireLayer() {
+		swf_Renderer.statLayers++;
 		let l = this.layers[this.layerIndex];
 		if(l == null) {
 			l = window.document.createElement("canvas");
@@ -4764,7 +4777,8 @@ class swf_Renderer {
 		let c = window.document.createElement("canvas");
 		c.width = sw > 0 ? sw : 1;
 		c.height = sh > 0 ? sh : 1;
-		let g = c.getContext("2d",null);
+		let g = c.getContext("2d",{ willReadFrequently : true});
+		swf_Renderer.statTints++;
 		if(sw > 0 && sh > 0) {
 			g.drawImage(src,sx,sy,sw,sh,0,0,sw,sh);
 			let d = g.getImageData(0,0,sw,sh);
@@ -5096,5 +5110,7 @@ swf_MovieClip.queue = [];
 swf_MovieClip.frameScripts = new haxe_ds_StringMap();
 swf_MovieClip.classByChar = new haxe_ds_IntMap();
 swf_Renderer.IDENT = [1,1,1,1,0,0,0,0];
+swf_Renderer.statTints = 0;
+swf_Renderer.statLayers = 0;
 menu_Menu.main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);

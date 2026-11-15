@@ -263,7 +263,20 @@ class Boot {
 		window.kiki.net = { Snapshot : net_Snapshot, SyncTest : net_rollback_SyncTest, NetGame : NetGame, classes : tmp, init : function() {
 			net_Snapshot.init([Boot.manager,Boot.root]);
 		}};
+		DebugReport.init();
+		DebugReport.onRequest = Boot.requestReport;
 		let onDown = function(e) {
+			if(e.code == "F9" || e.code == "F3") {
+				e.preventDefault();
+				if(!e.repeat) {
+					if(e.code == "F9") {
+						Boot.requestReport();
+					} else {
+						DebugReport.toggleOverlay(Boot.session);
+					}
+				}
+				return;
+			}
 			Boot.pressed.h[e.code] = true;
 			Boot.onKey(e.code);
 			mtlib_SoundBank.unlock();
@@ -294,6 +307,7 @@ class Boot {
 			window.removeEventListener("keyup",onUp);
 			window.removeEventListener("blur",onBlur);
 			mtlib_SoundBank.shutdown();
+			DebugReport.removeButton();
 			return window.kikiStop = null;
 		};
 		if(Boot.netCfg != null) {
@@ -302,6 +316,9 @@ class Boot {
 		let step = 25.;
 		let last = window.performance.now();
 		let acc = 0.0;
+		let perfNow = function() {
+			return window.performance.now();
+		};
 		let loop = null;
 		loop = function(t) {
 			acc += t - last;
@@ -313,22 +330,39 @@ class Boot {
 				return;
 			}
 			window.requestAnimationFrame(loop);
+			DebugReport.frameStart(t);
+			let stepped = false;
 			while(acc >= step) {
 				acc -= step;
+				stepped = true;
+				let t0 = perfNow();
 				if(Boot.session != null) {
 					Boot.netStep();
 				} else {
 					Boot.localStep();
 				}
+				DebugReport.addStep(perfNow() - t0);
 			}
-			try {
-				Boot.draw();
-			} catch( _g ) {
-				let e = haxe_Exception.caught(_g).unwrap();
-				Boot.reportError(e);
+			if(stepped || Boot.dirty) {
+				Boot.dirty = false;
+				let t0 = perfNow();
+				try {
+					Boot.draw();
+				} catch( _g ) {
+					let e = haxe_Exception.caught(_g).unwrap();
+					Boot.reportError(e);
+				}
+				DebugReport.addDraw(perfNow() - t0);
 			}
+			DebugReport.frameEnd(Boot.session,Boot.manager);
 		};
 		window.requestAnimationFrame(loop);
+	}
+	static requestReport() {
+		DebugReport.download(Boot.session,Boot.netCfg,Boot.manager,Boot.renderer,{ mode : Reflect.field(Boot.root,"$mode"), perfBoot : Boot.perf, lagSimule : Boot.lagTransport != null},function(name) {
+			Boot.status("Rapport de débogage enregistré : " + name + " (dossier Téléchargements). Envoie-le tel quel !");
+			Boot.lastNetInfo = window.performance.now() + 4000;
+		});
 	}
 	static isTyping(e) {
 		let t = e.target;
@@ -486,6 +520,7 @@ class Boot {
 			}, inputDelay : 2, maxPrediction : 8, saveEvery : 4});
 			s.onDesync = function(f,a,b) {
 				$global.console.warn("Désynchronisation à la frame " + f + " (" + a + " / " + b + ")");
+				DebugReport.event("désynchronisation à la frame " + f);
 				Boot.netWarning = "Attention : les deux parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
 			};
 			Boot.session = s;
@@ -495,6 +530,7 @@ class Boot {
 			}, inputDelay : 2, maxPrediction : 8, saveEvery : 4});
 			s.onDesync = function(f,who,a,b) {
 				$global.console.warn("Désynchronisation à la frame " + f + " avec le joueur " + (who + 1) + " (" + a + " / " + b + ")");
+				DebugReport.event("désynchronisation à la frame " + f + " avec le joueur " + (who + 1));
 				Boot.netWarning = "Attention : les parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
 			};
 			Boot.session = s;
@@ -507,6 +543,7 @@ class Boot {
 				}
 				Boot.session = null;
 				Boot.netLost = true;
+				DebugReport.event("l'autre joueur est parti : " + Std.string(reason));
 				mtlib_SoundBank.muted = false;
 				Boot.status("L'autre joueur est parti" + (reason != null ? " (" + Std.string(reason) + ")" : "") + " : tu continues seul. Échap deux fois : menu.");
 			};
@@ -514,6 +551,10 @@ class Boot {
 		Boot.status("C'est parti ! Vous jouez " + ["Igor","Sandy","Igor vert","Igor bleu"][Boot.netPlayer] + ".");
 		Boot.lastNetInfo = window.performance.now() + 3000;
 		window.kiki.session = Boot.session;
+		DebugReport.event("partie en ligne : " + Boot.netPlayers + " joueurs, joueur local " + (Boot.netPlayer + 1) + ", liaison " + Std.string(peer.transport) + ", page " + $global.location.host);
+		window.setTimeout(function() {
+			return DebugReport.probeIce(Boot.netCfg);
+		},3000);
 	}
 	static netStep() {
 		if(Boot.lagTransport != null) {
@@ -543,9 +584,11 @@ class Boot {
 		}
 		if(now - Boot.lastNetInfo > 1000 && !Boot.gameEnded) {
 			Boot.lastNetInfo = now;
-			let info = (Boot.netCfg.peer.transport == "webrtc" ? "Liaison directe" : "Liaison par le serveur de l'hôte") + " · ping " + Math.round(Boot.session.rttMs) + " ms";
+			let peer = Boot.netCfg.peer;
+			let info = (peer.transport == "webrtc" ? "Liaison directe" : "Liaison par le serveur de l'hôte") + " · ping " + Math.round(peer.rtt != null && peer.rtt > 0 ? peer.rtt : Boot.session.rttMs) + " ms";
 			if(r == net_rollback_TickResult.WaitingForRemote && Boot.session.silenceMs() > 1000) {
 				info = "En attente de l'autre joueur…";
+				DebugReport.event("en attente de l'autre joueur (silence " + Math.round(Boot.session.silenceMs()) + " ms)");
 			}
 			Boot.status(Boot.netWarning != null ? Boot.netWarning : info);
 		}
@@ -741,6 +784,9 @@ class Boot {
 		}
 	}
 	static reportError(e) {
+		if(Boot.errors < 30) {
+			DebugReport.error(Std.string(e));
+		}
 		if(Boot.errors++ < 5) {
 			$global.console.error(e);
 			let stack = e != null && e.stack != null ? e.stack : "";
@@ -791,6 +837,7 @@ class NetGame {
 		let t0 = window.performance.now();
 		let s = net_Snapshot.save();
 		let dt = window.performance.now() - t0;
+		DebugReport.addSave(dt);
 		Boot.perf.saves++;
 		if(dt > Boot.perf.saveMax) {
 			Boot.perf.saveMax = dt;
@@ -798,7 +845,9 @@ class NetGame {
 		return s;
 	}
 	load(s) {
+		let t0 = window.performance.now();
 		s.restore();
+		DebugReport.addLoad(window.performance.now() - t0);
 	}
 	checksum() {
 		return Boot.checksum();
@@ -1492,6 +1541,400 @@ class DateTools {
 }
 $hxClasses["DateTools"] = DateTools;
 DateTools.__name__ = "DateTools";
+class DebugReport {
+	static init() {
+		DebugReport.t0 = window.performance.now();
+		window.document.addEventListener("visibilitychange",function(_) {
+			if(window.document.hidden) {
+				DebugReport.hiddenCount++;
+			}
+			DebugReport.event(window.document.hidden ? "onglet caché" : "onglet visible");
+		});
+		DebugReport.addButton();
+	}
+	static now() {
+		return window.performance.now();
+	}
+	static round(v,d) {
+		if(d == null) {
+			d = 1;
+		}
+		let m = Math.pow(10,d);
+		return Math.round(v * m) / m;
+	}
+	static frameStart(t) {
+		DebugReport.curT = t;
+		DebugReport.curDt = DebugReport.lastT < 0 ? 0 : t - DebugReport.lastT;
+		DebugReport.lastT = t;
+		DebugReport.curSteps = 0;
+		DebugReport.curSim = 0;
+		DebugReport.curSaves = 0;
+		DebugReport.curSaveMs = 0;
+		DebugReport.curLoads = 0;
+		DebugReport.curLoadMs = 0;
+		DebugReport.curResim = 0;
+		DebugReport.curDraw = 0;
+		swf_Renderer.statTints = 0;
+		swf_Renderer.statLayers = 0;
+	}
+	static addStep(ms) {
+		DebugReport.curSteps++;
+		DebugReport.curSim += ms;
+	}
+	static addSave(ms) {
+		DebugReport.curSaves++;
+		DebugReport.curSaveMs += ms;
+	}
+	static addLoad(ms) {
+		DebugReport.curLoads++;
+		DebugReport.curLoadMs += ms;
+	}
+	static addDraw(ms) {
+		DebugReport.curDraw += ms;
+	}
+	static frameEnd(session,manager) {
+		DebugReport.tintsCreated = swf_Renderer.statTints;
+		DebugReport.layersUsed = swf_Renderer.statLayers;
+		if(session != null && session.stats != null) {
+			let r = session.stats.resimulatedFrames;
+			DebugReport.curResim = r - DebugReport.lastResim;
+			if(DebugReport.curResim < 0) {
+				DebugReport.curResim = 0;
+			}
+			DebugReport.lastResim = r;
+		}
+		let i = DebugReport.count % 3600;
+		DebugReport.tAt[i] = DebugReport.curT;
+		DebugReport.dtAt[i] = DebugReport.curDt;
+		DebugReport.stepsAt[i] = DebugReport.curSteps > 255 ? 255 : DebugReport.curSteps;
+		DebugReport.simAt[i] = DebugReport.curSim;
+		DebugReport.savesAt[i] = DebugReport.curSaves > 255 ? 255 : DebugReport.curSaves;
+		DebugReport.saveMsAt[i] = DebugReport.curSaveMs;
+		DebugReport.loadsAt[i] = DebugReport.curLoads > 255 ? 255 : DebugReport.curLoads;
+		DebugReport.loadMsAt[i] = DebugReport.curLoadMs;
+		DebugReport.resimAt[i] = DebugReport.curResim;
+		DebugReport.drawAt[i] = DebugReport.curDraw;
+		DebugReport.tintsAt[i] = DebugReport.tintsCreated;
+		DebugReport.layersAt[i] = DebugReport.layersUsed;
+		DebugReport.count++;
+		let lvl = DebugReport.levelName(manager);
+		if(lvl != DebugReport.lastLevel) {
+			if(DebugReport.lastLevel != null || lvl != null) {
+				DebugReport.event("niveau " + lvl);
+			}
+			DebugReport.lastLevel = lvl;
+		}
+		if(DebugReport.curDt > 45.0 && DebugReport.count > 1 && !window.document.hidden) {
+			DebugReport.slow.push({ t : DebugReport.round((DebugReport.curT - DebugReport.t0) / 1000,2), ecartMs : DebugReport.round(DebugReport.curDt), pas : DebugReport.curSteps, simMs : DebugReport.round(DebugReport.curSim), photos : DebugReport.curSaves, photosMs : DebugReport.round(DebugReport.curSaveMs), retours : DebugReport.curLoads, retoursMs : DebugReport.round(DebugReport.curLoadMs), rejouees : DebugReport.curResim, dessinMs : DebugReport.round(DebugReport.curDraw), teintes : DebugReport.tintsCreated, calques : DebugReport.layersUsed, jeu : DebugReport.gameContext(manager)});
+			if(DebugReport.slow.length > 150) {
+				DebugReport.slow.shift();
+			}
+		}
+		if(DebugReport.overlay != null && DebugReport.curT - DebugReport.lastOverlay > 250) {
+			DebugReport.lastOverlay = DebugReport.curT;
+			DebugReport.updateOverlay(session);
+		}
+	}
+	static event(msg) {
+		DebugReport.events.push({ t : DebugReport.round((window.performance.now() - DebugReport.t0) / 1000,2), msg : msg});
+		if(DebugReport.events.length > 300) {
+			DebugReport.events.shift();
+		}
+	}
+	static error(msg) {
+		DebugReport.errors.push(msg);
+		if(DebugReport.errors.length > 30) {
+			DebugReport.errors.shift();
+		}
+		DebugReport.event("erreur : " + msg);
+	}
+	static levelName(manager) {
+		try {
+			let g = manager != null ? manager.current : null;
+			if(g == null) {
+				return null;
+			}
+			let w = g.world;
+			if(w == null || w.currentId == null) {
+				let c = js_Boot.getClass(g);
+				return c.__name__;
+			}
+			return (g.currentDim != null && g.currentDim != 0 ? "dim " + Std.string(g.currentDim) + " / " : "") + Std.string(w.currentId);
+		} catch( _g ) {
+			return null;
+		}
+	}
+	static gameContext(manager) {
+		try {
+			let g = manager != null ? manager.current : null;
+			if(g == null) {
+				return null;
+			}
+			let ent = 0;
+			let lists = g.lists;
+			if(lists != null && lists.length > 0 && lists[0] != null) {
+				ent = lists[0].length;
+			}
+			let tmp = DebugReport.levelName(manager);
+			let l = g.getList != null ? g.getList(Data.BOMB) : null;
+			let tmp1 = l != null ? l.length : 0;
+			let l1 = g.getList != null ? g.getList(Data.BAD) : null;
+			let tmp2 = l1 != null ? l1.length : 0;
+			let l2 = g.getList != null ? g.getList(Data.FX) : null;
+			return { niveau : tmp, entites : ent, bombes : tmp1, ennemis : tmp2, effets : l2 != null ? l2.length : 0, tremblement : g.shakeTimer != null && g.shakeTimer > 0, transition : g.fl_lock == true};
+		} catch( _g ) {
+			return null;
+		}
+	}
+	static percentile(a,p) {
+		if(a.length == 0) {
+			return 0;
+		}
+		let s = a.slice();
+		s.sort(function(x,y) {
+			if(x < y) {
+				return -1;
+			} else if(x > y) {
+				return 1;
+			} else {
+				return 0;
+			}
+		});
+		return s[Math.min(s.length - 1,Math.floor(p * s.length)) | 0];
+	}
+	static summary(secs) {
+		let tEnd = DebugReport.lastT;
+		let dts = [];
+		let sims = [];
+		let draws = [];
+		let steps = 0;
+		let saves = 0;
+		let loads = 0;
+		let resim = 0;
+		let tints = 0;
+		let saveMs = 0.0;
+		let loadMs = 0.0;
+		let maxSave = 0.0;
+		let maxLoad = 0.0;
+		let slowN = 0;
+		let frames = 0;
+		let span = 0.0;
+		let _g = 0;
+		let _g1 = DebugReport.count < 3600 ? DebugReport.count : 3600;
+		while(_g < _g1) {
+			let i = (DebugReport.count - 1 - _g++) % 3600;
+			if(tEnd - DebugReport.tAt[i] > secs * 1000) {
+				break;
+			}
+			++frames;
+			span = tEnd - DebugReport.tAt[i];
+			if(DebugReport.dtAt[i] > 0) {
+				dts.push(DebugReport.dtAt[i]);
+			}
+			sims.push(DebugReport.simAt[i]);
+			draws.push(DebugReport.drawAt[i]);
+			steps += DebugReport.stepsAt[i];
+			saves += DebugReport.savesAt[i];
+			loads += DebugReport.loadsAt[i];
+			resim += DebugReport.resimAt[i];
+			tints += DebugReport.tintsAt[i];
+			saveMs += DebugReport.saveMsAt[i];
+			loadMs += DebugReport.loadMsAt[i];
+			if(DebugReport.savesAt[i] > 0 && DebugReport.saveMsAt[i] / DebugReport.savesAt[i] > maxSave) {
+				maxSave = DebugReport.saveMsAt[i] / DebugReport.savesAt[i];
+			}
+			if(DebugReport.loadsAt[i] > 0 && DebugReport.loadMsAt[i] / DebugReport.loadsAt[i] > maxLoad) {
+				maxLoad = DebugReport.loadMsAt[i] / DebugReport.loadsAt[i];
+			}
+			if(DebugReport.dtAt[i] > 45.0) {
+				++slowN;
+			}
+		}
+		let sec = span / 1000;
+		if(sec <= 0) {
+			sec = 1;
+		}
+		let sum = function(a) {
+			let s = 0.0;
+			let _g = 0;
+			while(_g < a.length) s += a[_g++];
+			return s;
+		};
+		return { secondes : DebugReport.round(sec), imagesParSeconde : DebugReport.round(frames / sec), pasDeJeuParSeconde : DebugReport.round(steps / sec), ecartEntreImagesMs : { median : DebugReport.round(DebugReport.percentile(dts,0.5)), p95 : DebugReport.round(DebugReport.percentile(dts,0.95)), p99 : DebugReport.round(DebugReport.percentile(dts,0.99)), max : DebugReport.round(DebugReport.percentile(dts,1))}, imagesLentes : slowN, simulationMs : { moyenne : DebugReport.round(sum(sims) / Math.max(1,sims.length),2), p99 : DebugReport.round(DebugReport.percentile(sims,0.99)), max : DebugReport.round(DebugReport.percentile(sims,1))}, dessinMs : { moyenne : DebugReport.round(sum(draws) / Math.max(1,draws.length),2), p99 : DebugReport.round(DebugReport.percentile(draws,0.99)), max : DebugReport.round(DebugReport.percentile(draws,1))}, photosRollback : { nombre : saves, msMoyen : DebugReport.round(saveMs / Math.max(1,saves),2), msMax : DebugReport.round(maxSave)}, retoursEnArriere : { nombre : loads, msMoyen : DebugReport.round(loadMs / Math.max(1,loads),2), msMax : DebugReport.round(maxLoad)}, framesRejouees : resim, imagesRecoloreesCreees : tints};
+	}
+	static connection(session,netCfg) {
+		if(netCfg == null) {
+			return { mode : "local (pas de réseau)"};
+		}
+		let peer = netCfg.peer;
+		let links = netCfg.peers != null ? netCfg.peers : [peer];
+		let o = $global.location.protocol + "//" + $global.location.host;
+		let o1 = $global.location.host.indexOf("trycloudflare.com") >= 0;
+		let o2 = peer != null ? peer.role : null;
+		let o3 = netCfg.players != null ? netCfg.players : 2;
+		let netCfg1 = netCfg.index;
+		let _g = [];
+		let _g1 = 0;
+		while(_g1 < links.length) {
+			let l = links[_g1];
+			++_g1;
+			_g.push({ transport : l.transport, pingReseauMs : DebugReport.round(l.rtt)});
+		}
+		let o4 = { adressePage : o, parTunnelCloudflare : o1, role : o2, joueurs : o3, joueurLocal : netCfg1, liaisons : _g, ice : DebugReport.iceInfo};
+		if(session != null) {
+			o4.session = { pingRollbackMs : DebugReport.round(session.rttMs), delaiTouches : session.inputDelay, frame : session.currentFrame, frameConfirmee : session.remoteConfirmedFrame, avanceFrames : DebugReport.round(session.frameAdvantage,2), desynchro : session.desynced, silenceMs : Math.round(session.silenceMs()), stats : session.stats};
+		}
+		return o4;
+	}
+	static probeIce(netCfg) {
+		if(netCfg == null) {
+			return Promise.resolve(null);
+		}
+		let links = netCfg.peers != null ? netCfg.peers : [netCfg.peer];
+		let jobs = [];
+		let _g = 0;
+		while(_g < links.length) {
+			let l = links[_g];
+			++_g;
+			let pc = l.pc;
+			if(pc == null || pc.getStats == null) {
+				jobs.push(Promise.resolve({ transport : l.transport}));
+				continue;
+			}
+			jobs.push(pc.getStats().then(function(stats) {
+				let pair = null;
+				let byId_h = Object.create(null);
+				stats.forEach(function(r) {
+					byId_h[r.id] = r;
+					if(r.type == "transport" && r.selectedCandidatePairId != null) {
+						pair = { id : r.selectedCandidatePairId};
+					}
+				});
+				if(pair != null) {
+					pair = byId_h[pair.id];
+				}
+				if(pair == null) {
+					stats.forEach(function(r) {
+						if(r.type == "candidate-pair" && (r.selected == true || r.nominated == true && r.state == "succeeded")) {
+							pair = r;
+						}
+					});
+				}
+				if(pair == null) {
+					return { transport : l.transport, paire : "inconnue"};
+				}
+				let loc = byId_h[pair.localCandidateId];
+				let rem = byId_h[pair.remoteCandidateId];
+				return { transport : l.transport, local : loc != null ? Std.string(loc.candidateType) + " " + Std.string(loc.protocol) : null, distant : rem != null ? Std.string(rem.candidateType) + " " + Std.string(rem.protocol) : null, rttIceMs : pair.currentRoundTripTime != null ? DebugReport.round(pair.currentRoundTripTime * 1000) : null, octetsEnvoyes : pair.bytesSent, octetsRecus : pair.bytesReceived};
+			},function(_) {
+				return { transport : l.transport};
+			}));
+		}
+		return Promise.all(jobs).then(function(r) {
+			DebugReport.iceInfo = r;
+			return r;
+		});
+	}
+	static system(renderer) {
+		let nav = $global.navigator;
+		let mem = window.performance.memory;
+		let dts = [];
+		let n = DebugReport.count < 3600 ? DebugReport.count : 3600;
+		let _g = 0;
+		let _g1 = n < 300 ? n : 300;
+		while(_g < _g1) {
+			let k = _g++;
+			dts.push(DebugReport.dtAt[(DebugReport.count - 1 - k) % 3600]);
+		}
+		return { navigateur : nav.userAgent, coeurs : nav.hardwareConcurrency, memoireGo : nav.deviceMemory, ecran : window.screen.width + "x" + window.screen.height, fenetre : Std.string(window.innerWidth) + "x" + Std.string(window.innerHeight), zoomPixels : window.devicePixelRatio, canevas : renderer != null ? renderer.canvas.width + "x" + renderer.canvas.height : null, rafraichissementEcranHz : DebugReport.round(1000 / Math.max(1,DebugReport.percentile(dts,0.5))), ongletCache : DebugReport.hiddenCount, memoireJsMo : mem != null ? Math.round(mem.usedJSHeapSize / 1048576) : null};
+	}
+	static build(session,netCfg,manager,renderer,extra) {
+		return { rapport : "Kikifest - rapport de débogage", date : HxOverrides.dateStr(new Date()), dureePartieS : DebugReport.round((window.performance.now() - DebugReport.t0) / 1000), niveau : DebugReport.levelName(manager), dernieres10s : DebugReport.summary(10), dernieres60s : DebugReport.summary(60), connexion : DebugReport.connection(session,netCfg), systeme : DebugReport.system(renderer), jeu : DebugReport.gameContext(manager), extra : extra, imagesLentes : DebugReport.slow.slice(-80), evenements : DebugReport.events.slice(-150), erreurs : DebugReport.errors};
+	}
+	static download(session,netCfg,manager,renderer,extra,done) {
+		let finish = function(_) {
+			let text = JSON.stringify(DebugReport.build(session,netCfg,manager,renderer,extra),null,"  ");
+			let d = new Date();
+			let name = "kikifest-debug-" + DateTools.format(d,"%Y%m%d-%H%M%S") + ".json";
+			try {
+				let url = URL.createObjectURL(new Blob([text],{ type : "application/json"}));
+				let a = window.document.createElement("a");
+				a.href = url;
+				a.download = name;
+				window.document.body.appendChild(a);
+				a.click();
+				a.remove();
+				window.setTimeout(function() {
+					URL.revokeObjectURL(url);
+				},5000);
+			} catch( _g ) {
+			}
+			done(name);
+			return null;
+		};
+		DebugReport.probeIce(netCfg).then(finish,finish);
+	}
+	static addButton() {
+		if(window.document.getElementById("status") == null || window.document.getElementById("kiki-debug-btn") != null) {
+			return;
+		}
+		let b = window.document.createElement("button");
+		b.id = "kiki-debug-btn";
+		b.textContent = "🐞 Rapport de débogage (F9)";
+		b.title = "Télécharge un fichier avec les mesures de la partie (images par seconde, rollback, ping…), à envoyer pour comprendre un ralentissement. F3 : mesures en direct.";
+		b.setAttribute("style","position:fixed;right:8px;bottom:8px;z-index:10;font-size:12px;opacity:.6;padding:3px 8px;cursor:pointer");
+		b.onmouseenter = function() {
+			return b.style.opacity = "1";
+		};
+		b.onmouseleave = function() {
+			return b.style.opacity = ".6";
+		};
+		b.onfocus = function() {
+			return b.blur();
+		};
+		b.onclick = function() {
+			DebugReport.onRequest();
+		};
+		window.document.body.appendChild(b);
+	}
+	static removeButton() {
+		let b = window.document.getElementById("kiki-debug-btn");
+		if(b != null) {
+			b.remove();
+		}
+		if(DebugReport.overlay != null) {
+			DebugReport.overlay.remove();
+			DebugReport.overlay = null;
+		}
+	}
+	static toggleOverlay(session) {
+		if(DebugReport.overlay != null) {
+			DebugReport.overlay.remove();
+			DebugReport.overlay = null;
+			return;
+		}
+		DebugReport.overlay = window.document.createElement("pre");
+		DebugReport.overlay.setAttribute("style","position:fixed;left:8px;top:8px;z-index:10;margin:0;padding:6px 8px;background:rgba(0,0,0,.75);color:#9f9;font:12px/1.35 monospace;pointer-events:none;white-space:pre");
+		window.document.body.appendChild(DebugReport.overlay);
+		DebugReport.updateOverlay(session);
+	}
+	static updateOverlay(session) {
+		if(DebugReport.overlay == null) {
+			return;
+		}
+		let s = DebugReport.summary(2);
+		let lines = ["images/s " + Std.string(s.imagesParSeconde) + "   pas de jeu/s " + Std.string(s.pasDeJeuParSeconde),"écart images  méd " + Std.string(s.ecartEntreImagesMs.median) + "  max " + Std.string(s.ecartEntreImagesMs.max) + " ms","simulation    moy " + Std.string(s.simulationMs.moyenne) + "  max " + Std.string(s.simulationMs.max) + " ms","dessin        moy " + Std.string(s.dessinMs.moyenne) + "  max " + Std.string(s.dessinMs.max) + " ms","photos " + Std.string(s.photosRollback.nombre) + " (" + Std.string(s.photosRollback.msMoyen) + " ms)   retours " + Std.string(s.retoursEnArriere.nombre) + "   rejouées " + Std.string(s.framesRejouees)];
+		if(session != null) {
+			lines.push("ping " + Math.round(session.rttMs) + " ms   délai touches " + Std.string(session.inputDelay) + "   avance " + DebugReport.round(session.frameAdvantage,1));
+		}
+		lines.push("images lentes (60 s) " + Std.string(DebugReport.summary(60).imagesLentes) + "   niveau " + DebugReport.lastLevel);
+		DebugReport.overlay.textContent = lines.join("\n");
+	}
+}
+DebugReport.onRequest = function() {
+};
+$hxClasses["DebugReport"] = DebugReport;
+DebugReport.__name__ = "DebugReport";
 class EReg {
 	constructor(r,opt) {
 		this.r = new RegExp(r,opt.split("u").join(""));
@@ -4029,6 +4472,14 @@ Object.assign(GameParameters.prototype, {
 	__class__: GameParameters
 });
 class HxOverrides {
+	static dateStr(date) {
+		let m = date.getMonth() + 1;
+		let d = date.getDate();
+		let h = date.getHours();
+		let mi = date.getMinutes();
+		let s = date.getSeconds();
+		return date.getFullYear() + "-" + (m < 10 ? "0" + m : "" + m) + "-" + (d < 10 ? "0" + d : "" + d) + " " + (h < 10 ? "0" + h : "" + h) + ":" + (mi < 10 ? "0" + mi : "" + mi) + ":" + (s < 10 ? "0" + s : "" + s);
+	}
 	static cca(s,index) {
 		let x = s.charCodeAt(index);
 		if(x != x) {
@@ -28823,8 +29274,6 @@ class mtflash_display_BitmapData {
 		swf_Renderer.drawInto(this.canvas,mc,0,0);
 	}
 	dispose() {
-		this.canvas.width = 1;
-		this.canvas.height = 1;
 	}
 	fillRect(r,c) {
 	}
@@ -32627,6 +33076,7 @@ class swf_Renderer {
 		}
 	}
 	acquireLayer() {
+		swf_Renderer.statLayers++;
 		let l = this.layers[this.layerIndex];
 		if(l == null) {
 			l = window.document.createElement("canvas");
@@ -32731,7 +33181,8 @@ class swf_Renderer {
 		let c = window.document.createElement("canvas");
 		c.width = sw > 0 ? sw : 1;
 		c.height = sh > 0 ? sh : 1;
-		let g = c.getContext("2d",null);
+		let g = c.getContext("2d",{ willReadFrequently : true});
+		swf_Renderer.statTints++;
 		if(sw > 0 && sh > 0) {
 			g.drawImage(src,sx,sy,sw,sh,0,0,sw,sh);
 			let d = g.getImageData(0,0,sw,sh);
@@ -33149,6 +33600,7 @@ Boot.SET_VARS = (function($this) {
 	$r = _g;
 	return $r;
 }(this));
+Boot.dirty = true;
 Boot.pressed = new haxe_ds_StringMap();
 Boot.VKEY = 1000;
 Boot.localInputs = [0,0,0,0];
@@ -33549,6 +34001,41 @@ DateTools.DAY_SHORT_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 DateTools.DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 DateTools.MONTH_SHORT_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 DateTools.MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+DebugReport.N = 3600;
+DebugReport.SLOW_MS = 45.0;
+DebugReport.t0 = 0.0;
+DebugReport.count = 0;
+DebugReport.tAt = new Float64Array(3600);
+DebugReport.dtAt = new Float32Array(3600);
+DebugReport.stepsAt = new Uint8Array(3600);
+DebugReport.simAt = new Float32Array(3600);
+DebugReport.savesAt = new Uint8Array(3600);
+DebugReport.saveMsAt = new Float32Array(3600);
+DebugReport.loadsAt = new Uint8Array(3600);
+DebugReport.loadMsAt = new Float32Array(3600);
+DebugReport.resimAt = new Uint16Array(3600);
+DebugReport.drawAt = new Float32Array(3600);
+DebugReport.tintsAt = new Uint16Array(3600);
+DebugReport.layersAt = new Uint16Array(3600);
+DebugReport.curT = 0.0;
+DebugReport.curDt = 0.0;
+DebugReport.curSteps = 0;
+DebugReport.curSim = 0.0;
+DebugReport.curSaves = 0;
+DebugReport.curSaveMs = 0.0;
+DebugReport.curLoads = 0;
+DebugReport.curLoadMs = 0.0;
+DebugReport.curResim = 0;
+DebugReport.curDraw = 0.0;
+DebugReport.tintsCreated = 0;
+DebugReport.layersUsed = 0;
+DebugReport.lastResim = 0;
+DebugReport.lastT = -1.0;
+DebugReport.slow = [];
+DebugReport.events = [];
+DebugReport.hiddenCount = 0;
+DebugReport.errors = [];
+DebugReport.lastOverlay = 0.0;
 swf_DisplayObject._hx_skip_constructor = false;
 swf_DisplayObject.BLENDS = [null,null,"layer","multiply","screen","lighten","darken","add","subtract","difference","invert","alpha","erase","overlay","hardlight"];
 swf_MovieClip.TIMELINE_DEPTH = -16384;
@@ -33793,7 +34280,7 @@ mtlib_Timer.frameCount = 0;
 mtlib_Tools.__x = "$x".substring(1);
 mtlib_Tools.__y = "$y".substring(1);
 net_Snapshot.SKIP_FIELDS = ["__def","__scope","playing","__cache","__img","__canvas","__ctx"];
-net_Snapshot.SKIP_CLASSES = ["swf.Library","swf.Renderer","swf.FrameScripts","mtlib.SoundBank","net.Snapshot","Boot","net.rollback.RollbackSession","Lang","Data","meta.Quests","meta.Settings"];
+net_Snapshot.SKIP_CLASSES = ["swf.Library","swf.Renderer","swf.FrameScripts","mtlib.SoundBank","net.Snapshot","Boot","net.rollback.RollbackSession","Lang","Data","meta.Quests","meta.Settings","DebugReport"];
 net_rollback_Checksum.START = -2128831035;
 net_rollback_GroupSession.SIZE = 256;
 net_rollback_GroupSession.MASK = 255;
@@ -33814,5 +34301,7 @@ net_rollback_RollbackSession.SYNC_EVERY = 40;
 swf_FrameScripts.GLOBALS = ["Math","random","_global","_root","undefined","NaN","Infinity","Number","String","Array","Boolean","Object","isNaN","parseInt","parseFloat","int","trace","console","eval"];
 swf_FrameScripts.global = { get tmod() { return mtlib_Timer.tmod; } }
 swf_Renderer.IDENT = [1,1,1,1,0,0,0,0];
+swf_Renderer.statTints = 0;
+swf_Renderer.statLayers = 0;
 Boot.main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);

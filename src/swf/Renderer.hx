@@ -23,6 +23,11 @@ class Renderer {
 
 	static var IDENT:Array<Float> = [1, 1, 1, 1, 0, 0, 0, 0];
 
+	/** Compteurs pour le rapport de débogage du jeu : images recolorées créées, calques utilisés. **/
+	public static var statTints = 0;
+
+	public static var statLayers = 0;
+
 	public function new(canvas:CanvasElement) {
 		this.canvas = canvas;
 		this.ctx = canvas.getContext2d();
@@ -201,6 +206,7 @@ class Renderer {
 	}
 
 	function acquireLayer():CanvasElement {
+		statLayers++;
 		var l = layers[layerIndex];
 		if (l == null) {
 			l = Browser.document.createCanvasElement();
@@ -300,7 +306,10 @@ class Renderer {
 		var c = Browser.document.createCanvasElement();
 		c.width = sw > 0 ? sw : 1;
 		c.height = sh > 0 ? sh : 1;
-		var g = c.getContext2d();
+		// lu aussitôt (getImageData) : un canevas gardé en mémoire vive évite à Firefox et Chrome
+		// de rapatrier l'image depuis la carte graphique, ce qui bloque le dessin plusieurs ms
+		var g:CanvasRenderingContext2D = untyped c.getContext("2d", {willReadFrequently: true});
+		statTints++;
 		if (sw > 0 && sh > 0) {
 			g.drawImage(src, sx, sy, sw, sh, 0, 0, sw, sh);
 			var d = g.getImageData(0, 0, sw, sh);
