@@ -2211,10 +2211,17 @@ class menu_Online {
 		b.onclick = f;
 		return b;
 	}
+	static get_peer() {
+		if(menu_Online.peers.length > 0) {
+			return menu_Online.peers[0];
+		} else {
+			return null;
+		}
+	}
 	static showMulti(main,hostGameF,soloUrl) {
 		menu_Online.hostGame = hostGameF;
 		let p = menu_Online.el("div","panel wide");
-		p.appendChild(menu_Online.el("h2",null,"Jouer à deux en ligne"));
+		p.appendChild(menu_Online.el("h2",null,"Jouer en ligne (2 à 4)"));
 		main.appendChild(p);
 		let kiki = window.KikiNet;
 		if(kiki == null || $global.location.protocol == "file:") {
@@ -2233,9 +2240,9 @@ class menu_Online {
 			body.remove();
 			return;
 		}
-		body.appendChild(menu_Online.el("p",null,"1. Celui qui a lancé le serveur clique sur « Créer une partie » et envoie le lien à l'autre."));
-		body.appendChild(menu_Online.el("p",null,"2. L'autre ouvre le lien : vous vous retrouvez tous les deux dans le salon, où chacun choisit son pseudo."));
-		body.appendChild(menu_Online.el("p",null,"3. Chacun clique sur « Je suis prêt » : la partie démarre chez les deux. L'hôte joue Igor, l'invité Sandy, chacun sur son clavier avec ses touches (onglet Paramètres)."));
+		body.appendChild(menu_Online.el("p",null,"1. Celui qui a lancé le serveur clique sur « Créer une partie » et envoie le lien aux autres (jusqu'à 3)."));
+		body.appendChild(menu_Online.el("p",null,"2. Les autres ouvrent le lien : vous vous retrouvez dans le salon, où chacun choisit son pseudo."));
+		body.appendChild(menu_Online.el("p",null,"3. Chacun clique sur « Je suis prêt » : la partie démarre chez tout le monde, avec autant de personnages que de joueurs (Igor, Sandy, Igor vert, Igor bleu), chacun sur son clavier avec ses touches (onglet Paramètres)."));
 		let b1 = menu_Online.el("div","options");
 		b1.appendChild(menu_Online.el("h3",null,"Créer une partie"));
 		b1.appendChild(menu_Online.button("Créer une partie et inviter quelqu'un",function() {
@@ -2279,13 +2286,24 @@ class menu_Online {
 	}
 	static fail(e) {
 		let msg = e != null && e.message != null ? e.message : Std.string(e);
-		if(menu_Online.peer != null) {
+		let _g = 0;
+		let _g1 = menu_Online.peers;
+		while(_g < _g1.length) {
+			let q = _g1[_g];
+			++_g;
 			try {
-				menu_Online.peer.close();
+				q.close();
 			} catch( _g ) {
 			}
 		}
-		menu_Online.peer = null;
+		menu_Online.peers = [];
+		if(menu_Online.hostRoom != null) {
+			try {
+				menu_Online.hostRoom.close();
+			} catch( _g ) {
+			}
+		}
+		menu_Online.hostRoom = null;
 		if(menu_Online.box == null) {
 			return;
 		}
@@ -2309,19 +2327,68 @@ class menu_Online {
 		b.appendChild(note);
 		b.appendChild(menu_Online.el("p","note","Vous pouvez changer d'onglet en attendant (paramètres, frigo…) : la partie reste ouverte."));
 		let kiki = window.KikiNet;
+		menu_Online.isHost = true;
+		menu_Online.myId = 0;
+		menu_Online.players = [{ id : 0, name : menu_Online.myName(), ready : false}];
 		let pr = kiki.host({ onCode : function(c) {
 			code.textContent = "Code : " + c;
 			menu_Online.showLinks(links,note,c);
 		}, onStatus : function(s) {
 			return st.textContent = s;
+		}, onPeer : function(p) {
+			menu_Online.addGuest(p);
+		}, onClosed : function() {
+			if(menu_Online.peers.length == 0) {
+				menu_Online.fail("Le serveur s'est arrêté.");
+			}
 		}});
-		pr.then(function(p) {
-			menu_Online.connected(p);
+		pr.then(function(r) {
+			menu_Online.hostRoom = r;
 			return null;
 		},function(e) {
 			menu_Online.fail(e);
 			return null;
 		});
+	}
+	static addGuest(p) {
+		let first = menu_Online.peers.length == 0;
+		menu_Online.peers.push(p);
+		let id = p.slot != null ? p.slot | 0 : menu_Online.peers.length;
+		menu_Online.players.push({ id : id, name : "Joueur " + (menu_Online.players.length + 1), ready : false});
+		p.onclose = function(r) {
+			menu_Online.guestLeft(p,id);
+		};
+		menu_Online.listen(p);
+		if(first) {
+			menu_Online.buildLobby();
+		}
+		menu_Online.broadcastLobby();
+		menu_Online.refresh();
+	}
+	static guestLeft(p,id) {
+		HxOverrides.remove(menu_Online.peers,p);
+		let name = menu_Online.nameOf(id);
+		let _g = [];
+		let _g1 = 0;
+		let _g2 = menu_Online.players;
+		while(_g1 < _g2.length) {
+			let v = _g2[_g1];
+			++_g1;
+			if(v.id != id) {
+				_g.push(v);
+			}
+		}
+		menu_Online.players = _g;
+		if(menu_Online.inGame && menu_Online.inGameIds.indexOf(id) >= 0) {
+			if(menu_Online.inGameIds.length > 2) {
+				menu_Online.sendAll({ t : "left", name : name});
+				menu_Online.stopGameAndReturn(name + " a quitté la partie.");
+			}
+		} else if(menu_Online.resultLine != null) {
+			menu_Online.resultLine.textContent = name + " est parti.";
+		}
+		menu_Online.broadcastLobby();
+		menu_Online.refresh();
 	}
 	static copyable(label,url) {
 		let wrap = menu_Online.el("div","copy");
@@ -2409,11 +2476,23 @@ class menu_Online {
 		let st = menu_Online.el("p","netstatus");
 		b.appendChild(st);
 		let kiki = window.KikiNet;
+		menu_Online.isHost = false;
 		let pr = kiki.join(code,{ onStatus : function(s) {
 			return st.textContent = s;
 		}});
 		pr.then(function(p) {
-			menu_Online.connected(p);
+			menu_Online.peers = [p];
+			menu_Online.myId = -1;
+			menu_Online.players = [];
+			p.onclose = function(r) {
+				if(menu_Online.inGame) {
+					menu_Online.stopGameAndReturn(null);
+				}
+				menu_Online.fail("L'hôte s'est déconnecté" + (r != null ? " (" + Std.string(r) + ")" : "") + ".");
+			};
+			menu_Online.listen(p);
+			menu_Online.buildLobby();
+			menu_Online.send(p,{ t : "hello", name : menu_Online.myName()});
 			return null;
 		},function(e) {
 			menu_Online.fail(e);
@@ -2429,49 +2508,94 @@ class menu_Online {
 		if(v != null && StringTools.trim(v) != "") {
 			return HxOverrides.substr(StringTools.trim(v),0,20);
 		}
-		if(menu_Online.peer != null && menu_Online.peer.role == "guest") {
-			return "Sandy";
-		} else {
+		if(menu_Online.isHost) {
 			return "Igor";
+		} else {
+			return "Sandy";
 		}
 	}
-	static send(m) {
-		if(menu_Online.peer != null) {
+	static cleanName(n,def) {
+		let s = StringTools.trim(Std.string(n));
+		if(s == "" || n == null) {
+			return def;
+		} else {
+			return HxOverrides.substr(s,0,20);
+		}
+	}
+	static nameOf(id) {
+		let _g = 0;
+		let _g1 = menu_Online.players;
+		while(_g < _g1.length) {
+			let x = _g1[_g];
+			++_g;
+			if(x.id == id) {
+				return x.name;
+			}
+		}
+		return "Un joueur";
+	}
+	static send(p,m) {
+		if(p != null) {
 			try {
-				menu_Online.peer.sendReliable(JSON.stringify(m));
+				p.sendReliable(JSON.stringify(m));
 			} catch( _g ) {
 			}
 		}
 	}
-	static connected(p) {
-		menu_Online.peer = p;
-		let isHost = p.role == "host";
-		menu_Online.otherName = isHost ? "Sandy" : "Igor";
-		p.onclose = function(r) {
-			menu_Online.fail("L'autre joueur s'est déconnecté" + (r != null ? " (" + Std.string(r) + ")" : "") + ".");
-		};
+	static sendAll(m) {
+		let _g = 0;
+		let _g1 = menu_Online.peers;
+		while(_g < _g1.length) {
+			let q = _g1[_g];
+			++_g;
+			menu_Online.send(q,m);
+		}
+	}
+	static listen(p) {
 		p.onmessage = function(data,reliable) {
-			if(!reliable || typeof(data) != "string") {
-				return;
-			}
-			let m;
-			try {
-				m = JSON.parse(data);
-			} catch( _g ) {
-				m = null;
-			}
-			if(m != null) {
-				menu_Online.onLobbyMessage(m);
-			}
+			menu_Online.onReliable(p,data);
 		};
+	}
+	static onReliable(p,data) {
+		if(typeof(data) != "string") {
+			return;
+		}
+		let m;
+		try {
+			m = JSON.parse(data);
+		} catch( _g ) {
+			m = null;
+		}
+		if(m != null) {
+			menu_Online.onLobbyMessage(p,m);
+		}
+	}
+	static guestId(p) {
+		if(p.slot != null) {
+			return p.slot | 0;
+		} else {
+			return 1;
+		}
+	}
+	static broadcastLobby() {
+		if(!menu_Online.isHost) {
+			return;
+		}
+		let _g = 0;
+		let _g1 = menu_Online.peers;
+		while(_g < _g1.length) {
+			let q = _g1[_g];
+			++_g;
+			menu_Online.send(q,{ t : "lobby", you : menu_Online.guestId(q), players : menu_Online.players, inGame : menu_Online.inGame ? menu_Online.inGameIds : null});
+		}
+	}
+	static buildLobby() {
 		menu_Online.box.innerHTML = "";
 		menu_Online.box.appendChild(menu_Online.el("p","ok","Vous êtes connectés !"));
 		menu_Online.resultLine = menu_Online.el("p","result");
 		menu_Online.box.appendChild(menu_Online.resultLine);
 		let t = menu_Online.el("table","lobby");
-		let me = menu_Online.el("tr");
-		me.appendChild(menu_Online.el("td","who",isHost ? "Igor (hôte)" : "Sandy (invité)"));
-		let td = menu_Online.el("td");
+		menu_Online.box.appendChild(t);
 		let input = menu_Online.doc.createElement("input");
 		input.maxLength = 20;
 		input.value = menu_Online.myName();
@@ -2482,112 +2606,255 @@ class menu_Online {
 			if(head != null) {
 				head.value = input.value;
 			}
-			menu_Online.send({ t : "name", name : menu_Online.myName()});
+			menu_Online.setMine(function(x) {
+				x.name = menu_Online.myName();
+			});
+			if(menu_Online.isHost) {
+				menu_Online.broadcastLobby();
+			} else {
+				menu_Online.sendAll({ t : "name", name : menu_Online.myName()});
+			}
+			menu_Online.refresh();
 		};
 		input.onchange = function() {
 			if(menu_Online.onNameChanged != null) {
 				menu_Online.onNameChanged();
 			}
 		};
-		td.appendChild(input);
-		td.appendChild(menu_Online.el("span","note"," ← vous"));
-		me.appendChild(td);
-		let meState = menu_Online.el("td","state");
-		me.appendChild(meState);
-		let other = menu_Online.el("tr");
-		other.appendChild(menu_Online.el("td","who",isHost ? "Sandy (invité)" : "Igor (hôte)"));
-		let otherTd = menu_Online.el("td","other");
-		other.appendChild(otherTd);
-		let otherState = menu_Online.el("td","state");
-		other.appendChild(otherState);
-		t.appendChild(isHost ? me : other);
-		t.appendChild(isHost ? other : me);
-		menu_Online.box.appendChild(t);
 		let readyBtn = menu_Online.button("Je suis prêt !",function() {
 			menu_Online.resultLine.textContent = "";
 			menu_Online.myReady = !menu_Online.myReady;
-			menu_Online.send({ t : "ready", ready : menu_Online.myReady});
-			menu_Online.lobbyRefresh();
-			menu_Online.maybeStart();
+			menu_Online.setMine(function(x) {
+				x.ready = menu_Online.myReady;
+			});
+			if(menu_Online.isHost) {
+				menu_Online.broadcastLobby();
+				menu_Online.maybeStart();
+			} else {
+				menu_Online.sendAll({ t : "ready", ready : menu_Online.myReady});
+			}
+			menu_Online.refresh();
 		});
 		menu_Online.box.appendChild(readyBtn);
-		menu_Online.box.appendChild(menu_Online.el("p","note","Vos touches : " + menu_Online.keysText(false) + " · P : pause. La partie démarre quand vous êtes prêts tous les deux."));
+		let hint = menu_Online.el("p","note");
+		menu_Online.box.appendChild(hint);
 		let ping = menu_Online.el("p","note");
 		menu_Online.box.appendChild(ping);
-		menu_Online.lobbyRefresh = function() {
-			otherTd.textContent = menu_Online.otherName;
-			meState.textContent = menu_Online.myReady ? "✔ prêt" : "pas encore prêt";
-			otherState.textContent = menu_Online.otherReady ? "✔ prêt" : "pas encore prêt";
+		let p0 = menu_Online.get_peer();
+		menu_Online.refresh = function() {
+			if(input.parentNode != null) {
+				input.parentNode.removeChild(input);
+			}
+			t.innerHTML = "";
+			let k = 0;
+			let _g = 0;
+			let _g1 = menu_Online.players;
+			while(_g < _g1.length) {
+				let x = _g1[_g];
+				++_g;
+				let tr = menu_Online.el("tr");
+				let mine = x.id == menu_Online.myId;
+				let role = k < 4 ? menu_Online.CHARACTERS[k] : "?";
+				tr.appendChild(menu_Online.el("td","who",role + (x.id == 0 ? " (hôte)" : "")));
+				let td = menu_Online.el("td",mine ? null : "other");
+				if(mine) {
+					td.appendChild(input);
+					td.appendChild(menu_Online.el("span","note"," ← vous"));
+				} else {
+					td.textContent = x.name;
+				}
+				tr.appendChild(td);
+				let waiting = menu_Online.inGame && menu_Online.inGameIds.indexOf(x.id) < 0;
+				tr.appendChild(menu_Online.el("td","state",waiting ? "attend la prochaine partie" : x.ready ? "✔ prêt" : "pas encore prêt"));
+				t.appendChild(tr);
+				++k;
+			}
 			readyBtn.textContent = menu_Online.myReady ? "Finalement, pas encore" : "Je suis prêt !";
-			ping.textContent = (p.transport == "webrtc" ? "Liaison directe" : "Liaison par le serveur de l'hôte") + " · ping " + Math.round(p.rtt) + " ms";
+			let tmp = "Vos touches : " + menu_Online.keysText(false) + " · P : pause. La partie démarre quand tout le monde est prêt";
+			hint.textContent = tmp + (menu_Online.isHost ? " (vous pouvez encore inviter " + (4 - menu_Online.players.length) + " joueur" + (4 - menu_Online.players.length > 1 ? "s" : "") + " avec le même lien)." : ".");
+			if(menu_Online.players.length >= 4 && menu_Online.isHost) {
+				let tmp = "Vos touches : " + menu_Online.keysText(false);
+				hint.textContent = tmp + " · P : pause. La partie est complète (4 joueurs) : elle démarre quand tout le monde est prêt.";
+			}
+			let q = menu_Online.get_peer();
+			let tmp1;
+			if(q == null) {
+				tmp1 = "";
+			} else {
+				let _this = menu_Online.peers;
+				let result = new Array(_this.length);
+				let _g = 0;
+				let _g1 = _this.length;
+				while(_g < _g1) {
+					let i = _g++;
+					let z = _this[i];
+					result[i] = (z.transport == "webrtc" ? "liaison directe" : "liaison par le serveur") + " · ping " + Math.round(z.rtt) + " ms";
+				}
+				tmp1 = result.join(" — ");
+			}
+			ping.textContent = tmp1;
 		};
-		menu_Online.lobbyRefresh();
+		menu_Online.refresh();
 		let timer = 0;
 		timer = window.setInterval(function() {
-			if(menu_Online.peer == p && menu_Online.box.isConnected) {
-				menu_Online.lobbyRefresh();
-			} else if(menu_Online.peer != p) {
+			if(menu_Online.peers.length > 0 && menu_Online.box.isConnected) {
+				menu_Online.refresh();
+			} else if(menu_Online.peers.length == 0) {
 				window.clearInterval(timer);
 			}
 		},1000);
-		menu_Online.send({ t : "hello", name : menu_Online.myName()});
 		if($global.location.hash != "#multi") {
 			$global.location.hash = "multi";
 		}
 	}
-	static onLobbyMessage(m) {
-		switch(m.t) {
-		case "left":
-			if(menu_Online.inGame) {
-				let stop = window.kikiStop;
-				if(stop != null) {
-					stop();
-				}
-				menu_Online.backToLobby(menu_Online.otherName + " a quitté la partie.",false);
+	static setMine(f) {
+		let _g = 0;
+		let _g1 = menu_Online.players;
+		while(_g < _g1.length) {
+			let x = _g1[_g];
+			++_g;
+			if(x.id == menu_Online.myId) {
+				f(x);
 			}
-			break;
-		case "hello":case "name":
-			let n = Std.string(m.name);
-			if(StringTools.trim(n) != "") {
-				menu_Online.otherName = HxOverrides.substr(StringTools.trim(n),0,20);
-			}
-			break;
-		case "ready":
-			menu_Online.otherReady = m.ready == true;
-			menu_Online.maybeStart();
-			break;
-		case "start":
-			menu_Online.launch(m);
-			break;
-		}
-		if(menu_Online.lobbyRefresh != null) {
-			menu_Online.lobbyRefresh();
 		}
 	}
-	static localIndex() {
-		if(menu_Online.peer != null && menu_Online.peer.role == "host") {
-			return 0;
+	static onLobbyMessage(from,m) {
+		if(menu_Online.isHost) {
+			let id = menu_Online.guestId(from);
+			let x = null;
+			let _g = 0;
+			let _g1 = menu_Online.players;
+			while(_g < _g1.length) {
+				let y = _g1[_g];
+				++_g;
+				if(y.id == id) {
+					x = y;
+				}
+			}
+			switch(m.t) {
+			case "left":
+				if(menu_Online.inGame) {
+					menu_Online.sendAll({ t : "left", name : menu_Online.nameOf(id)});
+					menu_Online.stopGameAndReturn(menu_Online.nameOf(id) + " a quitté la partie.");
+				}
+				break;
+			case "hello":case "name":
+				if(x != null) {
+					x.name = menu_Online.cleanName(m.name,x.name);
+				}
+				menu_Online.broadcastLobby();
+				break;
+			case "ready":
+				if(x != null) {
+					x.ready = m.ready == true;
+				}
+				menu_Online.broadcastLobby();
+				menu_Online.maybeStart();
+				break;
+			}
 		} else {
-			return 1;
+			switch(m.t) {
+			case "left":
+				if(menu_Online.inGame) {
+					menu_Online.stopGameAndReturn(Std.string(m.name) + " a quitté la partie.");
+				}
+				break;
+			case "lobby":
+				menu_Online.myId = m.you | 0;
+				let ps = m.players;
+				let _g = [];
+				let _g1 = 0;
+				while(_g1 < ps.length) {
+					let y = ps[_g1];
+					++_g1;
+					_g.push({ id : y.id | 0, name : Std.string(y.name), ready : y.ready == true});
+				}
+				menu_Online.players = _g;
+				let _g2 = 0;
+				let _g3 = menu_Online.players;
+				while(_g2 < _g3.length) {
+					let y = _g3[_g2];
+					++_g2;
+					if(y.id == menu_Online.myId) {
+						menu_Online.myReady = y.ready;
+					}
+				}
+				if(!menu_Online.inGame && m.inGame != null) {
+					menu_Online.inGameIds = m.inGame;
+				}
+				break;
+			case "start":
+				menu_Online.launch(m);
+				break;
+			}
 		}
+		menu_Online.refresh();
 	}
 	static maybeStart() {
-		if(menu_Online.peer == null || menu_Online.peer.role != "host" || !menu_Online.myReady || !menu_Online.otherReady) {
+		if(!menu_Online.isHost || menu_Online.inGame || menu_Online.players.length < 2) {
 			return;
+		}
+		let _g = 0;
+		let _g1 = menu_Online.players;
+		while(_g < _g1.length) {
+			let x = _g1[_g];
+			++_g;
+			if(!x.ready) {
+				return;
+			}
 		}
 		let g = menu_Online.hostGame();
 		menu_Online.round++;
-		let cfg = { t : "start", mode : g.mode, options : g.options, families : g.families, seed : (menu_Online.peer.seed | 0) + menu_Online.round * 7919 & 2147483647, round : menu_Online.round, names : [menu_Online.myName(),menu_Online.otherName]};
-		menu_Online.send(cfg);
-		menu_Online.launch(cfg);
+		let list = menu_Online.players.slice(0,4);
+		let g1 = g.mode;
+		let g2 = g.options;
+		let g3 = g.families;
+		let cfg = (menu_Online.get_peer().seed | 0) + menu_Online.round * 7919 & 2147483647;
+		let cfg1 = menu_Online.round;
+		let _g2 = [];
+		let _g3 = 0;
+		while(_g3 < list.length) {
+			let x = list[_g3];
+			++_g3;
+			_g2.push(x.name);
+		}
+		let cfg2 = _g2;
+		let _g4 = [];
+		let _g5 = 0;
+		while(_g5 < list.length) {
+			let x = list[_g5];
+			++_g5;
+			_g4.push(x.id);
+		}
+		let cfg3 = { t : "start", mode : g1, options : g2, families : g3, seed : cfg, round : cfg1, names : cfg2, ids : _g4};
+		let _g6 = 0;
+		let _g7 = menu_Online.players;
+		while(_g6 < _g7.length) {
+			let x = _g7[_g6];
+			++_g6;
+			x.ready = false;
+		}
+		menu_Online.sendAll(cfg3);
+		menu_Online.launch(cfg3);
+	}
+	static stopGameAndReturn(msg) {
+		if(!menu_Online.inGame) {
+			return;
+		}
+		let stop = window.kikiStop;
+		if(stop != null) {
+			stop();
+		}
+		menu_Online.backToLobby(msg,false);
 	}
 	static backToLobby(msg,iQuit) {
 		if(!menu_Online.inGame) {
 			return;
 		}
 		menu_Online.inGame = false;
+		menu_Online.inGameIds = [];
 		if(iQuit) {
-			menu_Online.send({ t : "left"});
+			menu_Online.sendAll(menu_Online.isHost ? { t : "left", name : menu_Online.myName()} : { t : "left"});
 		}
 		menu_Online.doc.body.innerHTML = "";
 		menu_Online.doc.body.className = "";
@@ -2599,44 +2866,85 @@ class menu_Online {
 			menu_Online.doc.body.appendChild(n);
 		}
 		menu_Online.doc.title = menu_Online.savedTitle;
-		let p = menu_Online.peer;
-		if(p != null) {
-			p.onclose = function(r) {
-				menu_Online.fail("L'autre joueur s'est déconnecté" + (r != null ? " (" + Std.string(r) + ")" : "") + ".");
-			};
-			p.onmessage = function(data,reliable) {
-				if(!reliable || typeof(data) != "string") {
-					return;
+		let _g2 = 0;
+		let _g3 = menu_Online.peers;
+		while(_g2 < _g3.length) {
+			let q = _g3[_g2];
+			++_g2;
+			menu_Online.listen(q);
+			if(menu_Online.isHost) {
+				let id = menu_Online.guestId(q);
+				q.onclose = function(r) {
+					menu_Online.guestLeft(q,id);
+				};
+			} else {
+				q.onclose = function(r) {
+					menu_Online.fail("L'hôte s'est déconnecté" + (r != null ? " (" + Std.string(r) + ")" : "") + ".");
+				};
+			}
+		}
+		if(menu_Online.isHost) {
+			let _g = 0;
+			let _g1 = menu_Online.peers.slice();
+			while(_g < _g1.length) {
+				let q = _g1[_g];
+				++_g;
+				if(q.closed == true) {
+					menu_Online.guestLeft(q,menu_Online.guestId(q));
 				}
-				let m;
-				try {
-					m = JSON.parse(data);
-				} catch( _g ) {
-					m = null;
-				}
-				if(m != null) {
-					menu_Online.onLobbyMessage(m);
-				}
-			};
+			}
 		}
 		if(menu_Online.resultLine != null) {
 			menu_Online.resultLine.textContent = msg != null ? msg : "Vous avez quitté la partie.";
 		}
+		menu_Online.broadcastLobby();
 		if(menu_Online.onBack != null) {
 			menu_Online.onBack();
 		}
-		if(menu_Online.lobbyRefresh != null) {
-			menu_Online.lobbyRefresh();
-		}
+		menu_Online.refresh();
 	}
 	static launch(cfg) {
-		let p = menu_Online.peer;
 		let stop = window.kikiStop;
 		if(stop != null) {
 			stop();
 		}
-		menu_Online.myReady = menu_Online.otherReady = false;
-		p.onmessage = null;
+		let ids = cfg.ids != null ? cfg.ids : [0,menu_Online.myId];
+		let idx = ids.indexOf(menu_Online.myId);
+		if(idx < 0) {
+			menu_Online.inGameIds = ids;
+			menu_Online.refresh();
+			return;
+		}
+		menu_Online.myReady = false;
+		let _g = 0;
+		let _g1 = menu_Online.players;
+		while(_g < _g1.length) {
+			let x = _g1[_g];
+			++_g;
+			x.ready = false;
+		}
+		let gamePeers;
+		if(menu_Online.isHost) {
+			let _g = [];
+			let _g1 = 0;
+			let _g2 = menu_Online.peers;
+			while(_g1 < _g2.length) {
+				let v = _g2[_g1];
+				++_g1;
+				if(ids.indexOf(menu_Online.guestId(v)) >= 0) {
+					_g.push(v);
+				}
+			}
+			gamePeers = _g;
+		} else {
+			gamePeers = menu_Online.peers.slice();
+		}
+		let _g2 = 0;
+		while(_g2 < gamePeers.length) {
+			let q = gamePeers[_g2];
+			++_g2;
+			q.onmessage = null;
+		}
 		if(!menu_Online.inGame) {
 			let _g = [];
 			let _g1 = 0;
@@ -2657,30 +2965,31 @@ class menu_Online {
 			menu_Online.savedTitle = menu_Online.doc.title;
 		}
 		menu_Online.inGame = true;
-		let idx = menu_Online.localIndex();
+		menu_Online.inGameIds = ids;
+		menu_Online.broadcastLobby();
+		let n = ids.length;
+		let gamePeers1 = gamePeers[0];
 		let tmp = cfg.round != null ? cfg.round : 1;
-		window.KIKI_NET = { peer : p, mode : cfg.mode, options : cfg.options, families : cfg.families, seed : cfg.seed, round : tmp, names : cfg.names, onReliable : function(data) {
-			if(typeof(data) != "string") {
-				return;
-			}
-			let m;
-			try {
-				m = JSON.parse(data);
-			} catch( _g ) {
-				m = null;
-			}
-			if(m != null) {
-				menu_Online.onLobbyMessage(m);
-			}
+		window.KIKI_NET = { peer : gamePeers1, peers : gamePeers, players : n, index : idx, mode : cfg.mode, options : cfg.options, families : cfg.families, seed : cfg.seed, round : tmp, names : cfg.names, onReliable : function(data,from) {
+			menu_Online.onReliable(from != null ? from : gamePeers[0],data);
 		}, backToLobby : function(msg) {
 			menu_Online.backToLobby(msg,msg == null);
 		}};
 		let names = cfg.names;
-		let me = idx == 0 ? "Igor" : "Sandy";
-		menu_Online.doc.title = "Kikifest à deux";
+		let _g3 = [];
+		let _g4 = 0;
+		let _g5 = n;
+		while(_g4 < _g5) {
+			let i = _g4++;
+			if(i != idx) {
+				_g3.push(StringTools.htmlEscape(names[i]) + " joue " + menu_Online.CHARACTERS[i]);
+			}
+		}
+		let others = _g3;
+		menu_Online.doc.title = n > 2 ? "Kikifest à " + n : "Kikifest à deux";
 		menu_Online.doc.body.className = "playing";
-		let tmp1 = "<canvas id=\"game\"></canvas><div id=\"status\">Chargement…</div>" + "<div class=\"help\">Vous jouez <b>" + me + "</b> (" + StringTools.htmlEscape(names[idx]) + ") avec " + StringTools.htmlEscape(menu_Online.keysText(false)) + " · " + StringTools.htmlEscape(names[1 - idx]) + " joue ";
-		menu_Online.doc.body.innerHTML = tmp1 + (idx == 0 ? "Sandy" : "Igor") + " · P : pause · Échap deux fois : quitter</div>";
+		let tmp1 = "<canvas id=\"game\"></canvas><div id=\"status\">Chargement…</div>" + "<div class=\"help\">Vous jouez <b>" + menu_Online.CHARACTERS[idx] + "</b> (" + StringTools.htmlEscape(names[idx]) + ") avec " + StringTools.htmlEscape(menu_Online.keysText(false)) + " · " + others.join(" · ");
+		menu_Online.doc.body.innerHTML = tmp1 + " · P : pause · Échap deux fois : quitter</div>";
 		let s = menu_Online.doc.createElement("script");
 		s.src = "js/game.js?r=" + Std.string(cfg.round);
 		menu_Online.doc.body.appendChild(s);
@@ -2889,7 +3198,10 @@ class menu_Online {
 		return tmp + " + " + meta_Settings.label(d,k.bomb);
 	}
 }
+menu_Online.refresh = function() {
+};
 menu_Online.__name__ = "menu.Online";
+menu_Online.__properties__ = {get_peer: "get_peer"};
 class meta_Quests {
 	constructor(questsXml,itemXmls) {
 		this.familyOrder = [];
@@ -4765,11 +5077,15 @@ menu_Menu.PASSIVE = ["boost","set_ta_0","set_ta_1","set_ta_2","set_mta_0","set_m
 menu_Menu.iconCache = new haxe_ds_StringMap();
 menu_Menu.FLOOR_COLORS = ["#f2c230","#c9a3ec","#a777d6","#c64fa0","#e2445f"];
 menu_Online.doc = window.document;
+menu_Online.peers = [];
+menu_Online.isHost = false;
 menu_Online.myReady = false;
-menu_Online.otherReady = false;
-menu_Online.otherName = "";
+menu_Online.myId = 0;
+menu_Online.players = [];
+menu_Online.inGameIds = [];
 menu_Online.round = 0;
 menu_Online.inGame = false;
+menu_Online.CHARACTERS = ["Igor","Sandy","Igor vert","Igor bleu"];
 meta_Save.FLOORS = [369920,737965,3508030,11152196];
 meta_Settings.ACTIONS = [{ id : "up", name : "Sauter", bit : 1},{ id : "down", name : "Descendre", bit : 2},{ id : "left", name : "Gauche", bit : 4},{ id : "right", name : "Droite", bit : 8},{ id : "bomb", name : "Poser une bombe", bit : 16},{ id : "pause", name : "Pause", bit : 32},{ id : "map", name : "Carte", bit : 64}];
 mtlib_Rand.seed = 625341585;

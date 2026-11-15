@@ -107,10 +107,13 @@ function serveFile(req, res) {
 }
 
 // ---------- Salons ----------
-// Un salon = un hôte + au plus un invité. Code sans lettres ambiguës (pas de O/0, I/1).
+// Un salon = un hôte + jusqu'à 3 invités (partie à 4). Code sans lettres ambiguës (pas de O/0, I/1).
+// Chaque invité a sa « place » (slot) : l'hôte ouvre pour lui une 2e connexion (« attach »), et le
+// serveur relaie entre ces deux-là (signalisation WebRTC, puis repli binaire), comme à deux.
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const rooms = new Map(); // code -> { host, guest }
+const rooms = new Map(); // code -> { code, host, key, slots: Map(slot -> { guest, hostSide }), next }
 const MAX_ROOMS = 50;
+const MAX_GUESTS = 3;
 
 function newCode() {
   for (;;) {
@@ -120,8 +123,13 @@ function newCode() {
 }
 
 function onClient(ws) {
-  let room = null, role = null;
-  const other = () => (room ? (role === "host" ? room.guest : room.host) : null);
+  // role : "host" (connexion principale de l'hôte), "side" (connexion de l'hôte pour un invité), "guest"
+  let room = null, role = null, slot = null;
+  const pair = () => (room && slot != null ? room.slots.get(slot) : null);
+  const other = () => {
+    const p = pair();
+    return p ? (role === "guest" ? p.hostSide : p.guest) : null;
+  };
 
   ws.on("text", (text) => {
     let msg;
@@ -129,40 +137,59 @@ function onClient(ws) {
     if (msg.t === "create" && !room) {
       if (rooms.size >= MAX_ROOMS) return ws.sendJson({ t: "error", msg: "Trop de parties ouvertes sur ce serveur." });
       const code = newCode();
-      room = { code, host: ws, guest: null };
+      room = { code, host: ws, key: crypto.randomBytes(12).toString("hex"), slots: new Map(), next: 1 };
       role = "host";
       rooms.set(code, room);
-      ws.sendJson({ t: "created", code, iceServers });
+      ws.sendJson({ t: "created", code, key: room.key, iceServers });
       console.log(`Partie ${code} créée.`);
     } else if (msg.t === "join" && !room) {
       const code = String(msg.code ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
       const r = rooms.get(code);
       if (!r) return ws.sendJson({ t: "error", msg: `Aucune partie avec le code ${code || "(vide)"}.` });
-      if (r.guest) return ws.sendJson({ t: "error", msg: "Cette partie a déjà deux joueurs." });
-      room = r; role = "guest"; r.guest = ws;
+      if (r.slots.size >= MAX_GUESTS) return ws.sendJson({ t: "error", msg: "Cette partie est complète (4 joueurs maximum)." });
+      room = r; role = "guest"; slot = r.next++;
+      r.slots.set(slot, { guest: ws, hostSide: null });
       ws.sendJson({ t: "joined", code, iceServers });
-      r.host.sendJson({ t: "peer-joined" });
-      console.log(`Un invité a rejoint la partie ${code}.`);
+      r.host.sendJson({ t: "peer-joined", slot });
+      console.log(`Un invité a rejoint la partie ${code} (${r.slots.size + 1} joueurs).`);
+    } else if (msg.t === "attach" && !room) {
+      const r = rooms.get(String(msg.code ?? ""));
+      const p = r && r.key === msg.key ? r.slots.get(msg.slot) : null;
+      if (!p || p.hostSide) return ws.sendJson({ t: "error", msg: "Cet invité n'est plus là." });
+      room = r; role = "side"; slot = msg.slot; p.hostSide = ws;
+      ws.sendJson({ t: "attached", slot });
     } else if (msg.t === "signal" && other()) {
       // Offre/réponse/candidats WebRTC et messages de contrôle du salon : relayés tels quels.
       other().sendJson({ t: "signal", data: msg.data });
     }
   });
 
-  // Repli : messages du jeu en binaire, relayés tels quels à l'autre joueur.
+  // Repli : messages du jeu en binaire, relayés tels quels entre l'invité et l'hôte.
   ws.on("binary", (buf) => { const o = other(); if (o) o.send(buf); });
 
   ws.on("close", () => {
     if (!room) return;
     if (role === "host") {
-      room.guest?.sendJson({ t: "peer-left", msg: "L'hôte a quitté la partie." });
-      room.guest?.close();
+      for (const p of room.slots.values()) {
+        p.guest.sendJson({ t: "peer-left", msg: "L'hôte a quitté la partie." });
+        p.guest.close();
+        p.hostSide?.close();
+      }
       rooms.delete(room.code);
       console.log(`Partie ${room.code} fermée.`);
+    } else if (role === "guest") {
+      const p = pair();
+      room.slots.delete(slot);
+      p?.hostSide?.sendJson({ t: "peer-left", msg: "L'invité a quitté la partie." });
+      room.host.sendJson({ t: "peer-left", slot, msg: "L'invité a quitté la partie." });
+      console.log(`Un invité a quitté la partie ${room.code}.`);
     } else {
-      room.guest = null;
-      room.host.sendJson({ t: "peer-left", msg: "L'invité a quitté la partie." });
-      console.log(`L'invité a quitté la partie ${room.code}.`);
+      // l'hôte a fermé sa liaison avec cet invité
+      const p = pair();
+      if (p && p.hostSide === ws) {
+        p.guest.sendJson({ t: "peer-left", msg: "L'hôte a fermé la connexion." });
+        p.guest.close();
+      }
     }
   });
 }
