@@ -6,3 +6,7 @@ server/config.json
 build/
 server/bin/
 saves/
+
+# morceaux ajoutés par l'hôte (gardés sur son ordinateur)
+web/assets/musiques/*
+!web/assets/musiques/LISEZMOI.txt

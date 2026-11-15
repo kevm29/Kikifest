@@ -74,6 +74,11 @@ class Boot {
 			jobs.push(fetchText("assets/data/" + k + ".xml").then(t -> Reflect.setField(root, v, t)));
 		var lang:String = null;
 		jobs.push(fetchText("assets/data/lang/fr.xml").then(t -> lang = t));
+		// morceaux ajoutés (dossier web/assets/musiques/, listé par le serveur de l'hôte) : facultatif
+		jobs.push(Browser.window.fetch("api/musiques").then(r -> r.ok ? r.json() : null).then(list -> {
+			meta.Jukebox.setFiles(Std.isOfType(list, Array) ? list : null);
+			return null;
+		}).catchError(_ -> null));
 		// les quêtes ont besoin des listes d'objets (familles) en plus de quests.xml
 		for (k in ["specialItems", "scoreItems", "quests"])
 			jobs.push(fetchText("assets/data/" + k + ".xml").then(t -> rawData.set(k, t)));
@@ -101,6 +106,8 @@ class Boot {
 		settings = meta.Settings.load();
 		SoundBank.musicVolume = settings.music / 100;
 		SoundBank.sfxVolume = settings.sfx / 100;
+		// musique tirée au hasard ; en réseau avec la graine commune, pour que les deux entendent la même
+		meta.Jukebox.pick(netCfg != null ? Std.int(netCfg.seed) : Std.random(1000000));
 
 		var canvas:js.html.CanvasElement = cast Browser.document.getElementById("game");
 		if (nj != null && nj > 2) {
@@ -114,9 +121,10 @@ class Boot {
 
 		var init:Dynamic = {
 			fl_local: true,
-			musics: [for (f in ["music.mp3", "boss.mp3", "hurryUp.mp3"]) {
+			musics: meta.Jukebox.sounds = [for (i => f in ["music.mp3", "boss.mp3", "hurryUp.mp3"]) {
 				var m = new mtlib.Sound();
 				m.loadSound(f, false);
+				m.jukeboxSlot = i;
 				m;
 			}],
 			rawLang: lang,
@@ -138,6 +146,8 @@ class Boot {
 
 		var onDown = (e:js.html.KeyboardEvent) -> {
 			pressed.set(e.code, true);
+			if (e.code == "KeyM" && !e.repeat && !isTyping(e) && !isBound("KeyM"))
+				musicKey();
 			onKey(e.code);
 			mtlib.SoundBank.unlock();
 			if (e.keyCode >= 32 && e.keyCode <= 40 && !isTyping(e))
@@ -310,6 +320,19 @@ class Boot {
 	static var netGame:NetGame;
 	static var lastNetInfo = 0.0;
 
+	/** Message fiable reçu en partie : choix de musique de l'hôte, sinon pour le salon (rejouer, départ...). **/
+	static function onReliable(msg:Dynamic, link:Dynamic) {
+		var m:Dynamic = Std.isOfType(msg, String) && StringTools.startsWith(msg, '{"t":"music"') ? (try haxe.Json.parse(msg) catch (e:Dynamic) null) : null;
+		if (m != null) {
+			if (netPlayer == 0)
+				return; // seul l'hôte choisit
+			var i = meta.Jukebox.tracks.indexOf(Std.string(m.f));
+			meta.Jukebox.set(i < 0 ? 0 : i, m.off == true);
+			notice("Musique (choisie par l'hôte) : " + meta.Jukebox.label());
+		} else if (netCfg.onReliable != null)
+			netCfg.onReliable(msg, link);
+	}
+
 	static function startNet() {
 		var peer:Dynamic = netCfg.peer;
 		netPlayer = netCfg.index != null ? Std.int(netCfg.index) : (peer.role == "host" ? 0 : 1);
@@ -320,14 +343,14 @@ class Boot {
 		var inner:net.transport.Transport;
 		if (netPlayers <= 2) {
 			var kt = new net.transport.KikiNetTransport(peer);
-			kt.onReliable = (msg:Dynamic) -> if (netCfg.onReliable != null) netCfg.onReliable(msg, peer);
+			kt.onReliable = (msg:Dynamic) -> onReliable(msg, peer);
 			inner = kt;
 		} else {
 			// à 3 ou 4 : les invités ne sont reliés qu'à l'hôte, qui fait suivre les touches de chacun aux autres
 			var group = new net.transport.GroupTransport(peer.role == "host");
 			for (l in links) {
 				var kt = new net.transport.KikiNetTransport(l);
-				kt.onReliable = (msg:Dynamic) -> if (netCfg.onReliable != null) netCfg.onReliable(msg, l);
+				kt.onReliable = (msg:Dynamic) -> onReliable(msg, l);
 				group.add(kt);
 			}
 			inner = group;
@@ -452,6 +475,51 @@ class Boot {
 				h = net.rollback.Checksum.addInt(h, Std.int(p.lives));
 			}
 		return h;
+	}
+
+	// ---------------------------------------------------------------- musique
+
+	static function isBound(code:String):Bool {
+		for (k in [settings.keys, settings.keys2])
+			for (a in meta.Settings.ACTIONS)
+				if (Reflect.field(k, a.id) == code)
+					return true;
+		return false;
+	}
+
+	/** Touche M : morceau suivant ou musique coupée (en réseau, seul l'hôte choisit). **/
+	static function musicKey() {
+		if (session != null && netPlayer != 0) {
+			notice("C'est l'hôte qui choisit la musique (touche M).");
+			return;
+		}
+		meta.Jukebox.next();
+		notice("Musique : " + meta.Jukebox.label() + " (M : changer)");
+		if (session != null) {
+			// à 3 ou 4, l'hôte est relié à chaque invité
+			var links:Array<Dynamic> = netCfg.peers != null ? netCfg.peers : [netCfg.peer];
+			var msg = '{"t":"music","f":' + haxe.Json.stringify(meta.Jukebox.tracks[meta.Jukebox.current]) + ',"off":' + meta.Jukebox.off + '}';
+			for (l in links)
+				try
+					l.sendReliable(msg)
+				catch (e:Dynamic) {}
+		}
+	}
+
+	static var noticeTimer = -1;
+
+	/** Message affiché quelques secondes sous le jeu. **/
+	static function notice(s:String) {
+		status(s);
+		lastNetInfo = Browser.window.performance.now() + 2500;
+		if (noticeTimer >= 0)
+			Browser.window.clearTimeout(noticeTimer);
+		if (netCfg == null)
+			noticeTimer = Browser.window.setTimeout(() -> {
+				noticeTimer = -1;
+				if (!gameEnded)
+					status("");
+			}, 2500);
 	}
 
 	static var stopped = false;

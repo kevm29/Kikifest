@@ -51,6 +51,19 @@ const base = "http://localhost:8080/";
   for (const p of pages)
     await p.waitForFunction(() => window.kiki && kiki.session && kiki.manager && kiki.manager.current, null, { timeout: 30000 });
   console.log("partie lancée chez les " + n);
+  // musique : M chez l'hôte change celle de tous les invités, M chez un invité ne change rien
+  const music = (p) => p.evaluate(() => { const J = kiki.net.classes["meta.Jukebox"]; return J.off ? "coupée" : J.tracks[J.current]; });
+  const pressM = (p) => p.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyM", bubbles: true })));
+  const all = async () => { const r = []; for (const p of pages) r.push(await music(p)); return r; };
+  const m0 = await all();
+  await pressM(host); await host.waitForTimeout(1000);
+  const m1 = await all();
+  await pressM(pages[n - 1]); await host.waitForTimeout(1000);
+  const m2 = await all();
+  const same = (m) => m.every((x) => x === m[0]);
+  const musicOk = same(m0) && same(m1) && m1[0] !== m0[0] && same(m2) && m2[0] === m1[0];
+  console.log("musique :", JSON.stringify([m0, m1, m2]), musicOk ? "OK" : "ÉCHEC");
+  if (!musicOk) errs.push("musique pas synchronisée");
   const keys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"];
   let rnd = 7;
   const r = (k) => { rnd ^= rnd << 13; rnd ^= rnd >>> 17; rnd ^= rnd << 5; return Math.abs(rnd) % k; };

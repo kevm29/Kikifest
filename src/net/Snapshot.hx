@@ -32,7 +32,7 @@ class Snapshot {
 
 	/** Classes dont les statiques ne sont pas de l'état de jeu. **/
 	static var SKIP_CLASSES = [
-		"swf.Library", "swf.Renderer", "swf.FrameScripts", "mtlib.SoundBank", "net.Snapshot", "Boot", "net.rollback.RollbackSession", "Lang", "Data", "meta.Quests", "meta.Settings"
+		"swf.Library", "swf.Renderer", "swf.FrameScripts", "mtlib.SoundBank", "net.Snapshot", "Boot", "net.rollback.RollbackSession", "Lang", "Data", "meta.Quests", "meta.Settings", "meta.Jukebox"
 	];
 
 	/** Racines : objets donnés + statiques de toutes les classes Haxe. **/
