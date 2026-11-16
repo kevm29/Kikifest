@@ -231,7 +231,7 @@ server.on("error", (e) => {
 
 server.listen(port, async () => {
   const local = `http://localhost:${port}/`;
-  console.log("\n=== Kikifest : serveur de l'hôte ===\n");
+  console.log("\n=== Kikifest : serveur de l'hôte (version du 16/11, port de box réglable) ===\n");
   console.log(`Ouvrez le jeu sur cet ordinateur :  ${local}`);
   if (openBrowser) openInBrowser(local);
 
@@ -256,11 +256,12 @@ server.listen(port, async () => {
   if (info.publicIp && info.reachable !== true && !portBoxSet && !upnp.ok) {
     // redirection faite à la main sur un autre port externe (Livebox qui refuse le 8080) ?
     const alt = port + 1;
-    if (await checkReachable(alt, info.publicIp, 1) === true) {
+    console.log(`Le port ${port} ne répond pas depuis internet : essai du port ${alt} (règle de box ${alt} -> ${port} ?)...`);
+    if (await checkReachable(alt, info.publicIp, 2) === true) {
       console.log(`Le port ${port} n'est pas joignable, mais le ${alt} l'est (redirigé par la box) : on utilise le ${alt}.`);
       info.publicPort = alt;
       info.reachable = true;
-    }
+    } else console.log(`Le port ${alt} ne répond pas non plus : si la box redirige bien ${alt} -> ${port}, c'est sans doute le pare-feu de cet ordinateur.`);
   }
   if (!info.publicIp) console.log("Adresse internet introuvable (pas d'accès à internet, ou STUN bloqué).");
   else if (info.reachable === true) console.log(`Vérification depuis internet : le port ${info.publicPort} est bien joignable.`);
