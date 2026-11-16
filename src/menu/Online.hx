@@ -733,6 +733,28 @@ class Online {
 		}
 		p.appendChild(vol);
 
+		var qual = el("div", "options");
+		qual.appendChild(el("h3", null, "Qualité d'image"));
+		var qlab = el("label", "slider");
+		qlab.appendChild(el("span", "lbl", "Qualité"));
+		var sel:js.html.SelectElement = cast doc.createElement("select");
+		for (i in 0...Settings.QUALITIES.length) {
+			var o:js.html.OptionElement = cast doc.createElement("option");
+			o.value = Std.string(i);
+			o.textContent = Settings.QUALITIES[i];
+			sel.appendChild(o);
+		}
+		sel.value = Std.string(d.quality);
+		sel.onchange = () -> {
+			d.quality = Std.parseInt(sel.value);
+			Settings.store(d);
+		};
+		qlab.appendChild(sel);
+		qual.appendChild(qlab);
+		qual.appendChild(el("p", "note", "Légère : le jeu est dessiné à sa taille d'origine puis agrandi, c'est le plus fluide (conseillé en ligne). "
+			+ "Haute : pleine résolution de l'écran, plus net mais plus lourd. En partie, F4 change la qualité."));
+		p.appendChild(qual);
+
 		var keys = el("div", "options");
 		keys.appendChild(el("h3", null, "Touches"));
 		keys.appendChild(el("p", "note", "Cliquez sur une touche puis appuyez sur la nouvelle. "

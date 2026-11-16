@@ -3100,6 +3100,29 @@ class menu_Online {
 		lab1.appendChild(val1);
 		vol.appendChild(lab1);
 		p.appendChild(vol);
+		let qual = menu_Online.el("div","options");
+		qual.appendChild(menu_Online.el("h3",null,"Qualité d'image"));
+		let qlab = menu_Online.el("label","slider");
+		qlab.appendChild(menu_Online.el("span","lbl","Qualité"));
+		let sel = menu_Online.doc.createElement("select");
+		let _g = 0;
+		let _g1 = meta_Settings.QUALITIES.length;
+		while(_g < _g1) {
+			let i = _g++;
+			let o = menu_Online.doc.createElement("option");
+			o.value = i == null ? "null" : "" + i;
+			o.textContent = meta_Settings.QUALITIES[i];
+			sel.appendChild(o);
+		}
+		sel.value = d.quality == null ? "null" : "" + d.quality;
+		sel.onchange = function() {
+			d.quality = Std.parseInt(sel.value);
+			meta_Settings.store(d);
+		};
+		qlab.appendChild(sel);
+		qual.appendChild(qlab);
+		qual.appendChild(menu_Online.el("p","note","Légère : le jeu est dessiné à sa taille d'origine puis agrandi, c'est le plus fluide (conseillé en ligne). " + "Haute : pleine résolution de l'écran, plus net mais plus lourd. En partie, F4 change la qualité."));
+		p.appendChild(qual);
 		let keys = menu_Online.el("div","options");
 		keys.appendChild(menu_Online.el("h3",null,"Touches"));
 		keys.appendChild(menu_Online.el("p","note","Cliquez sur une touche puis appuyez sur la nouvelle. " + "En ligne, chacun joue avec ses propres touches, celles de la colonne « Vous ». " + "La 2e colonne sert au 2e joueur sur le même clavier (Aventure à deux en local)."));
@@ -3121,11 +3144,11 @@ class menu_Online {
 				x.b.textContent = meta_Settings.label(d,Reflect.field(Reflect.field(d,x.set),x.id));
 			}
 		};
-		let _g = 0;
-		let _g1 = meta_Settings.ACTIONS;
-		while(_g < _g1.length) {
-			let a = _g1[_g];
-			++_g;
+		let _g2 = 0;
+		let _g3 = meta_Settings.ACTIONS;
+		while(_g2 < _g3.length) {
+			let a = _g3[_g2];
+			++_g2;
 			let tr = menu_Online.el("tr");
 			tr.appendChild(menu_Online.el("td","act",a.name));
 			let set = "keys";
@@ -3545,7 +3568,7 @@ class meta_Settings {
 		return { up : "KeyR", down : "KeyF", left : "KeyD", right : "KeyG", bomb : "KeyQ", pause : "KeyP", map : "KeyC"};
 	}
 	static defaults() {
-		return { music : 70, sfx : 100, keys : meta_Settings.defaultKeys(), keys2 : meta_Settings.defaultKeys2(), labels : { }};
+		return { music : 70, sfx : 100, keys : meta_Settings.defaultKeys(), keys2 : meta_Settings.defaultKeys2(), labels : { }, quality : 0};
 	}
 	static load() {
 		let d = meta_Settings.defaults();
@@ -3587,6 +3610,12 @@ class meta_Settings {
 				}
 				if(s.labels != null) {
 					d.labels = s.labels;
+				}
+				if(s.quality != null) {
+					let q = Std.parseInt(Std.string(s.quality));
+					if(q != null && q >= 0 && q <= 2) {
+						d.quality = q;
+					}
 				}
 			}
 		} catch( _g ) {
@@ -3982,8 +4011,8 @@ class swf_Library {
 	}
 	rasterized(id,scale) {
 		let bucket = Math.pow(2,Math.ceil(Math.log(Math.max(scale,0.125)) / Math.log(2)));
-		if(bucket > 8) {
-			bucket = 8;
+		if(bucket > 4) {
+			bucket = 4;
 		}
 		let key = id + "@" + bucket;
 		let c = this.raster.h[key];
@@ -5400,6 +5429,7 @@ menu_Online.inGame = false;
 menu_Online.CHARACTERS = ["Igor","Sandy","Igor vert","Igor bleu"];
 meta_Save.FLOORS = [369920,737965,3508030,11152196];
 meta_Settings.ACTIONS = [{ id : "up", name : "Sauter", bit : 1},{ id : "down", name : "Descendre", bit : 2},{ id : "left", name : "Gauche", bit : 4},{ id : "right", name : "Droite", bit : 8},{ id : "bomb", name : "Poser une bombe", bit : 16},{ id : "pause", name : "Pause", bit : 32},{ id : "map", name : "Carte", bit : 64}];
+meta_Settings.QUALITIES = ["Légère","Normale","Haute"];
 mtlib_Rand.seed = 625341585;
 swf_DisplayObject._hx_skip_constructor = false;
 swf_FrameScripts.GLOBALS = ["Math","random","_global","_root","undefined","NaN","Infinity","Number","String","Array","Boolean","Object","isNaN","parseInt","parseFloat","int","trace","console","eval"];

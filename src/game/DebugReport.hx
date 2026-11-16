@@ -453,6 +453,7 @@ class DebugReport {
 			fenetre: Browser.window.innerWidth + "x" + Browser.window.innerHeight,
 			zoomPixels: Browser.window.devicePixelRatio,
 			canevas: renderer != null ? renderer.canvas.width + "x" + renderer.canvas.height : null,
+			qualite: meta.Settings.QUALITIES[Boot.quality],
 			canevasPerdu: renderer != null ? (try untyped renderer.ctx.isContextLost() catch (_:Dynamic) null) : null,
 			rafraichissementEcranHz: round(1000 / Math.max(1, percentile(dts, 0.5))),
 			ongletCache: hiddenCount,

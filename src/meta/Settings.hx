@@ -22,7 +22,9 @@ typedef SettingsData = {
 	/** touches du deuxième joueur sur le même clavier **/
 	keys2:KeyMap,
 	/** noms des touches tels qu'affichés au moment du choix (claviers AZERTY...) **/
-	labels:Dynamic
+	labels:Dynamic,
+	/** qualité d'image : 0 légère (résolution du jeu d'origine), 1 normale, 2 haute (pleine résolution de l'écran) **/
+	quality:Int
 };
 
 /**
@@ -60,7 +62,9 @@ class Settings {
 		return {up: "KeyR", down: "KeyF", left: "KeyD", right: "KeyG", bomb: "KeyQ", pause: "KeyP", map: "KeyC"};
 
 	public static function defaults():SettingsData
-		return {music: 70, sfx: 100, keys: defaultKeys(), keys2: defaultKeys2(), labels: {}};
+		return {music: 70, sfx: 100, keys: defaultKeys(), keys2: defaultKeys2(), labels: {}, quality: 0};
+
+	public static var QUALITIES = ["Légère", "Normale", "Haute"];
 
 	public static function load():SettingsData {
 		var d = defaults();
@@ -81,6 +85,11 @@ class Settings {
 				}
 				if (s.labels != null)
 					d.labels = s.labels;
+				if (s.quality != null) {
+					var q = Std.parseInt(Std.string(s.quality));
+					if (q != null && q >= 0 && q <= 2)
+						d.quality = q;
+				}
 			}
 		} catch (e:Dynamic) {}
 		return d;
