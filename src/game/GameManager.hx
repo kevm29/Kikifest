@@ -257,6 +257,11 @@ h?.set("$8d6fff6186db2e4f436852f16dcfbba8","$4768dc07c5f8a02389dd5bc1ab2e8cf4");
 	public static function fatal(msg:String)  untyped {
 		Log.setColor(0xff0000);
 		Log.trace("*** CRITICAL ERROR *** "+msg);
+		// Kikifest : avant, l'écran devenait noir sans explication
+		js.Browser.console.error("Kikifest : erreur fatale du jeu : "+msg);
+		DebugReport.error("erreur fatale : "+msg);
+		var st = js.Browser.document.getElementById("status");
+		if (st != null) st.textContent = "Erreur du jeu : "+msg+" (appuie sur F9 pour envoyer le rapport)";
 		SELF.current.destroy();
 		SELF.root.stop();
 		SELF.root.removeMovieClip();
@@ -268,6 +273,7 @@ h?.set("$8d6fff6186db2e4f436852f16dcfbba8","$4768dc07c5f8a02389dd5bc1ab2e8cf4");
 	------------------------------------------------------------------------*/
 	public static function warning(msg:String)  untyped {
 		Log.trace("* WARNING * "+msg);
+		DebugReport.event("avertissement : "+msg);
 	}
 
 

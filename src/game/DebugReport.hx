@@ -71,6 +71,13 @@ class DebugReport {
 			if (Browser.document.hidden) hiddenCount++;
 			event(Browser.document.hidden ? "onglet caché" : "onglet visible");
 		});
+		Browser.window.addEventListener("error", (e:Dynamic) -> error("JS : " + e.message + " @ " + e.filename + ":" + e.lineno));
+		Browser.window.addEventListener("unhandledrejection", (e:Dynamic) -> error("promesse : " + Std.string(e.reason)));
+		var cv = Browser.document.getElementById("game");
+		if (cv != null) {
+			cv.addEventListener("contextlost", (_) -> error("canevas perdu par le navigateur (contextlost)"));
+			cv.addEventListener("contextrestored", (_) -> event("canevas rendu (contextrestored)"));
+		}
 		addButton();
 	}
 
@@ -442,6 +449,7 @@ class DebugReport {
 			fenetre: Browser.window.innerWidth + "x" + Browser.window.innerHeight,
 			zoomPixels: Browser.window.devicePixelRatio,
 			canevas: renderer != null ? renderer.canvas.width + "x" + renderer.canvas.height : null,
+			canevasPerdu: renderer != null ? (try untyped renderer.ctx.isContextLost() catch (_:Dynamic) null) : null,
 			rafraichissementEcranHz: round(1000 / Math.max(1, percentile(dts, 0.5))),
 			ongletCache: hiddenCount,
 			memoireJsMo: mem != null ? Math.round(mem.usedJSHeapSize / 1048576) : null,
