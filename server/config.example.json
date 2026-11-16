@@ -1,5 +1,6 @@
 {
   "port": 8080,
+  "portBox": 8081,
   "upnp": true,
   "openBrowser": true,
   "iceServers": [

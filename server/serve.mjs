@@ -1,6 +1,11 @@
 // Serveur de l'hôte Kikifest : sert le jeu et met les deux joueurs en relation.
 //
-//   node server/serve.mjs [port] [--no-upnp] [--no-open] [--tunnel | --no-tunnel]
+//   node server/serve.mjs [port] [--port-box N] [--no-upnp] [--no-open] [--tunnel | --no-tunnel]
+//
+// Port de la box : celui que l'invité utilise depuis internet. Par défaut le même que le port du serveur.
+// Certaines box (Livebox) refusent de rediriger le 8080 (« règle en conflit ») : on redirige alors un autre
+// port externe (8081 par exemple) vers le 8080 de l'ordinateur. Sans réglage, si le 8080 n'est pas
+// joignable, le serveur essaie tout seul le 8081.
 //
 // - Fichiers du jeu (dossier web/) en HTTP.
 // - Salons : l'hôte crée une partie (code à 5 lettres), l'invité la rejoint par le code ou le lien.
@@ -30,8 +35,10 @@ let config = {};
 try { config = JSON.parse(fs.readFileSync(path.join(here, "config.json"), "utf8")); }
 catch (e) { if (e.code !== "ENOENT") console.warn("server/config.json illisible :", e.message); }
 const args = process.argv.slice(2);
-const portArg = args.find((a) => /^\d+$/.test(a));
+const portArg = args.find((a, i) => /^\d+$/.test(a) && args[i - 1] !== "--port-box");
 const port = Number(portArg ?? process.env.PORT ?? config.port ?? 8080);
+const portBoxIdx = args.indexOf("--port-box");
+const portBoxSet = Number(portBoxIdx >= 0 ? args[portBoxIdx + 1] : process.env.PORT_BOX ?? config.portBox ?? 0) || null;
 const useUpnp = !args.includes("--no-upnp") && config.upnp !== false;
 const openBrowser = !args.includes("--no-open") && config.openBrowser !== false;
 // Tunnel : "auto" (seulement si le port n'est pas joignable), true (toujours), false (jamais).
@@ -45,7 +52,8 @@ const iceServers = config.iceServers ?? [
 // reachable : le port est-il joignable depuis internet (true / false / null = inconnu).
 // tunnelUrl : adresse du tunnel, à donner à l'invité en priorité quand elle existe.
 // preferDirect : le lien direct http://IP:port est à donner en premier (le tunnel n'est alors qu'un lien de secours).
-const info = { port, lan: lanAddresses(), publicIp: null, upnp: null, reachable: null, tunnelUrl: null, preferDirect: false, ready: false, iceServers };
+// publicPort : port à utiliser depuis internet (port externe de la box).
+const info = { port, publicPort: portBoxSet ?? port, lan: lanAddresses(), publicIp: null, upnp: null, reachable: null, tunnelUrl: null, preferDirect: false, ready: false, iceServers };
 let tunnel = null;
 
 // ---------- Fichiers statiques ----------
@@ -231,7 +239,7 @@ server.listen(port, async () => {
   if (process.platform === "win32") console.log("Si Windows demande l'autorisation de modifier le pare-feu, répondez « Oui ».");
   const [stunIp, upnp, firewall] = await Promise.all([
     publicAddressViaStun(),
-    useUpnp ? openPortUpnp(port) : Promise.resolve({ ok: false, reason: "désactivé" }),
+    useUpnp ? openPortUpnp(port, null, info.publicPort) : Promise.resolve({ ok: false, reason: "désactivé" }),
     ensureWindowsFirewall(port),
   ]);
   info.publicIp = stunIp ?? (upnp.externalIp && !isPrivateIp(upnp.externalIp) ? upnp.externalIp : null);
@@ -241,13 +249,22 @@ server.listen(port, async () => {
     console.log("Pare-feu : impossible de le régler automatiquement. S'il est géré par un antivirus (Avast, Norton,");
     console.log("Kaspersky, Bitdefender...), autorisez Node.js dans les réglages de son pare-feu.");
   }
-  if (upnp.ok) console.log(`Box : port ${port} ouvert automatiquement (UPnP).`);
+  if (upnp.ok) console.log(`Box : port ${info.publicPort} ouvert automatiquement (UPnP).`);
   else console.log(`Box : ouverture automatique du port impossible (${upnp.reason}).`);
 
-  info.reachable = info.publicIp ? await checkReachable(port, info.publicIp) : false;
+  info.reachable = info.publicIp ? await checkReachable(info.publicPort, info.publicIp) : false;
+  if (info.publicIp && info.reachable !== true && !portBoxSet && !upnp.ok) {
+    // redirection faite à la main sur un autre port externe (Livebox qui refuse le 8080) ?
+    const alt = port + 1;
+    if (await checkReachable(alt, info.publicIp, 1) === true) {
+      console.log(`Le port ${port} n'est pas joignable, mais le ${alt} l'est (redirigé par la box) : on utilise le ${alt}.`);
+      info.publicPort = alt;
+      info.reachable = true;
+    }
+  }
   if (!info.publicIp) console.log("Adresse internet introuvable (pas d'accès à internet, ou STUN bloqué).");
-  else if (info.reachable === true) console.log(`Vérification depuis internet : le port ${port} est bien joignable.`);
-  else if (info.reachable === false) console.log(`Vérification depuis internet : le port ${port} n'est PAS joignable.`);
+  else if (info.reachable === true) console.log(`Vérification depuis internet : le port ${info.publicPort} est bien joignable.`);
+  else if (info.reachable === false) console.log(`Vérification depuis internet : le port ${info.publicPort} n'est PAS joignable.`);
   else console.log("Vérification depuis internet impossible (service de test injoignable)." + (upnp.ok ? " La box a accepté l'ouverture du port : on suppose qu'il est joignable." : ""));
   // Lien direct en premier quand le port est joignable, ou quand on ne peut pas le vérifier mais que la box
   // a accepté l'ouverture (UPnP) : avant, le tunnel passait devant dès que la vérification échouait.
@@ -269,14 +286,14 @@ server.listen(port, async () => {
 
   console.log("\n--- Liens à envoyer à l'autre joueur (le menu Multijoueur les affiche aussi) ---");
   if (info.preferDirect) {
-    console.log(`Par internet, en direct :   http://${info.publicIp}:${port}/   (le plus rapide)`);
+    console.log(`Par internet, en direct :   http://${info.publicIp}:${info.publicPort}/   (le plus rapide)`);
     if (info.tunnelUrl) console.log(`Lien de secours (tunnel) :  ${info.tunnelUrl}/   (si le lien direct ne marche pas)`);
   }
   else if (info.tunnelUrl) {
     console.log(`Par internet :              ${info.tunnelUrl}/`);
-    if (info.publicIp) console.log(`Par internet, en direct :   http://${info.publicIp}:${port}/   (si votre port est ouvert)`);
+    if (info.publicIp) console.log(`Par internet, en direct :   http://${info.publicIp}:${info.publicPort}/   (si votre port est ouvert)`);
   }
-  else if (info.publicIp) console.log(`Par internet :              http://${info.publicIp}:${port}/${info.reachable ? "" : "   (risque de ne pas marcher, voir docs/HEBERGER.md)"}`);
+  else if (info.publicIp) console.log(`Par internet :              http://${info.publicIp}:${info.publicPort}/${info.reachable ? "" : "   (risque de ne pas marcher, voir docs/HEBERGER.md)"}`);
   for (const ip of info.lan) console.log(`Chez vous (même Wi-Fi) :    http://${ip}:${port}/`);
   if (upnp.ok && upnp.externalIp && isPrivateIp(upnp.externalIp) && !info.tunnelUrl) {
     console.log("Attention : votre box n'a pas d'adresse publique (box derrière une autre box, 4G ou CGNAT).");

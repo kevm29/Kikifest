@@ -122,7 +122,8 @@ function localAddressToward(host) {
 }
 
 // Ouvre le port TCP `port` sur la box. Renvoie { ok, externalIp, internalIp, remove() } ou { ok:false, reason }.
-export async function openPortUpnp(port, knownLocation = null) {
+// `external` : port vu depuis internet (par défaut le même).
+export async function openPortUpnp(port, knownLocation = null, external = port) {
   try {
     const location = knownLocation ?? await discoverGateway();
     if (!location) return { ok: false, reason: "aucune box compatible UPnP n'a répondu" };
@@ -130,7 +131,7 @@ export async function openPortUpnp(port, knownLocation = null) {
     if (!ctrl) return { ok: false, reason: "la box ne propose pas l'ouverture de port UPnP" };
     const internalIp = await localAddressToward(new URL(location).hostname);
     const args = (lease) => ({
-      NewRemoteHost: "", NewExternalPort: port, NewProtocol: "TCP", NewInternalPort: port,
+      NewRemoteHost: "", NewExternalPort: external, NewProtocol: "TCP", NewInternalPort: port,
       NewInternalClient: internalIp, NewEnabled: 1, NewPortMappingDescription: "Kikifest",
       NewLeaseDuration: lease,
     });
@@ -141,7 +142,7 @@ export async function openPortUpnp(port, knownLocation = null) {
       const xml = await soap(ctrl, "GetExternalIPAddress", {});
       externalIp = /<NewExternalIPAddress>([^<]*)</.exec(xml)?.[1] || null;
     } catch {}
-    const remove = () => soap(ctrl, "DeletePortMapping", { NewRemoteHost: "", NewExternalPort: port, NewProtocol: "TCP" });
+    const remove = () => soap(ctrl, "DeletePortMapping", { NewRemoteHost: "", NewExternalPort: external, NewProtocol: "TCP" });
     return { ok: true, externalIp, internalIp, remove };
   } catch (e) {
     return { ok: false, reason: e.message };
@@ -175,10 +176,10 @@ function askPortCheck(port) {
   });
 }
 
-export async function checkReachable(port, publicIp = null) {
+export async function checkReachable(port, publicIp = null, tries = 2) {
   // Deux essais : la box peut mettre quelques secondes à appliquer la redirection UPnP.
   let last = null;
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < tries; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, 4000));
     const j = await askPortCheck(port);
     if (!j || typeof j.reachable !== "boolean") continue;
