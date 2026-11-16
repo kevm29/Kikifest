@@ -24,7 +24,10 @@ netsh advfirewall firewall delete rule name="Kikifest (Node.js)" >nul 2>nul
 netsh advfirewall firewall delete rule name="Kikifest (port 8080)" >nul 2>nul
 netsh advfirewall firewall delete rule name="Kikifest (port 8081)" >nul 2>nul
 netsh advfirewall firewall delete rule name="Kikifest" >nul 2>nul
-echo 2. Autorisation de Kikifest...
+echo 2. Reglage standard du pare-feu : "Bloquer toutes les connexions entrantes, y compris les applications
+echo    autorisees" est retire (il ignore toute autorisation, souvent coche sur les reseaux "Public")...
+netsh advfirewall set allprofiles firewallpolicy blockinbound,allowoutbound >nul 2>nul
+echo 3. Autorisation de Kikifest...
 set OK=1
 if defined NODE netsh advfirewall firewall add rule name="Kikifest (Node.js)" dir=in action=allow program="%NODE%" enable=yes profile=any >nul || set OK=0
 netsh advfirewall firewall add rule name="Kikifest (port 8080)" dir=in action=allow protocol=TCP localport=8080 enable=yes profile=any >nul || set OK=0
