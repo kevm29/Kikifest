@@ -14,6 +14,13 @@ class Renderer {
 	public var canvas:CanvasElement;
 	public var ctx:CanvasRenderingContext2D;
 	public var scale:Float = 1;
+
+	/**
+		Qualité réduite (réglage « Légère » ou « Normale ») : les objets en fondu sont dessinés
+		directement avec leur opacité au lieu de passer par un calque, et les couleurs des
+		teintes sont arrondies plus grossièrement. Rendu presque identique, bien plus léger.
+	**/
+	public static var lightMode = false;
 	public var background:String = "#000";
 
 	var layers:Array<CanvasElement> = [];
@@ -116,6 +123,11 @@ class Renderer {
 				op = c;
 		}
 		if (Std.isOfType(o, MovieClip)) {
+			if (o.__blend == "layer" && lightMode && !needsLayer(cast o)) {
+				// fondu simple (aucun mode « effacer » à l'intérieur) : opacité appliquée à chaque enfant
+				drawChildren(g, (cast o : MovieClip), m, __cx, op);
+				return;
+			}
 			if (o.__blend == "layer") {
 				// mode « calque » : les enfants sont composés à part (les modes effacer/alpha
 				// n'agissent qu'à l'intérieur), puis le tout est posé avec l'opacité du clip.
@@ -350,6 +362,23 @@ class Renderer {
 		return keep;
 	}
 
+	/** Le clip a-t-il besoin d'un vrai calque (effacement, alpha ou masque à l'intérieur) ? **/
+	function needsLayer(mc:MovieClip):Bool {
+		var budget = 300;
+		function walk(c:MovieClip):Bool {
+			for (k in c.__children) {
+				if (--budget < 0)
+					return true;
+				if (k.__clipDepth != 0 || k.__blend == "erase" || k.__blend == "alpha")
+					return true;
+				if (Std.isOfType(k, MovieClip) && walk(cast k))
+					return true;
+			}
+			return false;
+		}
+		return walk(mc);
+	}
+
 	/** Images composées des clips en mode « calque » immobiles. **/
 	var layerCache:js.lib.WeakMap<Dynamic> = new js.lib.WeakMap();
 
@@ -557,11 +586,16 @@ class Renderer {
 	/** Copie teintée d'une zone d'image ; mise en cache quand key est donnée (images fixes). */
 	function tint(src:Dynamic, sx:Int, sy:Int, sw:Int, sh:Int, __cx:Array<Float>, key:Null<String>):CanvasElement {
 		var withAlpha = __cx[7] != 0;
-		var q = function(v:Float) return Math.round(v * 64) / 64;
+		// qualité réduite : couleurs arrondies plus grossièrement, pour que les flashs animés (un
+		// décalage de couleur qui change à chaque image) réutilisent quelques images au lieu d'en
+		// recréer une par image
+		var steps = lightMode ? 16 : 64;
+		var q = function(v:Float) return Math.round(v * steps) / steps;
+		var qo = function(v:Float) return lightMode ? Math.round(v / 16) * 16 : Math.round(v);
 		var k:String = null;
 		if (key != null) {
-			k = key + "|" + q(__cx[0]) + "," + q(__cx[1]) + "," + q(__cx[2]) + "," + Math.round(__cx[4]) + "," + Math.round(__cx[5]) + ","
-				+ Math.round(__cx[6]) + (withAlpha ? "," + q(__cx[3]) + "," + Math.round(__cx[7]) : "");
+			k = key + "|" + q(__cx[0]) + "," + q(__cx[1]) + "," + q(__cx[2]) + "," + qo(__cx[4]) + "," + qo(__cx[5]) + ","
+				+ qo(__cx[6]) + (withAlpha ? "," + q(__cx[3]) + "," + qo(__cx[7]) : "");
 			var c = tintCache.get(k);
 			if (c != null)
 				return c;
