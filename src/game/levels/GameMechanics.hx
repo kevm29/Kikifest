@@ -582,7 +582,8 @@ i++; } }
 		}
 
 		if ( out == null ) {
-			GameManager.fatal("teleporter not found in level "+currentId) ;
+			// Kikifest : avant, erreur fatale (écran noir) ; on ignore ce téléporteur
+			GameManager.warning("teleporter not found in level "+currentId) ;
 		}
 		return out ;
 	}
@@ -658,7 +659,9 @@ i++; } }
 
 		// Aucune correspondance
 		if ( out==null ) {
-			GameManager.fatal("target teleporter not found in level "+currentId) ;
+			// Kikifest : avant, erreur fatale (écran noir) ; on reste sur place
+			GameManager.warning("target teleporter not found in level "+currentId) ;
+			return { fl_rand:true, td:start };
 		}
 		return { fl_rand:fl_rand, td:out };
 	}

@@ -4544,6 +4544,7 @@ Object.assign(swf_Rect.prototype, {
 });
 class swf_Renderer {
 	constructor(canvas) {
+		this.maskCache = new WeakMap();
 		this.tintCount = 0;
 		this.tintCache = new haxe_ds_StringMap();
 		this.layerIndex = 0;
@@ -4585,12 +4586,12 @@ class swf_Renderer {
 		}
 		if(((o) instanceof swf_MovieClip)) {
 			if(o.__blend == "layer") {
-				let layer = this.acquireLayer();
+				let layer = this.acquireLayer(this.canvas.width,this.canvas.height);
 				let lg = layer.getContext("2d",null);
 				lg.setTransform(1,0,0,1,0,0);
 				lg.globalCompositeOperation = "source-over";
 				lg.globalAlpha = 1;
-				lg.clearRect(0,0,layer.width,layer.height);
+				lg.clearRect(0,0,this.canvas.width,this.canvas.height);
 				let inner = __cx.slice();
 				let alpha = inner[3];
 				inner[3] = 1;
@@ -4598,7 +4599,7 @@ class swf_Renderer {
 				g.setTransform(1,0,0,1,0,0);
 				g.globalAlpha = Math.max(0,Math.min(1,alpha));
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				g.drawImage(layer,0,0);
+				g.drawImage(layer,0,0,this.canvas.width,this.canvas.height,0,0,this.canvas.width,this.canvas.height);
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = "source-over";
 				this.layerIndex--;
@@ -4640,35 +4641,139 @@ class swf_Renderer {
 					masked.push(ch[j]);
 					++j;
 				}
-				let layer = this.acquireLayer();
-				let lg = layer.getContext("2d",null);
-				lg.setTransform(1,0,0,1,0,0);
-				lg.globalCompositeOperation = "source-over";
-				lg.globalAlpha = 1;
-				lg.clearRect(0,0,layer.width,layer.height);
+				let rm = this.rectMask(c,m);
+				if(rm != null) {
+					g.save();
+					g.setTransform(rm[0],rm[1],rm[2],rm[3],rm[4],rm[5]);
+					g.beginPath();
+					g.rect(rm[6],rm[7],rm[8] - rm[6],rm[9] - rm[7]);
+					g.clip();
+					let _g = 0;
+					while(_g < masked.length) {
+						let mo = masked[_g];
+						++_g;
+						this.drawObject(g,mo,m,__cx,op);
+					}
+					g.restore();
+					i = j;
+					continue;
+				}
+				let gc = g.canvas;
+				let x0 = 0;
+				let y0 = 0;
+				let x1 = gc.width;
+				let y1 = gc.height;
+				let lb = c._visible ? c.__localBounds() : null;
+				if(lb != null) {
+					let a = c.__sx * Math.cos(c.__rotX);
+					let b = c.__sx * Math.sin(c.__rotX);
+					let c1 = -c.__sy * Math.sin(c.__rotY);
+					let d = c.__sy * Math.cos(c.__rotY);
+					let __tx = c.__tx;
+					let __ty = c.__ty;
+					let r = swf_Rect.transform(lb,[m[0] * a + m[2] * b,m[1] * a + m[3] * b,m[0] * c1 + m[2] * d,m[1] * c1 + m[3] * d,m[0] * __tx + m[2] * __ty + m[4],m[1] * __tx + m[3] * __ty + m[5]]);
+					x0 = Math.max(0,Math.floor(r.xMin) - 2) | 0;
+					y0 = Math.max(0,Math.floor(r.yMin) - 2) | 0;
+					x1 = Math.min(gc.width,Math.ceil(r.xMax) + 2) | 0;
+					y1 = Math.min(gc.height,Math.ceil(r.yMax) + 2) | 0;
+				}
+				let mr = null;
+				let unknown = false;
 				let _g = 0;
 				while(_g < masked.length) {
 					let mo = masked[_g];
 					++_g;
-					this.drawObject(lg,mo,m,__cx,null);
+					if(!mo._visible) {
+						continue;
+					}
+					let ob = mo.__localBounds();
+					if(ob == null) {
+						if(((mo) instanceof swf_MovieClip)) {
+							continue;
+						}
+						unknown = true;
+						break;
+					}
+					let a = mo.__sx * Math.cos(mo.__rotX);
+					let b = mo.__sx * Math.sin(mo.__rotX);
+					let c = -mo.__sy * Math.sin(mo.__rotY);
+					let d = mo.__sy * Math.cos(mo.__rotY);
+					let __tx = mo.__tx;
+					let __ty = mo.__ty;
+					let tr = swf_Rect.transform(ob,[m[0] * a + m[2] * b,m[1] * a + m[3] * b,m[0] * c + m[2] * d,m[1] * c + m[3] * d,m[0] * __tx + m[2] * __ty + m[4],m[1] * __tx + m[3] * __ty + m[5]]);
+					mr = mr == null ? tr : swf_Rect.union(mr,tr);
 				}
-				let maskLayer = this.acquireLayer();
+				if(!unknown) {
+					if(mr == null) {
+						i = j;
+						continue;
+					}
+					x0 = Math.max(x0,Math.floor(mr.xMin) - 2) | 0;
+					y0 = Math.max(y0,Math.floor(mr.yMin) - 2) | 0;
+					x1 = Math.min(x1,Math.ceil(mr.xMax) + 2) | 0;
+					y1 = Math.min(y1,Math.ceil(mr.yMax) + 2) | 0;
+				}
+				let w = x1 - x0;
+				let h = y1 - y0;
+				if(!c._visible || w <= 0 || h <= 0) {
+					i = j;
+					continue;
+				}
+				let lm = m.slice();
+				lm[4] -= x0;
+				lm[5] -= y0;
+				let sig = this.maskSignature(c,masked,lm,__cx,w,h);
+				let cached = sig != null ? this.maskCache.get(c) : null;
+				if(cached != null && cached.sig == sig) {
+					g.setTransform(1,0,0,1,0,0);
+					g.globalAlpha = 1;
+					g.globalCompositeOperation = op != null ? op : "source-over";
+					g.drawImage(cached.canvas,0,0,w,h,x0,y0,w,h);
+					i = j;
+					continue;
+				}
+				let layer = this.acquireLayer(w,h);
+				let lg = layer.getContext("2d",null);
+				lg.setTransform(1,0,0,1,0,0);
+				lg.globalCompositeOperation = "source-over";
+				lg.globalAlpha = 1;
+				lg.clearRect(0,0,w,h);
+				let _g1 = 0;
+				while(_g1 < masked.length) {
+					let mo = masked[_g1];
+					++_g1;
+					this.drawObject(lg,mo,lm,__cx,null);
+				}
+				let maskLayer = this.acquireLayer(w,h);
 				let mg = maskLayer.getContext("2d",null);
 				mg.setTransform(1,0,0,1,0,0);
 				mg.globalCompositeOperation = "source-over";
 				mg.globalAlpha = 1;
-				mg.clearRect(0,0,maskLayer.width,maskLayer.height);
-				this.drawObject(mg,c,m,[1,1,1,1,0,0,0,0],null);
+				mg.clearRect(0,0,w,h);
+				this.drawObject(mg,c,lm,[1,1,1,1,0,0,0,0],null);
 				this.layerIndex--;
 				lg.setTransform(1,0,0,1,0,0);
 				lg.globalAlpha = 1;
 				lg.globalCompositeOperation = "destination-in";
-				lg.drawImage(maskLayer,0,0);
+				lg.drawImage(maskLayer,0,0,w,h,0,0,w,h);
 				lg.globalCompositeOperation = "source-over";
 				g.setTransform(1,0,0,1,0,0);
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				g.drawImage(layer,0,0);
+				g.drawImage(layer,0,0,w,h,x0,y0,w,h);
+				if(sig != null) {
+					let keep = cached != null ? cached.canvas : window.document.createElement("canvas");
+					if(keep.width != w || keep.height != h) {
+						keep.width = w;
+						keep.height = h;
+					}
+					let kg = keep.getContext("2d",null);
+					kg.setTransform(1,0,0,1,0,0);
+					kg.globalCompositeOperation = "copy";
+					kg.drawImage(layer,0,0,w,h,0,0,w,h);
+					kg.globalCompositeOperation = "source-over";
+					this.maskCache.set(c,{ sig : sig, canvas : keep});
+				}
 				this.layerIndex--;
 				i = j;
 				continue;
@@ -4677,16 +4782,102 @@ class swf_Renderer {
 			++i;
 		}
 	}
-	acquireLayer() {
+	maskSignature(c,masked,lm,cx,w,h) {
+		let parts = [w + "x" + h,lm.join(","),cx.join(",")];
+		let budget = 200;
+		let walk = null;
+		walk = function(o) {
+			if((budget -= 1) < 0 || ((o) instanceof swf_TextField) || ((o) instanceof swf_BitmapObject)) {
+				return false;
+			}
+			parts.push(o.__charId + ":" + (o._visible ? 1 : 0) + ":" + [o.__sx * Math.cos(o.__rotX),o.__sx * Math.sin(o.__rotX),-o.__sy * Math.sin(o.__rotY),o.__sy * Math.cos(o.__rotY),o.__tx,o.__ty].join(",") + ":" + (o.__cx != null ? o.__cx.join(",") : "") + ":" + o.__blend + ":" + o.__clipDepth + ":" + o.__depth);
+			if(((o) instanceof swf_MovieClip)) {
+				parts.push("[");
+				let _g = 0;
+				let _g1 = o.__children;
+				while(_g < _g1.length) {
+					let k = _g1[_g];
+					++_g;
+					if(!walk(k)) {
+						return false;
+					}
+				}
+				parts.push("]");
+			}
+			return true;
+		};
+		if(!walk(c)) {
+			return null;
+		}
+		parts.push("|");
+		let _g = 0;
+		while(_g < masked.length) {
+			let mo = masked[_g];
+			++_g;
+			if(!walk(mo)) {
+				return null;
+			}
+		}
+		return parts.join(";");
+	}
+	rectMask(c,m) {
+		if(!c._visible) {
+			return null;
+		}
+		let a = c.__sx * Math.cos(c.__rotX);
+		let b = c.__sx * Math.sin(c.__rotX);
+		let c1 = -c.__sy * Math.sin(c.__rotY);
+		let d = c.__sy * Math.cos(c.__rotY);
+		let __tx = c.__tx;
+		let __ty = c.__ty;
+		let gm = [m[0] * a + m[2] * b,m[1] * a + m[3] * b,m[0] * c1 + m[2] * d,m[1] * c1 + m[3] * d,m[0] * __tx + m[2] * __ty + m[4],m[1] * __tx + m[3] * __ty + m[5]];
+		let gr = c;
+		if(((c) instanceof swf_MovieClip)) {
+			let only = null;
+			let _g = 0;
+			let _g1 = c.__children;
+			while(_g < _g1.length) {
+				let k = _g1[_g];
+				++_g;
+				if(k._visible) {
+					if(only != null) {
+						return null;
+					}
+					only = k;
+				}
+			}
+			if(only == null || ((only) instanceof swf_MovieClip) || ((only) instanceof swf_TextField) || ((only) instanceof swf_BitmapObject)) {
+				return null;
+			}
+			let a = only.__sx * Math.cos(only.__rotX);
+			let b = only.__sx * Math.sin(only.__rotX);
+			let c1 = -only.__sy * Math.sin(only.__rotY);
+			let d = only.__sy * Math.cos(only.__rotY);
+			let __tx = only.__tx;
+			let __ty = only.__ty;
+			gm = [gm[0] * a + gm[2] * b,gm[1] * a + gm[3] * b,gm[0] * c1 + gm[2] * d,gm[1] * c1 + gm[3] * d,gm[0] * __tx + gm[2] * __ty + gm[4],gm[1] * __tx + gm[3] * __ty + gm[5]];
+			gr = only;
+		} else if(((c) instanceof swf_TextField) || ((c) instanceof swf_BitmapObject)) {
+			return null;
+		}
+		let id = gr.__charId;
+		let ch = Reflect.field(swf_Library.inst.data.chars,id == null ? "null" : "" + id);
+		if(ch == null || ch.b == null || !swf_Renderer.isRectChar(id)) {
+			return null;
+		}
+		let b1 = ch.b;
+		return [gm[0],gm[1],gm[2],gm[3],gm[4],gm[5],b1[0],b1[1],b1[2],b1[3]];
+	}
+	acquireLayer(w,h) {
 		swf_Renderer.statLayers++;
 		let l = this.layers[this.layerIndex];
 		if(l == null) {
 			l = window.document.createElement("canvas");
 			this.layers[this.layerIndex] = l;
 		}
-		if(l.width != this.canvas.width || l.height != this.canvas.height) {
-			l.width = this.canvas.width;
-			l.height = this.canvas.height;
+		if(l.width < w || l.height < h) {
+			l.width = Math.max(l.width,w) | 0;
+			l.height = Math.max(l.height,h) | 0;
 		}
 		this.layerIndex++;
 		return l;
@@ -4869,6 +5060,46 @@ class swf_Renderer {
 		default:
 			return null;
 		}
+	}
+	static isRectChar(id) {
+		let known = swf_Renderer.rectChars.h[id];
+		if(known != null) {
+			return known;
+		}
+		let ok = false;
+		try {
+			let _this = swf_Library.inst;
+			let reg = _this.atlasMap == null ? null : _this.atlasMap[id == null ? "null" : "" + id];
+			if(reg != null) {
+				let w = reg[3] | 0;
+				let h = reg[4] | 0;
+				if(w > 0 && h > 0) {
+					let t = window.document.createElement("canvas");
+					t.width = w;
+					t.height = h;
+					let tg = t.getContext("2d",{ willReadFrequently : true});
+					tg.drawImage(swf_Library.inst.atlasPages[reg[0] | 0],reg[1],reg[2],w,h,0,0,w,h);
+					let d = tg.getImageData(0,0,w,h).data;
+					ok = true;
+					let y = 1;
+					while(ok && y < h - 1) {
+						let x = 1;
+						while(x < w - 1) {
+							if(d[(y * w + x) * 4 + 3] < 250) {
+								ok = false;
+								break;
+							}
+							++x;
+						}
+						++y;
+					}
+				}
+			}
+		} catch( _g ) {
+			return false;
+		}
+		swf_Renderer.rectChars.h[id] = ok;
+		return ok;
 	}
 }
 swf_Renderer.__name__ = "swf.Renderer";
@@ -5123,5 +5354,6 @@ swf_MovieClip.classByChar = new haxe_ds_IntMap();
 swf_Renderer.IDENT = [1,1,1,1,0,0,0,0];
 swf_Renderer.statTints = 0;
 swf_Renderer.statLayers = 0;
+swf_Renderer.rectChars = new haxe_ds_IntMap();
 menu_Menu.main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);

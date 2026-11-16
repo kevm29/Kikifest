@@ -168,6 +168,20 @@ class Renderer {
 					masked.push(ch[j]);
 					j++;
 				}
+				// masque rectangulaire (cadre de l'aire de jeu, fenêtres du décor…) : simple découpe, sans calque
+				var rm = rectMask(c, m);
+				if (rm != null) {
+					g.save();
+					g.setTransform(rm[0], rm[1], rm[2], rm[3], rm[4], rm[5]);
+					g.beginPath();
+					g.rect(rm[6], rm[7], rm[8] - rm[6], rm[9] - rm[7]);
+					g.clip();
+					for (mo in masked)
+						drawObject(g, mo, m, __cx, op);
+					g.restore();
+					i = j;
+					continue;
+				}
 				// calques limités à l'emprise du masque (avant : deux calques de la taille de l'écran à
 				// chaque masque, ce qui faisait ramer Firefox, par exemple aux animations du joueur)
 				var gc:CanvasElement = cast g.canvas;
@@ -180,6 +194,33 @@ class Renderer {
 					x1 = Std.int(Math.min(gc.width, Math.ceil(r.xMax) + 2));
 					y1 = Std.int(Math.min(gc.height, Math.ceil(r.yMax) + 2));
 				}
+				// et à l'emprise de ce qui est masqué (au village, le grand masque du puits ne cache
+				// que le seau et la corde : inutile de recomposer tout l'écran)
+				var mr:Rect = null;
+				var unknown = false;
+				for (mo in masked) {
+					if (!mo._visible)
+						continue;
+					var ob = mo.__localBounds();
+					if (ob == null) {
+						if (Std.isOfType(mo, MovieClip))
+							continue; // clip vide
+						unknown = true;
+						break;
+					}
+					var tr = Rect.transform(ob, mul(m, mo));
+					mr = mr == null ? tr : Rect.union(mr, tr);
+				}
+				if (!unknown) {
+					if (mr == null) {
+						i = j;
+						continue;
+					}
+					x0 = Std.int(Math.max(x0, Math.floor(mr.xMin) - 2));
+					y0 = Std.int(Math.max(y0, Math.floor(mr.yMin) - 2));
+					x1 = Std.int(Math.min(x1, Math.ceil(mr.xMax) + 2));
+					y1 = Std.int(Math.min(y1, Math.ceil(mr.yMax) + 2));
+				}
 				var w = x1 - x0, h = y1 - y0;
 				if (!c._visible || w <= 0 || h <= 0) {
 					// masque vide ou hors de l'écran : rien de ce qu'il masque n'est visible
@@ -189,6 +230,18 @@ class Renderer {
 				var lm = m.copy();
 				lm[4] -= x0;
 				lm[5] -= y0;
+				// masque et contenu immobiles (grand masque du puits au village) : on réutilise l'image
+				// composée à l'image précédente au lieu de tout recomposer 40 fois par seconde
+				var sig = maskSignature(c, masked, lm, __cx, w, h);
+				var cached:Dynamic = sig != null ? maskCache.get(c) : null;
+				if (cached != null && cached.sig == sig) {
+					g.setTransform(1, 0, 0, 1, 0, 0);
+					g.globalAlpha = 1;
+					g.globalCompositeOperation = op != null ? op : "source-over";
+					g.drawImage(cached.canvas, 0, 0, w, h, x0, y0, w, h);
+					i = j;
+					continue;
+				}
 				var layer = acquireLayer(w, h);
 				var lg = layer.getContext2d();
 				lg.setTransform(1, 0, 0, 1, 0, 0);
@@ -217,6 +270,19 @@ class Renderer {
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = op != null ? op : "source-over";
 				g.drawImage(layer, 0, 0, w, h, x0, y0, w, h);
+				if (sig != null) {
+					var keep:CanvasElement = cached != null ? cached.canvas : Browser.document.createCanvasElement();
+					if (keep.width != w || keep.height != h) {
+						keep.width = w;
+						keep.height = h;
+					}
+					var kg = keep.getContext2d();
+					kg.setTransform(1, 0, 0, 1, 0, 0);
+					kg.globalCompositeOperation = "copy";
+					kg.drawImage(layer, 0, 0, w, h, 0, 0, w, h);
+					kg.globalCompositeOperation = "source-over";
+					maskCache.set(c, {sig: sig, canvas: keep});
+				}
 				layerIndex--;
 				i = j;
 				continue;
@@ -224,6 +290,113 @@ class Renderer {
 			drawObject(g, c, m, __cx, op);
 			i++;
 		}
+	}
+
+	/** Images composées des masques immobiles, par clip masque. **/
+	var maskCache:js.lib.WeakMap<Dynamic> = new js.lib.WeakMap();
+
+	/**
+		Empreinte de tout ce qui compose un masque et son contenu (graphiques, matrices, couleurs,
+		visibilité) : si elle n'a pas changé, l'image composée est la même. null si ce n'est pas
+		mémorisable (texte, bitmap, trop d'objets).
+	**/
+	function maskSignature(c:DisplayObject, masked:Array<DisplayObject>, lm:Array<Float>, cx:Array<Float>, w:Int, h:Int):Null<String> {
+		var parts:Array<String> = [w + "x" + h, lm.join(","), cx.join(",")];
+		var budget = 200;
+		function walk(o:DisplayObject):Bool {
+			if (--budget < 0 || Std.isOfType(o, TextField) || Std.isOfType(o, BitmapObject))
+				return false;
+			parts.push(o.__charId + ":" + (o._visible ? 1 : 0) + ":" + o.__matrix().join(",") + ":" + (o.__cx != null ? o.__cx.join(",") : "") + ":"
+				+ o.__blend + ":" + o.__clipDepth + ":" + o.__depth);
+			if (Std.isOfType(o, MovieClip)) {
+				parts.push("[");
+				for (k in (cast o : MovieClip).__children)
+					if (!walk(k))
+						return false;
+				parts.push("]");
+			}
+			return true;
+		}
+		if (!walk(c))
+			return null;
+		parts.push("|");
+		for (mo in masked)
+			if (!walk(mo))
+				return null;
+		return parts.join(";");
+	}
+
+	/** Graphiques dont l'image est un rectangle plein (vrai/faux), calculé une fois par graphique. **/
+	static var rectChars:Map<Int, Bool> = new Map();
+
+	/**
+		Si le masque `c` est un rectangle plein (un graphique, ou un clip qui n'en contient qu'un),
+		renvoie [matrice a,b,c,d,tx,ty, xMin,yMin,xMax,yMax] pour le découper avec clip() ; sinon null.
+	**/
+	function rectMask(c:DisplayObject, m:Array<Float>):Null<Array<Float>> {
+		if (!c._visible)
+			return null;
+		var gm = mul(m, c);
+		var gr:DisplayObject = c;
+		if (Std.isOfType(c, MovieClip)) {
+			var only:DisplayObject = null;
+			for (k in (cast c : MovieClip).__children)
+				if (k._visible) {
+					if (only != null)
+						return null;
+					only = k;
+				}
+			if (only == null || Std.isOfType(only, MovieClip) || Std.isOfType(only, TextField) || Std.isOfType(only, BitmapObject))
+				return null;
+			gm = mul(gm, only);
+			gr = only;
+		} else if (Std.isOfType(c, TextField) || Std.isOfType(c, BitmapObject))
+			return null;
+		var id = gr.__charId;
+		var ch:Dynamic = Library.inst.char(id);
+		if (ch == null || ch.b == null || !isRectChar(id))
+			return null;
+		var b:Array<Float> = ch.b;
+		return [gm[0], gm[1], gm[2], gm[3], gm[4], gm[5], b[0], b[1], b[2], b[3]];
+	}
+
+	/** Le graphique est-il un rectangle opaque (bords de 1 px tolérés pour l'anticrénelage) ? **/
+	static function isRectChar(id:Int):Bool {
+		var known = rectChars.get(id);
+		if (known != null)
+			return known;
+		var ok = false;
+		try {
+			var reg = Library.inst.atlasRegion(id);
+			if (reg != null) {
+				var w = Std.int(reg[3]), h = Std.int(reg[4]);
+				if (w > 0 && h > 0) {
+					var t:CanvasElement = Browser.document.createCanvasElement();
+					t.width = w;
+					t.height = h;
+					var tg:CanvasRenderingContext2D = untyped t.getContext("2d", {willReadFrequently: true});
+					tg.drawImage(Library.inst.atlasPage(Std.int(reg[0])), reg[1], reg[2], w, h, 0, 0, w, h);
+					var d = tg.getImageData(0, 0, w, h).data;
+					ok = true;
+					var y = 1;
+					while (ok && y < h - 1) {
+						var x = 1;
+						while (x < w - 1) {
+							if (d[(y * w + x) * 4 + 3] < 250) {
+								ok = false;
+								break;
+							}
+							x++;
+						}
+						y++;
+					}
+				}
+			}
+		} catch (e:Dynamic) {
+			return false; // image pas encore prête : on réessaiera
+		}
+		rectChars.set(id, ok);
+		return ok;
 	}
 
 	/** Calque de travail d'au moins w × h (les calques ne font que grandir : pas de réallocation à chaque image). **/
