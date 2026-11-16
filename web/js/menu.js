@@ -4615,7 +4615,7 @@ class swf_Renderer {
 				let sig = this.maskSignature(o,[],lm,inner,lw,lh);
 				let cached = sig != null ? this.layerCache.get(o) : null;
 				let src;
-				if(cached != null && cached.sig == sig) {
+				if(cached != null && cached.canvas != null && cached.sig == sig) {
 					src = cached.canvas;
 				} else {
 					let layer = this.acquireLayer(lw,lh);
@@ -4627,18 +4627,10 @@ class swf_Renderer {
 					this.drawChildren(lg,o,lm,inner,null);
 					src = layer;
 					if(sig != null) {
-						let keep = cached != null ? cached.canvas : window.document.createElement("canvas");
-						if(keep.width != lw || keep.height != lh) {
-							keep.width = lw;
-							keep.height = lh;
+						let kept = this.remember(this.layerCache,o,cached,sig,layer,lw,lh);
+						if(kept != null) {
+							src = kept;
 						}
-						let kg = keep.getContext("2d",null);
-						kg.setTransform(1,0,0,1,0,0);
-						kg.globalCompositeOperation = "copy";
-						kg.drawImage(layer,0,0,lw,lh,0,0,lw,lh);
-						kg.globalCompositeOperation = "source-over";
-						this.layerCache.set(o,{ sig : sig, canvas : keep});
-						src = keep;
 					}
 					this.layerIndex--;
 				}
@@ -4769,7 +4761,7 @@ class swf_Renderer {
 				lm[5] -= y0;
 				let sig = this.maskSignature(c,masked,lm,__cx,w,h);
 				let cached = sig != null ? this.maskCache.get(c) : null;
-				if(cached != null && cached.sig == sig) {
+				if(cached != null && cached.canvas != null && cached.sig == sig) {
 					g.setTransform(1,0,0,1,0,0);
 					g.globalAlpha = 1;
 					g.globalCompositeOperation = op != null ? op : "source-over";
@@ -4807,17 +4799,7 @@ class swf_Renderer {
 				g.globalCompositeOperation = op != null ? op : "source-over";
 				g.drawImage(layer,0,0,w,h,x0,y0,w,h);
 				if(sig != null) {
-					let keep = cached != null ? cached.canvas : window.document.createElement("canvas");
-					if(keep.width != w || keep.height != h) {
-						keep.width = w;
-						keep.height = h;
-					}
-					let kg = keep.getContext("2d",null);
-					kg.setTransform(1,0,0,1,0,0);
-					kg.globalCompositeOperation = "copy";
-					kg.drawImage(layer,0,0,w,h,0,0,w,h);
-					kg.globalCompositeOperation = "source-over";
-					this.maskCache.set(c,{ sig : sig, canvas : keep});
+					this.remember(this.maskCache,c,cached,sig,layer,w,h);
 				}
 				this.layerIndex--;
 				i = j;
@@ -4826,6 +4808,24 @@ class swf_Renderer {
 			this.drawObject(g,c,m,__cx,op);
 			++i;
 		}
+	}
+	remember(cache,key,cached,sig,layer,w,h) {
+		if(cached == null || cached.sig != sig) {
+			cache.set(key,{ sig : sig, canvas : null, spare : cached != null ? cached.canvas != null ? cached.canvas : cached.spare : null});
+			return null;
+		}
+		let keep = cached.spare != null ? cached.spare : swf_Renderer.newCanvas();
+		if(keep.width < w || keep.height < h) {
+			keep.width = Math.max(keep.width,w) | 0;
+			keep.height = Math.max(keep.height,h) | 0;
+		}
+		let kg = keep.getContext("2d",null);
+		kg.setTransform(1,0,0,1,0,0);
+		kg.globalCompositeOperation = "copy";
+		kg.drawImage(layer,0,0,w,h,0,0,w,h);
+		kg.globalCompositeOperation = "source-over";
+		cache.set(key,{ sig : sig, canvas : keep, spare : keep});
+		return keep;
 	}
 	maskSignature(c,masked,lm,cx,w,h) {
 		let parts = [w + "x" + h,lm.join(","),cx.join(",")];
@@ -4918,7 +4918,7 @@ class swf_Renderer {
 		swf_Renderer.statLayerPx += w * h;
 		let l = this.layers[this.layerIndex];
 		if(l == null) {
-			l = window.document.createElement("canvas");
+			l = swf_Renderer.newCanvas();
 			this.layers[this.layerIndex] = l;
 		}
 		if(l.width < w || l.height < h) {
@@ -5022,7 +5022,7 @@ class swf_Renderer {
 				return c;
 			}
 		}
-		let c = window.document.createElement("canvas");
+		let c = swf_Renderer.newCanvas();
 		c.width = sw > 0 ? sw : 1;
 		c.height = sh > 0 ? sh : 1;
 		let g = c.getContext("2d",{ willReadFrequently : true});
@@ -5063,6 +5063,10 @@ class swf_Renderer {
 			this.tintCount++;
 		}
 		return c;
+	}
+	static newCanvas() {
+		swf_Renderer.statCanvases++;
+		return window.document.createElement("canvas");
 	}
 	static drawInto(target,mc,x,y) {
 		if(swf_Renderer.offscreen == null) {
@@ -5120,10 +5124,16 @@ class swf_Renderer {
 				let w = reg[3] | 0;
 				let h = reg[4] | 0;
 				if(w > 0 && h > 0) {
-					let t = window.document.createElement("canvas");
-					t.width = w;
-					t.height = h;
+					if(swf_Renderer.rectScratch == null) {
+						swf_Renderer.rectScratch = swf_Renderer.newCanvas();
+					}
+					let t = swf_Renderer.rectScratch;
+					if(t.width < w || t.height < h) {
+						t.width = Math.max(t.width,w) | 0;
+						t.height = Math.max(t.height,h) | 0;
+					}
 					let tg = t.getContext("2d",{ willReadFrequently : true});
+					tg.clearRect(0,0,w,h);
 					tg.drawImage(swf_Library.inst.atlasPages[reg[0] | 0],reg[1],reg[2],w,h,0,0,w,h);
 					let d = tg.getImageData(0,0,w,h).data;
 					ok = true;
@@ -5400,6 +5410,7 @@ swf_MovieClip.classByChar = new haxe_ds_IntMap();
 swf_Renderer.IDENT = [1,1,1,1,0,0,0,0];
 swf_Renderer.statTints = 0;
 swf_Renderer.statLayers = 0;
+swf_Renderer.statCanvases = 0;
 swf_Renderer.statLayerPx = 0.0;
 swf_Renderer.rectChars = new haxe_ds_IntMap();
 menu_Menu.main();

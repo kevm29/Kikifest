@@ -395,7 +395,7 @@ i++; } }
 		}
 
 		// Position sûre
-		if ( world?.getCase( {x: cx+cp?.x, y: cy+cp?.y} )>0 ) {
+		if ( cp!=null && world?.getCase( {x: cx+cp?.x, y: cy+cp?.y} )>0 ) {
 			lastSafe = {
 				x		: x,
 				y		: y,
