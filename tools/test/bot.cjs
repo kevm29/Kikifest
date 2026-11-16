@@ -89,6 +89,7 @@ const firstLevel = Number(process.argv[5] || 0);
       try {
         for (let k = 0; k < 2; k++) {
           const id = (lid * 3 + k * 7) % 21;
+          if (id === 3 || id === 6) continue; // 3 = boule de feu (pas un ennemi à poser), 6 n'existe pas
           g.attachBad(id, 40 + r(340), 40 + r(300));
         }
       } catch (e) { out.push("SPAWN BAD " + e + "\n" + (e.stack || "").split("\n").slice(1, 4).join("\n")); }

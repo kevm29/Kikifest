@@ -99,7 +99,7 @@ class Boot {
 		var nj = netCfg != null && netCfg.players != null ? Std.int(netCfg.players) : Std.parseInt(params.get("joueurs"));
 		Reflect.setField(root, "$joueurs", nj != null ? "" + nj : "2");
 		// options que le chargeur Flash d'origine fixait (son, musique, détails, tremblements)
-		for (kv in [["$options", ""], ["$lang", "fr"], ["$shake", "1"], ["$detail", "1"], ["$sound", "1"], ["$music", "1"], ["$volume", "100"]])
+		for (kv in [["$options", ""], ["$lang", "fr"], ["$shake", "0"], ["$detail", "1"], ["$sound", "1"], ["$music", "1"], ["$volume", "100"]])
 			if (Reflect.field(root, kv[0]) == null)
 				Reflect.setField(root, kv[0], params.get(kv[0].substr(1)) != null ? params.get(kv[0].substr(1)) : kv[1]);
 		Rand.setSeed(netCfg != null ? Std.int(netCfg.seed) : params.get("seed") != null ? Std.parseInt(params.get("seed")) : 12345);

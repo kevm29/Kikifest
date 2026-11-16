@@ -27,6 +27,8 @@ class Renderer {
 	public static var statTints = 0;
 
 	public static var statLayers = 0;
+	/** Pixels des calques utilisés depuis la dernière remise à zéro. **/
+	public static var statLayerPx = 0.0;
 
 	public function new(canvas:CanvasElement) {
 		this.canvas = canvas;
@@ -109,24 +111,67 @@ class Renderer {
 		if (Std.isOfType(o, MovieClip)) {
 			if (o.__blend == "layer") {
 				// mode « calque » : les enfants sont composés à part (les modes effacer/alpha
-				// n'agissent qu'à l'intérieur), puis le tout est posé avec l'opacité du clip
-				var layer = acquireLayer(canvas.width, canvas.height);
-				var lg = layer.getContext2d();
-				lg.setTransform(1, 0, 0, 1, 0, 0);
-				lg.globalCompositeOperation = "source-over";
-				lg.globalAlpha = 1;
-				lg.clearRect(0, 0, canvas.width, canvas.height);
+				// n'agissent qu'à l'intérieur), puis le tout est posé avec l'opacité du clip.
+				// Le calque est limité à l'emprise du clip (avant : tout l'écran, à chaque objet qui
+				// s'efface en fondu, par exemple les effets des bombes), et l'image composée est
+				// réutilisée tant que rien n'a bougé (l'obscurité des niveaux profonds).
+				var gc:CanvasElement = cast g.canvas;
+				var lb = o.__localBounds();
+				if (lb == null)
+					return; // rien à dessiner
+				var r = Rect.transform(lb, m);
+				var x0 = Std.int(Math.max(0, Math.floor(r.xMin) - 2));
+				var y0 = Std.int(Math.max(0, Math.floor(r.yMin) - 2));
+				var x1 = Std.int(Math.min(gc.width, Math.ceil(r.xMax) + 2));
+				var y1 = Std.int(Math.min(gc.height, Math.ceil(r.yMax) + 2));
+				var w = x1 - x0, h = y1 - y0;
+				if (w <= 0 || h <= 0)
+					return; // hors de l'écran
+				// échelle réduite demandée par le jeu (obscurité : grand aplat noir aux trous flous)
+				var sc:Float = untyped o.__layerScale;
+				if (sc == null || !(sc > 0 && sc < 1))
+					sc = 1;
+				var lw = Std.int(Math.ceil(w * sc)), lh = Std.int(Math.ceil(h * sc));
+				var lm = [m[0] * sc, m[1] * sc, m[2] * sc, m[3] * sc, (m[4] - x0) * sc, (m[5] - y0) * sc];
 				var inner = __cx.copy();
 				var alpha = inner[3];
 				inner[3] = 1;
-				drawChildren(lg, (cast o : MovieClip), m, inner, null);
+				var sig = maskSignature(o, [], lm, inner, lw, lh);
+				var cached:Dynamic = sig != null ? layerCache.get(o) : null;
+				var src:CanvasElement;
+				if (cached != null && cached.sig == sig) {
+					src = cached.canvas;
+				} else {
+					var layer = acquireLayer(lw, lh);
+					var lg = layer.getContext2d();
+					lg.setTransform(1, 0, 0, 1, 0, 0);
+					lg.globalCompositeOperation = "source-over";
+					lg.globalAlpha = 1;
+					lg.clearRect(0, 0, lw, lh);
+					drawChildren(lg, (cast o : MovieClip), lm, inner, null);
+					src = layer;
+					if (sig != null) {
+						var keep:CanvasElement = cached != null ? cached.canvas : Browser.document.createCanvasElement();
+						if (keep.width != lw || keep.height != lh) {
+							keep.width = lw;
+							keep.height = lh;
+						}
+						var kg = keep.getContext2d();
+						kg.setTransform(1, 0, 0, 1, 0, 0);
+						kg.globalCompositeOperation = "copy";
+						kg.drawImage(layer, 0, 0, lw, lh, 0, 0, lw, lh);
+						kg.globalCompositeOperation = "source-over";
+						layerCache.set(o, {sig: sig, canvas: keep});
+						src = keep;
+					}
+					layerIndex--;
+				}
 				g.setTransform(1, 0, 0, 1, 0, 0);
 				g.globalAlpha = Math.max(0, Math.min(1, alpha));
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				g.drawImage(layer, 0, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+				g.drawImage(src, 0, 0, lw, lh, x0, y0, w, h);
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = "source-over";
-				layerIndex--;
 				return;
 			}
 			drawChildren(g, (cast o : MovieClip), m, __cx, op);
@@ -292,6 +337,9 @@ class Renderer {
 		}
 	}
 
+	/** Images composées des clips en mode « calque » immobiles. **/
+	var layerCache:js.lib.WeakMap<Dynamic> = new js.lib.WeakMap();
+
 	/** Images composées des masques immobiles, par clip masque. **/
 	var maskCache:js.lib.WeakMap<Dynamic> = new js.lib.WeakMap();
 
@@ -402,6 +450,7 @@ class Renderer {
 	/** Calque de travail d'au moins w × h (les calques ne font que grandir : pas de réallocation à chaque image). **/
 	function acquireLayer(w:Int, h:Int):CanvasElement {
 		statLayers++;
+		statLayerPx += w * h;
 		var l = layers[layerIndex];
 		if (l == null) {
 			l = Browser.document.createCanvasElement();

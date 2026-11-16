@@ -232,7 +232,7 @@ class Boot {
 		let nj = Boot.netCfg != null && Boot.netCfg.players != null ? Boot.netCfg.players | 0 : Std.parseInt(params.get("joueurs"));
 		Boot.root["$joueurs"] = nj != null ? "" + nj : "2";
 		let _g = 0;
-		let _g1 = [["$options",""],["$lang","fr"],["$shake","1"],["$detail","1"],["$sound","1"],["$music","1"],["$volume","100"]];
+		let _g1 = [["$options",""],["$lang","fr"],["$shake","0"],["$detail","1"],["$sound","1"],["$music","1"],["$volume","100"]];
 		while(_g < _g1.length) {
 			let kv = _g1[_g];
 			++_g;
@@ -1675,6 +1675,7 @@ class DebugReport {
 		DebugReport.curDraw = 0;
 		swf_Renderer.statTints = 0;
 		swf_Renderer.statLayers = 0;
+		swf_Renderer.statLayerPx = 0;
 	}
 	static addStep(ms) {
 		DebugReport.curSteps++;
@@ -1737,7 +1738,7 @@ class DebugReport {
 			DebugReport.lastLevel = lvl;
 		}
 		if(DebugReport.curDt > 45.0 && DebugReport.count > 1 && !window.document.hidden) {
-			DebugReport.slow.push({ t : DebugReport.round((DebugReport.curT - DebugReport.t0) / 1000,2), ecartMs : DebugReport.round(DebugReport.curDt), pas : DebugReport.curSteps, simMs : DebugReport.round(DebugReport.curSim), photos : DebugReport.curSaves, photosMs : DebugReport.round(DebugReport.curSaveMs), retours : DebugReport.curLoads, retoursMs : DebugReport.round(DebugReport.curLoadMs), rejouees : DebugReport.curResim, dessinMs : DebugReport.round(DebugReport.curDraw), teintes : DebugReport.tintsCreated, calques : DebugReport.layersUsed, jeu : DebugReport.gameContext(manager)});
+			DebugReport.slow.push({ t : DebugReport.round((DebugReport.curT - DebugReport.t0) / 1000,2), ecartMs : DebugReport.round(DebugReport.curDt), pas : DebugReport.curSteps, simMs : DebugReport.round(DebugReport.curSim), photos : DebugReport.curSaves, photosMs : DebugReport.round(DebugReport.curSaveMs), retours : DebugReport.curLoads, retoursMs : DebugReport.round(DebugReport.curLoadMs), rejouees : DebugReport.curResim, dessinMs : DebugReport.round(DebugReport.curDraw), teintes : DebugReport.tintsCreated, calques : DebugReport.layersUsed, calquesKpx : Math.round(swf_Renderer.statLayerPx / 1000), jeu : DebugReport.gameContext(manager)});
 			if(DebugReport.slow.length > 150) {
 				DebugReport.slow.shift();
 			}
@@ -24927,6 +24928,9 @@ class mode_GameMode extends Mode {
 			this.shakeTimer = 0;
 			this.shakeTimer = 0;
 		} else {
+			if(!GameManager.CONFIG.fl_shaky) {
+				return;
+			}
 			if(duration < this.shakeTimer || power < this.shakePower) {
 				return;
 			}
@@ -26859,6 +26863,9 @@ class mode_GameMode extends Mode {
 			}
 			if(this.darknessMC != null) {
 				this.darknessMC.blendMode = 2;
+			}
+			if(this.darknessMC != null) {
+				this.darknessMC.__layerScale = 0.5;
 			}
 			if(this.darknessMC != null) {
 				this.darknessMC.holes = [];
@@ -33206,6 +33213,7 @@ Object.assign(swf_Rect.prototype, {
 class swf_Renderer {
 	constructor(canvas) {
 		this.maskCache = new WeakMap();
+		this.layerCache = new WeakMap();
 		this.tintCount = 0;
 		this.tintCache = new haxe_ds_StringMap();
 		this.layerIndex = 0;
@@ -33258,23 +33266,67 @@ class swf_Renderer {
 		}
 		if(((o) instanceof swf_MovieClip)) {
 			if(o.__blend == "layer") {
-				let layer = this.acquireLayer(this.canvas.width,this.canvas.height);
-				let lg = layer.getContext("2d",null);
-				lg.setTransform(1,0,0,1,0,0);
-				lg.globalCompositeOperation = "source-over";
-				lg.globalAlpha = 1;
-				lg.clearRect(0,0,this.canvas.width,this.canvas.height);
+				let gc = g.canvas;
+				let lb = o.__localBounds();
+				if(lb == null) {
+					return;
+				}
+				let r = swf_Rect.transform(lb,m);
+				let x0 = Math.max(0,Math.floor(r.xMin) - 2) | 0;
+				let y0 = Math.max(0,Math.floor(r.yMin) - 2) | 0;
+				let x1 = Math.min(gc.width,Math.ceil(r.xMax) + 2) | 0;
+				let y1 = Math.min(gc.height,Math.ceil(r.yMax) + 2) | 0;
+				let w = x1 - x0;
+				let h = y1 - y0;
+				if(w <= 0 || h <= 0) {
+					return;
+				}
+				let sc = o.__layerScale;
+				if(sc == null || !(sc > 0 && sc < 1)) {
+					sc = 1;
+				}
+				let lw = Math.ceil(w * sc) | 0;
+				let lh = Math.ceil(h * sc) | 0;
+				let lm = [m[0] * sc,m[1] * sc,m[2] * sc,m[3] * sc,(m[4] - x0) * sc,(m[5] - y0) * sc];
 				let inner = __cx.slice();
 				let alpha = inner[3];
 				inner[3] = 1;
-				this.drawChildren(lg,o,m,inner,null);
+				let sig = this.maskSignature(o,[],lm,inner,lw,lh);
+				let cached = sig != null ? this.layerCache.get(o) : null;
+				let src;
+				if(cached != null && cached.sig == sig) {
+					src = cached.canvas;
+				} else {
+					let layer = this.acquireLayer(lw,lh);
+					let lg = layer.getContext("2d",null);
+					lg.setTransform(1,0,0,1,0,0);
+					lg.globalCompositeOperation = "source-over";
+					lg.globalAlpha = 1;
+					lg.clearRect(0,0,lw,lh);
+					this.drawChildren(lg,o,lm,inner,null);
+					src = layer;
+					if(sig != null) {
+						let keep = cached != null ? cached.canvas : window.document.createElement("canvas");
+						if(keep.width != lw || keep.height != lh) {
+							keep.width = lw;
+							keep.height = lh;
+						}
+						let kg = keep.getContext("2d",null);
+						kg.setTransform(1,0,0,1,0,0);
+						kg.globalCompositeOperation = "copy";
+						kg.drawImage(layer,0,0,lw,lh,0,0,lw,lh);
+						kg.globalCompositeOperation = "source-over";
+						this.layerCache.set(o,{ sig : sig, canvas : keep});
+						src = keep;
+					}
+					this.layerIndex--;
+				}
 				g.setTransform(1,0,0,1,0,0);
 				g.globalAlpha = Math.max(0,Math.min(1,alpha));
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				g.drawImage(layer,0,0,this.canvas.width,this.canvas.height,0,0,this.canvas.width,this.canvas.height);
+				g.drawImage(src,0,0,lw,lh,x0,y0,w,h);
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = "source-over";
-				this.layerIndex--;
 				return;
 			}
 			this.drawChildren(g,o,m,__cx,op);
@@ -33535,6 +33587,7 @@ class swf_Renderer {
 	}
 	acquireLayer(w,h) {
 		swf_Renderer.statLayers++;
+		swf_Renderer.statLayerPx += w * h;
 		let l = this.layers[this.layerIndex];
 		if(l == null) {
 			l = window.document.createElement("canvas");
@@ -34810,6 +34863,7 @@ swf_FrameScripts.global = { get tmod() { return mtlib_Timer.tmod; } }
 swf_Renderer.IDENT = [1,1,1,1,0,0,0,0];
 swf_Renderer.statTints = 0;
 swf_Renderer.statLayers = 0;
+swf_Renderer.statLayerPx = 0.0;
 swf_Renderer.rectChars = new haxe_ds_IntMap();
 Boot.main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);
