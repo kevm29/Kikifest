@@ -784,6 +784,7 @@ class Boot {
 			canvas.width = w;
 			canvas.height = h;
 		}
+		swf.Renderer.lightMode = quality < 2;
 		renderer.scale = w / Data.DOC_WIDTH;
 		renderer.render(root);
 	}

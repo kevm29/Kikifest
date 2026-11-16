@@ -923,6 +923,7 @@ class Boot {
 			canvas.width = w;
 			canvas.height = h;
 		}
+		swf_Renderer.lightMode = Boot.quality < 2;
 		Boot.renderer.scale = w / Data.DOC_WIDTH;
 		Boot.renderer.render(Boot.root);
 	}
@@ -33348,6 +33349,10 @@ class swf_Renderer {
 			}
 		}
 		if(((o) instanceof swf_MovieClip)) {
+			if(o.__blend == "layer" && swf_Renderer.lightMode && !this.needsLayer(o)) {
+				this.drawChildren(g,o,m,__cx,op);
+				return;
+			}
 			if(o.__blend == "layer") {
 				let gc = g.canvas;
 				let lb = o.__localBounds();
@@ -33590,6 +33595,29 @@ class swf_Renderer {
 		cache.set(key,{ sig : sig, canvas : keep, spare : keep});
 		return keep;
 	}
+	needsLayer(mc) {
+		let budget = 300;
+		let walk = null;
+		walk = function(c) {
+			let _g = 0;
+			let _g1 = c.__children;
+			while(_g < _g1.length) {
+				let k = _g1[_g];
+				++_g;
+				if((budget -= 1) < 0) {
+					return true;
+				}
+				if(k.__clipDepth != 0 || k.__blend == "erase" || k.__blend == "alpha") {
+					return true;
+				}
+				if(((k) instanceof swf_MovieClip) && walk(k)) {
+					return true;
+				}
+			}
+			return false;
+		};
+		return walk(mc);
+	}
 	maskSignature(c,masked,lm,cx,w,h) {
 		let parts = [w + "x" + h,lm.join(","),cx.join(",")];
 		let budget = 200;
@@ -33761,12 +33789,20 @@ class swf_Renderer {
 	}
 	tint(src,sx,sy,sw,sh,__cx,key) {
 		let withAlpha = __cx[7] != 0;
+		let steps = swf_Renderer.lightMode ? 16 : 64;
 		let q = function(v) {
-			return Math.round(v * 64) / 64;
+			return Math.round(v * steps) / steps;
+		};
+		let qo = function(v) {
+			if(swf_Renderer.lightMode) {
+				return Math.round(v / 16) * 16;
+			} else {
+				return Math.round(v);
+			}
 		};
 		let k = null;
 		if(key != null) {
-			k = key + "|" + q(__cx[0]) + "," + q(__cx[1]) + "," + q(__cx[2]) + "," + Math.round(__cx[4]) + "," + Math.round(__cx[5]) + "," + Math.round(__cx[6]) + (withAlpha ? "," + q(__cx[3]) + "," + Math.round(__cx[7]) : "");
+			k = key + "|" + q(__cx[0]) + "," + q(__cx[1]) + "," + q(__cx[2]) + "," + qo(__cx[4]) + "," + qo(__cx[5]) + "," + qo(__cx[6]) + (withAlpha ? "," + q(__cx[3]) + "," + qo(__cx[7]) : "");
 			let c = this.tintCache.h[k];
 			if(c != null) {
 				return c;
@@ -34955,6 +34991,7 @@ net_rollback_RollbackSession.PING_EVERY_MS = 250.;
 net_rollback_RollbackSession.SYNC_EVERY = 40;
 swf_FrameScripts.GLOBALS = ["Math","random","_global","_root","undefined","NaN","Infinity","Number","String","Array","Boolean","Object","isNaN","parseInt","parseFloat","int","trace","console","eval"];
 swf_FrameScripts.global = { get tmod() { return mtlib_Timer.tmod; } }
+swf_Renderer.lightMode = false;
 swf_Renderer.IDENT = [1,1,1,1,0,0,0,0];
 swf_Renderer.statTints = 0;
 swf_Renderer.statLayers = 0;
