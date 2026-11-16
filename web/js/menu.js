@@ -2655,6 +2655,9 @@ class menu_Online {
 		menu_Online.box.appendChild(ping);
 		let p0 = menu_Online.get_peer();
 		menu_Online.refresh = function() {
+			let focused = menu_Online.doc.activeElement == input;
+			let s0 = input.selectionStart;
+			let s1 = input.selectionEnd;
 			if(input.parentNode != null) {
 				input.parentNode.removeChild(input);
 			}
@@ -2681,6 +2684,13 @@ class menu_Online {
 				tr.appendChild(menu_Online.el("td","state",waiting ? "attend la prochaine partie" : x.ready ? "✔ prêt" : "pas encore prêt"));
 				t.appendChild(tr);
 				++k;
+			}
+			if(focused && input.parentNode != null) {
+				input.focus();
+				try {
+					input.setSelectionRange(s0,s1);
+				} catch( _g ) {
+				}
 			}
 			readyBtn.textContent = menu_Online.myReady ? "Finalement, pas encore" : "Je suis prêt !";
 			let tmp = "Vos touches : " + menu_Online.keysText(false) + " · P : pause. La partie démarre quand tout le monde est prêt";
