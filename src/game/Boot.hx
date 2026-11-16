@@ -144,7 +144,20 @@ class Boot {
 			init: () -> net.Snapshot.init(([manager, root] : Array<Dynamic>))
 		};
 
+		DebugReport.init();
+		DebugReport.onRequest = requestReport;
 		var onDown = (e:js.html.KeyboardEvent) -> {
+			// F9 : rapport de débogage, F3 : mesures en direct (hors des touches du jeu)
+			if (e.code == "F9" || e.code == "F3") {
+				e.preventDefault();
+				if (!e.repeat) {
+					if (e.code == "F9")
+						requestReport();
+					else
+						DebugReport.toggleOverlay(session);
+				}
+				return;
+			}
 			pressed.set(e.code, true);
 			if (e.code == "KeyM" && !e.repeat && !isTyping(e) && !isBound("KeyM"))
 				musicKey();
@@ -166,6 +179,7 @@ class Boot {
 			Browser.window.removeEventListener("keyup", onUp);
 			Browser.window.removeEventListener("blur", onBlur);
 			SoundBank.shutdown();
+			DebugReport.removeButton();
 			untyped js.Browser.window.kikiStop = null;
 		};
 
@@ -175,6 +189,7 @@ class Boot {
 		var step = 1000 / Timer.SIM_FPS;
 		var last = Browser.window.performance.now();
 		var acc = 0.0;
+		var perfNow = () -> Browser.window.performance.now();
 		function loop(t:Float) {
 			acc += t - last;
 			last = t;
@@ -184,20 +199,49 @@ class Boot {
 				return;
 			// la boucle continue même si une image du jeu lève une erreur (sinon tout se fige)
 			Browser.window.requestAnimationFrame(loop);
+			DebugReport.frameStart(t);
+			var stepped = false;
 			while (acc >= step) {
 				acc -= step;
+				stepped = true;
+				var t0 = perfNow();
 				if (session != null)
 					netStep();
 				else
 					localStep();
+				DebugReport.addStep(perfNow() - t0);
 			}
-			try {
-				draw();
-			} catch (e:Dynamic) {
-				reportError(e);
+			// le jeu avance 40 fois par seconde : inutile de redessiner la même image sur un écran
+			// à 60, 75, 144 Hz… (c'était jusqu'à 3 dessins identiques par pas de jeu)
+			if (stepped || dirty) {
+				dirty = false;
+				var t0 = perfNow();
+				try {
+					draw();
+				} catch (e:Dynamic) {
+					reportError(e);
+				}
+				DebugReport.addDraw(perfNow() - t0);
 			}
+			DebugReport.frameEnd(session, manager);
 		}
 		Browser.window.requestAnimationFrame(loop);
+	}
+
+	/** Redessiner à la prochaine image même sans pas de jeu (taille du canevas changée…). **/
+	static var dirty = true;
+
+	/** Rapport de débogage : téléchargé en fichier (F9 ou bouton). **/
+	static function requestReport() {
+		var extra:Dynamic = {
+			mode: Reflect.field(root, "$mode"),
+			perfBoot: perf,
+			lagSimule: lagTransport != null,
+		};
+		DebugReport.download(session, netCfg, manager, renderer, extra, name -> {
+			status("Rapport de débogage enregistré : " + name + " (dossier Téléchargements). Envoie-le tel quel !");
+			lastNetInfo = Browser.window.performance.now() + 4000;
+		});
 	}
 
 	// ---------------------------------------------------------------- touches
@@ -374,6 +418,7 @@ class Boot {
 			});
 			s.onDesync = (f, a, b) -> {
 				Browser.console.warn('Désynchronisation à la frame $f ($a / $b)');
+				DebugReport.event('désynchronisation à la frame $f');
 				netWarning = "Attention : les deux parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
 			};
 			session = s;
@@ -388,6 +433,7 @@ class Boot {
 			});
 			s.onDesync = (f, who, a, b) -> {
 				Browser.console.warn('Désynchronisation à la frame $f avec le joueur ${who + 1} ($a / $b)');
+				DebugReport.event('désynchronisation à la frame $f avec le joueur ${who + 1}');
 				netWarning = "Attention : les parties se sont désynchronisées (frame " + f + "). Merci de le signaler !";
 			};
 			session = s;
@@ -399,12 +445,16 @@ class Boot {
 				return;
 			session = null;
 			netLost = true;
+			DebugReport.event("l'autre joueur est parti : " + reason);
 			SoundBank.muted = false;
 			status("L'autre joueur est parti" + (reason != null ? " (" + reason + ")" : "") + " : tu continues seul. Échap deux fois : menu.");
 		};
 		status("C'est parti ! Vous jouez " + ["Igor", "Sandy", "Igor vert", "Igor bleu"][netPlayer] + ".");
 		lastNetInfo = Browser.window.performance.now() + 3000;
 		untyped js.Browser.window.kiki.session = session;
+		DebugReport.event("partie en ligne : " + netPlayers + " joueurs, joueur local " + (netPlayer + 1) + ", liaison " + peer.transport + ", page " + Browser.location.host);
+		// type de liaison réellement utilisé (réseau local, direct par internet, relais), pour le rapport
+		Browser.window.setTimeout(() -> DebugReport.probeIce(netCfg), 3000);
 	}
 
 	static var netWarning:String = null;
@@ -442,9 +492,14 @@ class Boot {
 		if (now - lastNetInfo > 1000 && !gameEnded) {
 			lastNetInfo = now;
 			var peer:Dynamic = netCfg.peer;
-			var info = (peer.transport == "webrtc" ? "Liaison directe" : "Liaison par le serveur de l'hôte") + " · ping " + Math.round(session.rttMs) + " ms";
-			if (r == WaitingForRemote && session.silenceMs() > 1000)
+			// ping du réseau (mesuré par la liaison elle-même) ; celui du rollback compte en plus l'attente
+			// du pas de jeu suivant de chaque côté (jusqu'à 2 × 25 ms), il gonflait l'affichage
+			var ping:Float = peer.rtt != null && peer.rtt > 0 ? peer.rtt : session.rttMs;
+			var info = (peer.transport == "webrtc" ? "Liaison directe" : "Liaison par le serveur de l'hôte") + " · ping " + Math.round(ping) + " ms";
+			if (r == WaitingForRemote && session.silenceMs() > 1000) {
 				info = "En attente de l'autre joueur…";
+				DebugReport.event("en attente de l'autre joueur (silence " + Math.round(session.silenceMs()) + " ms)");
+			}
 			status(netWarning != null ? netWarning : info);
 		}
 	}
@@ -667,6 +722,8 @@ class Boot {
 	static var gameEnded = false;
 
 	static function reportError(e:Dynamic) {
+		if (errors < 30)
+			DebugReport.error(Std.string(e));
 		if (errors++ < 5) {
 			Browser.console.error(e);
 			var stack:String = untyped e != null && e.stack != null ? e.stack : "";
@@ -685,6 +742,7 @@ class Boot {
 		var w = Std.int(canvas.clientWidth * dpr);
 		var h = Std.int(canvas.clientHeight * dpr);
 		if (canvas.width != w || canvas.height != h) {
+			// le canevas est vidé quand sa taille change
 			canvas.width = w;
 			canvas.height = h;
 		}
@@ -715,14 +773,18 @@ class NetGame implements net.rollback.RollbackGame<net.Snapshot> {
 		var t0 = js.Browser.window.performance.now();
 		var s = net.Snapshot.save();
 		var dt = js.Browser.window.performance.now() - t0;
+		DebugReport.addSave(dt);
 		Boot.perf.saves++;
 		if (dt > Boot.perf.saveMax)
 			Boot.perf.saveMax = dt;
 		return s;
 	}
 
-	public function load(s:net.Snapshot)
+	public function load(s:net.Snapshot) {
+		var t0 = js.Browser.window.performance.now();
 		s.restore();
+		DebugReport.addLoad(js.Browser.window.performance.now() - t0);
+	}
 
 	public function checksum():Int
 		return Boot.checksum();

@@ -262,16 +262,28 @@ class Online {
 			if (!local)
 				links.appendChild(copyable("Lien à envoyer", Browser.location.protocol + "//" + Browser.location.host + "/?code=" + code));
 			else if (info != null) {
-				if (info.tunnelUrl != null)
-					links.appendChild(copyable("Lien à envoyer (par internet)", info.tunnelUrl + "/?code=" + code));
-				else if (info.publicIp != null)
-					links.appendChild(copyable("Lien à envoyer (par internet)", "http://" + info.publicIp + port + "/?code=" + code));
+				var direct = info.publicIp != null ? "http://" + info.publicIp + port + "/?code=" + code : null;
+				var tunnel = info.tunnelUrl != null ? info.tunnelUrl + "/?code=" + code : null;
+				if (direct != null && (info.preferDirect == true || tunnel == null)) {
+					// port ouvert : lien direct en premier, le tunnel Cloudflare n'est qu'un secours
+					links.appendChild(copyable("Lien à envoyer (par internet, en direct)", direct));
+					if (tunnel != null)
+						links.appendChild(copyable("Lien de secours (tunnel Cloudflare), si le premier ne marche pas", tunnel));
+				} else if (tunnel != null) {
+					links.appendChild(copyable("Lien à envoyer (par internet)", tunnel));
+					if (direct != null)
+						links.appendChild(copyable("Lien direct (seulement si le port " + info.port + " est ouvert sur la box)", direct));
+				}
 				for (ip in lan)
 					links.appendChild(copyable("Lien si l'autre joueur est chez vous (même Wi-Fi)", "http://" + ip + port + "/?code=" + code));
 			}
 			if (info != null && local) {
 				note.className = "note";
-				if (info.tunnelUrl != null)
+				if (info.preferDirect == true && info.reachable == true)
+					note.textContent = 'Vérifié : votre ordinateur est bien joignable par internet (port ${info.port}). Envoyez le lien direct.';
+				else if (info.preferDirect == true)
+					note.textContent = 'La box a ouvert le port ${info.port} (vérification depuis internet impossible) : essayez d\'abord le lien direct.';
+				else if (info.tunnelUrl != null)
 					note.textContent = "Le lien par internet passe par un tunnel gratuit : rien à régler sur votre box. Il change à chaque lancement du serveur.";
 				else if (info.reachable == true)
 					note.textContent = 'Vérifié : votre ordinateur est bien joignable par internet (port ${info.port}).';
