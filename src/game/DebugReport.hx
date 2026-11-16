@@ -106,6 +106,7 @@ class DebugReport {
 		curDraw = 0;
 		swf.Renderer.statTints = 0;
 		swf.Renderer.statLayers = 0;
+		swf.Renderer.statLayerPx = 0;
 	}
 
 	public static function addStep(ms:Float) {
@@ -183,6 +184,7 @@ class DebugReport {
 				dessinMs: round(curDraw),
 				teintes: tintsCreated,
 				calques: layersUsed,
+				calquesKpx: Math.round(swf.Renderer.statLayerPx / 1000),
 				jeu: gameContext(manager),
 			});
 			if (slow.length > 150)

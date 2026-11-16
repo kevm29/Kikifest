@@ -282,6 +282,11 @@ i++; } }
 			shakeTimer = 0;
 		}
 		else {
+			// Kikifest : tremblement désactivé (l'écran entier bougeait à chaque bombe, ce qui
+			// obligeait le navigateur à tout recomposer et faisait ramer)
+			if ( !GameManager.CONFIG.fl_shaky ) {
+				return;
+			}
 			if ( duration<shakeTimer || power<shakePower ) {
 				return;
 			}
@@ -2147,6 +2152,8 @@ i++; } }
 			darknessMC = (cast ( depthMan.attach("hammer_fx_darkness",RootData.DP_BORDERS) ));
 			{ if (darknessMC != null) darknessMC._x -= xOffset; }
 			{ if (darknessMC != null) darknessMC.blendMode = BlendMode.LAYER; }
+			// Kikifest : composé à demi-résolution (aplat noir aux bords flous, rendu quasi identique, 4 fois moins de pixels)
+			{ if (darknessMC != null) darknessMC.__layerScale = 0.5; }
 			{ if (darknessMC != null) darknessMC.holes = new Array(); }
 			darknessMC?.holes?.push( (cast (darknessMC))?.hole1 );
 			darknessMC?.holes?.push( (cast (darknessMC))?.hole2 );
