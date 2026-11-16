@@ -82,7 +82,7 @@ const base = "http://localhost:8080/";
   await guest.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "F3", bubbles: true })));
   const d = await dl;
   const rep = JSON.parse(require("fs").readFileSync(await d.path(), "utf8"));
-  console.log("rapport", d.suggestedFilename(), JSON.stringify({ s10: rep.dernieres10s, cx: rep.connexion, sys: rep.systeme, lentes: rep.imagesLentes.length, ev: rep.evenements.slice(0, 5) }).slice(0, 1800));
+  console.log("rapport", d.suggestedFilename(), "vue=" + JSON.stringify(rep.vue), "image=" + String(rep.image).slice(0, 30), JSON.stringify({ s10: rep.dernieres10s, cx: rep.connexion, sys: rep.systeme, lentes: rep.imagesLentes.length, ev: rep.evenements.slice(0, 5) }).slice(0, 1800));
   await host.waitForTimeout(600);
   console.log("panneau F3 :", await guest.evaluate(() => document.querySelector("pre") && document.querySelector("pre").textContent));
   const info = async (p) => p.evaluate(() => {

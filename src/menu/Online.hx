@@ -441,7 +441,10 @@ class Online {
 		var p0 = peer;
 
 		refresh = () -> {
-			// le champ du pseudo est gardé d'un affichage à l'autre (sinon il perdrait le focus)
+			// le champ du pseudo est gardé d'un affichage à l'autre ; le retirer du tableau lui fait
+			// perdre le focus (le joueur ne pouvait taper qu'une lettre) : on le lui rend ensuite
+			var focused = doc.activeElement == input;
+			var s0 = input.selectionStart, s1 = input.selectionEnd;
 			if (input.parentNode != null)
 				input.parentNode.removeChild(input);
 			t.innerHTML = "";
@@ -462,6 +465,12 @@ class Online {
 				tr.appendChild(el("td", "state", waiting ? "attend la prochaine partie" : (x.ready ? "✔ prêt" : "pas encore prêt")));
 				t.appendChild(tr);
 				k++;
+			}
+			if (focused && input.parentNode != null) {
+				input.focus();
+				try
+					input.setSelectionRange(s0, s1)
+				catch (e:Dynamic) {}
 			}
 			readyBtn.textContent = myReady ? "Finalement, pas encore" : "Je suis prêt !";
 			hint.textContent = "Vos touches : " + keysText(false) + " · P : pause. La partie démarre quand tout le monde est prêt"

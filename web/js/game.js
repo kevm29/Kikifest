@@ -1701,6 +1701,19 @@ class DebugReport {
 		DebugReport.tintsAt[i] = DebugReport.tintsCreated;
 		DebugReport.layersAt[i] = DebugReport.layersUsed;
 		DebugReport.count++;
+		try {
+			let g = manager != null ? manager.current : null;
+			let locked = g != null && g.fl_lock == true;
+			if(locked && DebugReport.lockSince < 0) {
+				DebugReport.lockSince = DebugReport.curT;
+			} else if(!locked && DebugReport.lockSince >= 0) {
+				if(DebugReport.curT - DebugReport.lockSince > 4000) {
+					DebugReport.event("transition terminée après " + DebugReport.round((DebugReport.curT - DebugReport.lockSince) / 1000) + " s");
+				}
+				DebugReport.lockSince = -1;
+			}
+		} catch( _g ) {
+		}
 		let lvl = DebugReport.levelName(manager);
 		if(lvl != DebugReport.lastLevel) {
 			if(DebugReport.lastLevel != null || lvl != null) {
@@ -1765,7 +1778,42 @@ class DebugReport {
 			let l1 = g.getList != null ? g.getList(Data.BAD) : null;
 			let tmp2 = l1 != null ? l1.length : 0;
 			let l2 = g.getList != null ? g.getList(Data.FX) : null;
-			return { niveau : tmp, entites : ent, bombes : tmp1, ennemis : tmp2, effets : l2 != null ? l2.length : 0, tremblement : g.shakeTimer != null && g.shakeTimer > 0, transition : g.fl_lock == true};
+			return { niveau : tmp, entites : ent, bombes : tmp1, ennemis : tmp2, effets : l2 != null ? l2.length : 0, tremblement : g.shakeTimer != null && g.shakeTimer > 0, transition : g.fl_lock == true, transitionDepuisS : DebugReport.lockSince >= 0 ? DebugReport.round((DebugReport.lastT - DebugReport.lockSince) / 1000) : 0};
+		} catch( _g ) {
+			return null;
+		}
+	}
+	static viewState(manager) {
+		try {
+			let g = manager != null ? manager.current : null;
+			let w = g != null ? g.world : null;
+			if(w == null) {
+				return null;
+			}
+			let v = w.view;
+			let mc = g.mc;
+			let tmp;
+			if(v != null) {
+				let b = v.viewCache;
+				let b1 = v.topCache;
+				let b2 = v.tileCache;
+				tmp = [b == null ? null : b.canvas != null ? Std.string(b.canvas.width) + "x" + Std.string(b.canvas.height) : "?",b1 == null ? null : b1.canvas != null ? Std.string(b1.canvas.width) + "x" + Std.string(b1.canvas.height) : "?",b2 == null ? null : b2.canvas != null ? Std.string(b2.canvas.width) + "x" + Std.string(b2.canvas.height) : "?"];
+			} else {
+				tmp = null;
+			}
+			return { defilement : w.fl_scrolling, defilementHorizontal : w.fl_hscrolling, fondu : w.fl_fading, restauration : w.fl_restoring, scrollCpt : w.scrollCpt, fauxDecor : w.fake != null && w.fake._name != null, vueAttachee : v != null ? v.fl_attach : null, vueXY : v != null && v._back != null ? [v._back._x,v._back._y] : null, caches : tmp, jeuXY : mc != null ? [mc._x,mc._y,mc._visible,mc._alpha] : null, dimension : g.currentDim, obscurite : w.darknessFactor, pause : g.fl_pause, finDePartie : g.fl_gameOver};
+		} catch( _g ) {
+			return { erreur : Std.string(haxe_Exception.caught(_g).unwrap())};
+		}
+	}
+	static thumbnail(renderer) {
+		try {
+			let c = renderer.canvas;
+			let t = window.document.createElement("canvas");
+			t.width = 240;
+			t.height = 240 * c.height / Math.max(1,c.width) | 0;
+			t.getContext("2d",null).drawImage(c,0,0,t.width,t.height);
+			return t.toDataURL("image/jpeg",0.7);
 		} catch( _g ) {
 			return null;
 		}
@@ -1933,7 +1981,7 @@ class DebugReport {
 		return { navigateur : nav.userAgent, coeurs : nav.hardwareConcurrency, memoireGo : nav.deviceMemory, ecran : window.screen.width + "x" + window.screen.height, fenetre : Std.string(window.innerWidth) + "x" + Std.string(window.innerHeight), zoomPixels : window.devicePixelRatio, canevas : renderer != null ? renderer.canvas.width + "x" + renderer.canvas.height : null, rafraichissementEcranHz : DebugReport.round(1000 / Math.max(1,DebugReport.percentile(dts,0.5))), ongletCache : DebugReport.hiddenCount, memoireJsMo : mem != null ? Math.round(mem.usedJSHeapSize / 1048576) : null};
 	}
 	static build(session,netCfg,manager,renderer,extra) {
-		return { rapport : "Kikifest - rapport de débogage", date : HxOverrides.dateStr(new Date()), dureePartieS : DebugReport.round((window.performance.now() - DebugReport.t0) / 1000), niveau : DebugReport.levelName(manager), dernieres10s : DebugReport.summary(10), dernieres60s : DebugReport.summary(60), connexion : DebugReport.connection(session,netCfg), systeme : DebugReport.system(renderer), jeu : DebugReport.gameContext(manager), extra : extra, imagesLentes : DebugReport.slow.slice(-80), evenements : DebugReport.events.slice(-150), erreurs : DebugReport.errors};
+		return { rapport : "Kikifest - rapport de débogage", date : HxOverrides.dateStr(new Date()), dureePartieS : DebugReport.round((window.performance.now() - DebugReport.t0) / 1000), niveau : DebugReport.levelName(manager), dernieres10s : DebugReport.summary(10), dernieres60s : DebugReport.summary(60), connexion : DebugReport.connection(session,netCfg), systeme : DebugReport.system(renderer), jeu : DebugReport.gameContext(manager), vue : DebugReport.viewState(manager), image : DebugReport.thumbnail(renderer), extra : extra, imagesLentes : DebugReport.slow.slice(-80), evenements : DebugReport.events.slice(-150), erreurs : DebugReport.errors};
 	}
 	static download(session,netCfg,manager,renderer,extra,done) {
 		let finish = function(_) {
@@ -33169,12 +33217,12 @@ class swf_Renderer {
 		}
 		if(((o) instanceof swf_MovieClip)) {
 			if(o.__blend == "layer") {
-				let layer = this.acquireLayer();
+				let layer = this.acquireLayer(this.canvas.width,this.canvas.height);
 				let lg = layer.getContext("2d",null);
 				lg.setTransform(1,0,0,1,0,0);
 				lg.globalCompositeOperation = "source-over";
 				lg.globalAlpha = 1;
-				lg.clearRect(0,0,layer.width,layer.height);
+				lg.clearRect(0,0,this.canvas.width,this.canvas.height);
 				let inner = __cx.slice();
 				let alpha = inner[3];
 				inner[3] = 1;
@@ -33182,7 +33230,7 @@ class swf_Renderer {
 				g.setTransform(1,0,0,1,0,0);
 				g.globalAlpha = Math.max(0,Math.min(1,alpha));
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				g.drawImage(layer,0,0);
+				g.drawImage(layer,0,0,this.canvas.width,this.canvas.height,0,0,this.canvas.width,this.canvas.height);
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = "source-over";
 				this.layerIndex--;
@@ -33233,31 +33281,59 @@ class swf_Renderer {
 					masked.push(ch[j]);
 					++j;
 				}
-				let layer = this.acquireLayer();
+				let gc = g.canvas;
+				let x0 = 0;
+				let y0 = 0;
+				let x1 = gc.width;
+				let y1 = gc.height;
+				let lb = c._visible ? c.__localBounds() : null;
+				if(lb != null) {
+					let a = c.__sx * Math.cos(c.__rotX);
+					let b = c.__sx * Math.sin(c.__rotX);
+					let c1 = -c.__sy * Math.sin(c.__rotY);
+					let d = c.__sy * Math.cos(c.__rotY);
+					let __tx = c.__tx;
+					let __ty = c.__ty;
+					let r = swf_Rect.transform(lb,[m[0] * a + m[2] * b,m[1] * a + m[3] * b,m[0] * c1 + m[2] * d,m[1] * c1 + m[3] * d,m[0] * __tx + m[2] * __ty + m[4],m[1] * __tx + m[3] * __ty + m[5]]);
+					x0 = Math.max(0,Math.floor(r.xMin) - 2) | 0;
+					y0 = Math.max(0,Math.floor(r.yMin) - 2) | 0;
+					x1 = Math.min(gc.width,Math.ceil(r.xMax) + 2) | 0;
+					y1 = Math.min(gc.height,Math.ceil(r.yMax) + 2) | 0;
+				}
+				let w = x1 - x0;
+				let h = y1 - y0;
+				if(!c._visible || w <= 0 || h <= 0) {
+					i = j;
+					continue;
+				}
+				let lm = m.slice();
+				lm[4] -= x0;
+				lm[5] -= y0;
+				let layer = this.acquireLayer(w,h);
 				let lg = layer.getContext("2d",null);
 				lg.setTransform(1,0,0,1,0,0);
 				lg.globalCompositeOperation = "source-over";
 				lg.globalAlpha = 1;
-				lg.clearRect(0,0,layer.width,layer.height);
+				lg.clearRect(0,0,w,h);
 				let _g = 0;
-				while(_g < masked.length) this.drawObject(lg,masked[_g++],m,__cx,null);
-				let maskLayer = this.acquireLayer();
+				while(_g < masked.length) this.drawObject(lg,masked[_g++],lm,__cx,null);
+				let maskLayer = this.acquireLayer(w,h);
 				let mg = maskLayer.getContext("2d",null);
 				mg.setTransform(1,0,0,1,0,0);
 				mg.globalCompositeOperation = "source-over";
 				mg.globalAlpha = 1;
-				mg.clearRect(0,0,maskLayer.width,maskLayer.height);
-				this.drawObject(mg,c,m,[1,1,1,1,0,0,0,0],null);
+				mg.clearRect(0,0,w,h);
+				this.drawObject(mg,c,lm,[1,1,1,1,0,0,0,0],null);
 				this.layerIndex--;
 				lg.setTransform(1,0,0,1,0,0);
 				lg.globalAlpha = 1;
 				lg.globalCompositeOperation = "destination-in";
-				lg.drawImage(maskLayer,0,0);
+				lg.drawImage(maskLayer,0,0,w,h,0,0,w,h);
 				lg.globalCompositeOperation = "source-over";
 				g.setTransform(1,0,0,1,0,0);
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				g.drawImage(layer,0,0);
+				g.drawImage(layer,0,0,w,h,x0,y0,w,h);
 				this.layerIndex--;
 				i = j;
 				continue;
@@ -33266,16 +33342,16 @@ class swf_Renderer {
 			++i;
 		}
 	}
-	acquireLayer() {
+	acquireLayer(w,h) {
 		swf_Renderer.statLayers++;
 		let l = this.layers[this.layerIndex];
 		if(l == null) {
 			l = window.document.createElement("canvas");
 			this.layers[this.layerIndex] = l;
 		}
-		if(l.width != this.canvas.width || l.height != this.canvas.height) {
-			l.width = this.canvas.width;
-			l.height = this.canvas.height;
+		if(l.width < w || l.height < h) {
+			l.width = Math.max(l.width,w) | 0;
+			l.height = Math.max(l.height,h) | 0;
 		}
 		this.layerIndex++;
 		return l;
@@ -34228,6 +34304,7 @@ DebugReport.events = [];
 DebugReport.hiddenCount = 0;
 DebugReport.errors = [];
 DebugReport.lastOverlay = 0.0;
+DebugReport.lockSince = -1.0;
 swf_DisplayObject._hx_skip_constructor = false;
 swf_DisplayObject.BLENDS = [null,null,"layer","multiply","screen","lighten","darken","add","subtract","difference","invert","alpha","erase","overlay","hardlight"];
 swf_MovieClip.TIMELINE_DEPTH = -16384;

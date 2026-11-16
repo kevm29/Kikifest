@@ -110,12 +110,12 @@ class Renderer {
 			if (o.__blend == "layer") {
 				// mode « calque » : les enfants sont composés à part (les modes effacer/alpha
 				// n'agissent qu'à l'intérieur), puis le tout est posé avec l'opacité du clip
-				var layer = acquireLayer();
+				var layer = acquireLayer(canvas.width, canvas.height);
 				var lg = layer.getContext2d();
 				lg.setTransform(1, 0, 0, 1, 0, 0);
 				lg.globalCompositeOperation = "source-over";
 				lg.globalAlpha = 1;
-				lg.clearRect(0, 0, layer.width, layer.height);
+				lg.clearRect(0, 0, canvas.width, canvas.height);
 				var inner = __cx.copy();
 				var alpha = inner[3];
 				inner[3] = 1;
@@ -123,7 +123,7 @@ class Renderer {
 				g.setTransform(1, 0, 0, 1, 0, 0);
 				g.globalAlpha = Math.max(0, Math.min(1, alpha));
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				g.drawImage(layer, 0, 0);
+				g.drawImage(layer, 0, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = "source-over";
 				layerIndex--;
@@ -168,34 +168,55 @@ class Renderer {
 					masked.push(ch[j]);
 					j++;
 				}
-				var layer = acquireLayer();
+				// calques limités à l'emprise du masque (avant : deux calques de la taille de l'écran à
+				// chaque masque, ce qui faisait ramer Firefox, par exemple aux animations du joueur)
+				var gc:CanvasElement = cast g.canvas;
+				var x0 = 0, y0 = 0, x1 = gc.width, y1 = gc.height;
+				var lb = c._visible ? c.__localBounds() : null;
+				if (lb != null) {
+					var r = Rect.transform(lb, mul(m, c));
+					x0 = Std.int(Math.max(0, Math.floor(r.xMin) - 2));
+					y0 = Std.int(Math.max(0, Math.floor(r.yMin) - 2));
+					x1 = Std.int(Math.min(gc.width, Math.ceil(r.xMax) + 2));
+					y1 = Std.int(Math.min(gc.height, Math.ceil(r.yMax) + 2));
+				}
+				var w = x1 - x0, h = y1 - y0;
+				if (!c._visible || w <= 0 || h <= 0) {
+					// masque vide ou hors de l'écran : rien de ce qu'il masque n'est visible
+					i = j;
+					continue;
+				}
+				var lm = m.copy();
+				lm[4] -= x0;
+				lm[5] -= y0;
+				var layer = acquireLayer(w, h);
 				var lg = layer.getContext2d();
 				lg.setTransform(1, 0, 0, 1, 0, 0);
 				lg.globalCompositeOperation = "source-over";
 				lg.globalAlpha = 1;
-				lg.clearRect(0, 0, layer.width, layer.height);
+				lg.clearRect(0, 0, w, h);
 				for (mo in masked)
-					drawObject(lg, mo, m, __cx, null);
+					drawObject(lg, mo, lm, __cx, null);
 				// le masque est d'abord dessiné normalement dans son propre calque, puis appliqué d'un coup
 				// sur toute la surface : certains navigateurs (Firefox) ne composent "destination-in"
 				// que dans l'emprise de l'image dessinée, ce qui laissait passer tout le reste
-				var maskLayer = acquireLayer();
+				var maskLayer = acquireLayer(w, h);
 				var mg = maskLayer.getContext2d();
 				mg.setTransform(1, 0, 0, 1, 0, 0);
 				mg.globalCompositeOperation = "source-over";
 				mg.globalAlpha = 1;
-				mg.clearRect(0, 0, maskLayer.width, maskLayer.height);
-				drawObject(mg, c, m, [1, 1, 1, 1, 0, 0, 0, 0], null);
+				mg.clearRect(0, 0, w, h);
+				drawObject(mg, c, lm, [1, 1, 1, 1, 0, 0, 0, 0], null);
 				layerIndex--;
 				lg.setTransform(1, 0, 0, 1, 0, 0);
 				lg.globalAlpha = 1;
 				lg.globalCompositeOperation = "destination-in";
-				lg.drawImage(maskLayer, 0, 0);
+				lg.drawImage(maskLayer, 0, 0, w, h, 0, 0, w, h);
 				lg.globalCompositeOperation = "source-over";
 				g.setTransform(1, 0, 0, 1, 0, 0);
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = op != null ? op : "source-over";
-				g.drawImage(layer, 0, 0);
+				g.drawImage(layer, 0, 0, w, h, x0, y0, w, h);
 				layerIndex--;
 				i = j;
 				continue;
@@ -205,16 +226,17 @@ class Renderer {
 		}
 	}
 
-	function acquireLayer():CanvasElement {
+	/** Calque de travail d'au moins w × h (les calques ne font que grandir : pas de réallocation à chaque image). **/
+	function acquireLayer(w:Int, h:Int):CanvasElement {
 		statLayers++;
 		var l = layers[layerIndex];
 		if (l == null) {
 			l = Browser.document.createCanvasElement();
 			layers[layerIndex] = l;
 		}
-		if (l.width != canvas.width || l.height != canvas.height) {
-			l.width = canvas.width;
-			l.height = canvas.height;
+		if (l.width < w || l.height < h) {
+			l.width = Std.int(Math.max(l.width, w));
+			l.height = Std.int(Math.max(l.height, h));
 		}
 		layerIndex++;
 		return l;
