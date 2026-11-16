@@ -1676,6 +1676,7 @@ class DebugReport {
 		swf_Renderer.statTints = 0;
 		swf_Renderer.statLayers = 0;
 		swf_Renderer.statLayerPx = 0;
+		swf_Renderer.statCanvases = 0;
 	}
 	static addStep(ms) {
 		DebugReport.curSteps++;
@@ -1738,7 +1739,7 @@ class DebugReport {
 			DebugReport.lastLevel = lvl;
 		}
 		if(DebugReport.curDt > 45.0 && DebugReport.count > 1 && !window.document.hidden) {
-			DebugReport.slow.push({ t : DebugReport.round((DebugReport.curT - DebugReport.t0) / 1000,2), ecartMs : DebugReport.round(DebugReport.curDt), pas : DebugReport.curSteps, simMs : DebugReport.round(DebugReport.curSim), photos : DebugReport.curSaves, photosMs : DebugReport.round(DebugReport.curSaveMs), retours : DebugReport.curLoads, retoursMs : DebugReport.round(DebugReport.curLoadMs), rejouees : DebugReport.curResim, dessinMs : DebugReport.round(DebugReport.curDraw), teintes : DebugReport.tintsCreated, calques : DebugReport.layersUsed, calquesKpx : Math.round(swf_Renderer.statLayerPx / 1000), jeu : DebugReport.gameContext(manager)});
+			DebugReport.slow.push({ t : DebugReport.round((DebugReport.curT - DebugReport.t0) / 1000,2), ecartMs : DebugReport.round(DebugReport.curDt), pas : DebugReport.curSteps, simMs : DebugReport.round(DebugReport.curSim), photos : DebugReport.curSaves, photosMs : DebugReport.round(DebugReport.curSaveMs), retours : DebugReport.curLoads, retoursMs : DebugReport.round(DebugReport.curLoadMs), rejouees : DebugReport.curResim, dessinMs : DebugReport.round(DebugReport.curDraw), teintes : DebugReport.tintsCreated, calques : DebugReport.layersUsed, calquesKpx : Math.round(swf_Renderer.statLayerPx / 1000), nouveauxCanevas : swf_Renderer.statCanvases, jeu : DebugReport.gameContext(manager)});
 			if(DebugReport.slow.length > 150) {
 				DebugReport.slow.shift();
 			}
@@ -12742,16 +12743,22 @@ class entity_bad_WallWalker extends entity_Bad {
 			this.fl_friction = true;
 			this.fl_lost = true;
 		}
-		let tmp3 = this.world;
-		let tmp4;
-		if(tmp3 != null) {
-			let tmp = this.cp;
-			let tmp1 = this.cp;
-			tmp4 = tmp3.getCase({ x : this.cx + (tmp != null ? tmp.x : null), y : this.cy + (tmp1 != null ? tmp1.y : null)});
+		let tmp3;
+		if(this.cp != null) {
+			let tmp = this.world;
+			let tmp1;
+			if(tmp != null) {
+				let tmp2 = this.cp;
+				let tmp3 = this.cp;
+				tmp1 = tmp.getCase({ x : this.cx + (tmp2 != null ? tmp2.x : null), y : this.cy + (tmp3 != null ? tmp3.y : null)});
+			} else {
+				tmp1 = null;
+			}
+			tmp3 = tmp1 > 0;
 		} else {
-			tmp4 = null;
+			tmp3 = false;
 		}
-		if(tmp4 > 0) {
+		if(tmp3) {
 			this.lastSafe = { x : this.x, y : this.y, xSpeed : this.xSpeed, ySpeed : this.ySpeed, cp : { x : this.cp.x, y : this.cp.y}};
 		}
 	}
@@ -22806,9 +22813,15 @@ class levels_ScriptEngine {
 		this.addScript("<" + levels_ScriptEngine.T_TIMER + " $t=\"" + Std.string(this.cycle + t) + "\" " + Std.string(doStr) + " $endClear=\"" + (fl_clearAtEnd ? "1" : "0") + "\">" + "<" + event + " $x=\"" + Std.string(x) + "\" $y=\"" + Std.string(y) + "\" $i=\"" + Std.string(id) + "\" $si=\"" + Std.string(subStr) + "\" $inf=\"" + (fl_inf ? "1" : "") + "\" $sys=\"1\"/>" + "</" + levels_ScriptEngine.T_TIMER + ">");
 	}
 	insertSpecialItem(id,sid,x,y,t,repeat,fl_inf,fl_clearAtEnd) {
+		if(id == null) {
+			return;
+		}
 		this.insertItem(levels_ScriptEngine.E_SPECIAL,id,sid,x,y,t,repeat,fl_inf,fl_clearAtEnd);
 	}
 	insertScoreItem(id,sid,x,y,t,repeat,fl_inf,fl_clearAtEnd) {
+		if(id == null) {
+			return;
+		}
 		this.insertItem(levels_ScriptEngine.E_SCORE,id,sid,x,y,t,repeat,fl_inf,fl_clearAtEnd);
 	}
 	insertExtend() {
@@ -33294,7 +33307,7 @@ class swf_Renderer {
 				let sig = this.maskSignature(o,[],lm,inner,lw,lh);
 				let cached = sig != null ? this.layerCache.get(o) : null;
 				let src;
-				if(cached != null && cached.sig == sig) {
+				if(cached != null && cached.canvas != null && cached.sig == sig) {
 					src = cached.canvas;
 				} else {
 					let layer = this.acquireLayer(lw,lh);
@@ -33306,18 +33319,10 @@ class swf_Renderer {
 					this.drawChildren(lg,o,lm,inner,null);
 					src = layer;
 					if(sig != null) {
-						let keep = cached != null ? cached.canvas : window.document.createElement("canvas");
-						if(keep.width != lw || keep.height != lh) {
-							keep.width = lw;
-							keep.height = lh;
+						let kept = this.remember(this.layerCache,o,cached,sig,layer,lw,lh);
+						if(kept != null) {
+							src = kept;
 						}
-						let kg = keep.getContext("2d",null);
-						kg.setTransform(1,0,0,1,0,0);
-						kg.globalCompositeOperation = "copy";
-						kg.drawImage(layer,0,0,lw,lh,0,0,lw,lh);
-						kg.globalCompositeOperation = "source-over";
-						this.layerCache.set(o,{ sig : sig, canvas : keep});
-						src = keep;
 					}
 					this.layerIndex--;
 				}
@@ -33453,7 +33458,7 @@ class swf_Renderer {
 				lm[5] -= y0;
 				let sig = this.maskSignature(c,masked,lm,__cx,w,h);
 				let cached = sig != null ? this.maskCache.get(c) : null;
-				if(cached != null && cached.sig == sig) {
+				if(cached != null && cached.canvas != null && cached.sig == sig) {
 					g.setTransform(1,0,0,1,0,0);
 					g.globalAlpha = 1;
 					g.globalCompositeOperation = op != null ? op : "source-over";
@@ -33487,17 +33492,7 @@ class swf_Renderer {
 				g.globalCompositeOperation = op != null ? op : "source-over";
 				g.drawImage(layer,0,0,w,h,x0,y0,w,h);
 				if(sig != null) {
-					let keep = cached != null ? cached.canvas : window.document.createElement("canvas");
-					if(keep.width != w || keep.height != h) {
-						keep.width = w;
-						keep.height = h;
-					}
-					let kg = keep.getContext("2d",null);
-					kg.setTransform(1,0,0,1,0,0);
-					kg.globalCompositeOperation = "copy";
-					kg.drawImage(layer,0,0,w,h,0,0,w,h);
-					kg.globalCompositeOperation = "source-over";
-					this.maskCache.set(c,{ sig : sig, canvas : keep});
+					this.remember(this.maskCache,c,cached,sig,layer,w,h);
 				}
 				this.layerIndex--;
 				i = j;
@@ -33506,6 +33501,24 @@ class swf_Renderer {
 			this.drawObject(g,c,m,__cx,op);
 			++i;
 		}
+	}
+	remember(cache,key,cached,sig,layer,w,h) {
+		if(cached == null || cached.sig != sig) {
+			cache.set(key,{ sig : sig, canvas : null, spare : cached != null ? cached.canvas != null ? cached.canvas : cached.spare : null});
+			return null;
+		}
+		let keep = cached.spare != null ? cached.spare : swf_Renderer.newCanvas();
+		if(keep.width < w || keep.height < h) {
+			keep.width = Math.max(keep.width,w) | 0;
+			keep.height = Math.max(keep.height,h) | 0;
+		}
+		let kg = keep.getContext("2d",null);
+		kg.setTransform(1,0,0,1,0,0);
+		kg.globalCompositeOperation = "copy";
+		kg.drawImage(layer,0,0,w,h,0,0,w,h);
+		kg.globalCompositeOperation = "source-over";
+		cache.set(key,{ sig : sig, canvas : keep, spare : keep});
+		return keep;
 	}
 	maskSignature(c,masked,lm,cx,w,h) {
 		let parts = [w + "x" + h,lm.join(","),cx.join(",")];
@@ -33590,7 +33603,7 @@ class swf_Renderer {
 		swf_Renderer.statLayerPx += w * h;
 		let l = this.layers[this.layerIndex];
 		if(l == null) {
-			l = window.document.createElement("canvas");
+			l = swf_Renderer.newCanvas();
 			this.layers[this.layerIndex] = l;
 		}
 		if(l.width < w || l.height < h) {
@@ -33689,7 +33702,7 @@ class swf_Renderer {
 				return c;
 			}
 		}
-		let c = window.document.createElement("canvas");
+		let c = swf_Renderer.newCanvas();
 		c.width = sw > 0 ? sw : 1;
 		c.height = sh > 0 ? sh : 1;
 		let g = c.getContext("2d",{ willReadFrequently : true});
@@ -33730,6 +33743,10 @@ class swf_Renderer {
 			this.tintCount++;
 		}
 		return c;
+	}
+	static newCanvas() {
+		swf_Renderer.statCanvases++;
+		return window.document.createElement("canvas");
 	}
 	static drawInto(target,mc,x,y) {
 		if(swf_Renderer.offscreen == null) {
@@ -33796,10 +33813,16 @@ class swf_Renderer {
 				let w = reg[3] | 0;
 				let h = reg[4] | 0;
 				if(w > 0 && h > 0) {
-					let t = window.document.createElement("canvas");
-					t.width = w;
-					t.height = h;
+					if(swf_Renderer.rectScratch == null) {
+						swf_Renderer.rectScratch = swf_Renderer.newCanvas();
+					}
+					let t = swf_Renderer.rectScratch;
+					if(t.width < w || t.height < h) {
+						t.width = Math.max(t.width,w) | 0;
+						t.height = Math.max(t.height,h) | 0;
+					}
 					let tg = t.getContext("2d",{ willReadFrequently : true});
+					tg.clearRect(0,0,w,h);
 					tg.drawImage(swf_Library.inst.atlasPages[reg[0] | 0],reg[1],reg[2],w,h,0,0,w,h);
 					let d = tg.getImageData(0,0,w,h).data;
 					ok = true;
@@ -34863,6 +34886,7 @@ swf_FrameScripts.global = { get tmod() { return mtlib_Timer.tmod; } }
 swf_Renderer.IDENT = [1,1,1,1,0,0,0,0];
 swf_Renderer.statTints = 0;
 swf_Renderer.statLayers = 0;
+swf_Renderer.statCanvases = 0;
 swf_Renderer.statLayerPx = 0.0;
 swf_Renderer.rectChars = new haxe_ds_IntMap();
 Boot.main();

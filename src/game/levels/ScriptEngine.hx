@@ -855,6 +855,9 @@ i++; } }
 	INSERTION: ITEM SPÉCIAL
 	------------------------------------------------------------------------*/
 	public function insertSpecialItem(id:Dynamic,sid:Dynamic, x:Dynamic,y:Dynamic, t:Dynamic, repeat:Dynamic, fl_inf:Dynamic, fl_clearAtEnd:Dynamic)  untyped {
+		// Kikifest : plus aucun objet à tirer (collection réduite, objets uniques déjà pris) :
+		// avant, erreur fatale « null item ID » et écran noir ; on ne fait rien apparaître
+		if ( id==null ) return;
 		insertItem(E_SPECIAL, id,sid,x,y,t,repeat,fl_inf, fl_clearAtEnd);
 	}
 
@@ -862,6 +865,9 @@ i++; } }
 	INSERTION: BONUS
 	------------------------------------------------------------------------*/
 	public function insertScoreItem(id:Dynamic,sid:Dynamic, x:Dynamic,y:Dynamic, t:Dynamic, repeat:Dynamic, fl_inf:Dynamic, fl_clearAtEnd:Dynamic)  untyped {
+		// Kikifest : plus aucun objet à tirer (collection réduite, objets uniques déjà pris) :
+		// avant, erreur fatale « null item ID » et écran noir ; on ne fait rien apparaître
+		if ( id==null ) return;
 		insertItem(E_SCORE, id,sid,x,y,t,repeat,fl_inf, fl_clearAtEnd);
 	}
 

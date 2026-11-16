@@ -107,6 +107,7 @@ class DebugReport {
 		swf.Renderer.statTints = 0;
 		swf.Renderer.statLayers = 0;
 		swf.Renderer.statLayerPx = 0;
+		swf.Renderer.statCanvases = 0;
 	}
 
 	public static function addStep(ms:Float) {
@@ -185,6 +186,7 @@ class DebugReport {
 				teintes: tintsCreated,
 				calques: layersUsed,
 				calquesKpx: Math.round(swf.Renderer.statLayerPx / 1000),
+				nouveauxCanevas: swf.Renderer.statCanvases,
 				jeu: gameContext(manager),
 			});
 			if (slow.length > 150)

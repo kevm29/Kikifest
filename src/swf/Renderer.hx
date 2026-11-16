@@ -27,6 +27,13 @@ class Renderer {
 	public static var statTints = 0;
 
 	public static var statLayers = 0;
+	/** Canevas créés (coûteux sous Firefox : allocation sur la carte graphique). **/
+	public static var statCanvases = 0;
+
+	static function newCanvas():CanvasElement {
+		statCanvases++;
+		return Browser.document.createCanvasElement();
+	}
 	/** Pixels des calques utilisés depuis la dernière remise à zéro. **/
 	public static var statLayerPx = 0.0;
 
@@ -139,7 +146,7 @@ class Renderer {
 				var sig = maskSignature(o, [], lm, inner, lw, lh);
 				var cached:Dynamic = sig != null ? layerCache.get(o) : null;
 				var src:CanvasElement;
-				if (cached != null && cached.sig == sig) {
+				if (cached != null && cached.canvas != null && cached.sig == sig) {
 					src = cached.canvas;
 				} else {
 					var layer = acquireLayer(lw, lh);
@@ -151,18 +158,9 @@ class Renderer {
 					drawChildren(lg, (cast o : MovieClip), lm, inner, null);
 					src = layer;
 					if (sig != null) {
-						var keep:CanvasElement = cached != null ? cached.canvas : Browser.document.createCanvasElement();
-						if (keep.width != lw || keep.height != lh) {
-							keep.width = lw;
-							keep.height = lh;
-						}
-						var kg = keep.getContext2d();
-						kg.setTransform(1, 0, 0, 1, 0, 0);
-						kg.globalCompositeOperation = "copy";
-						kg.drawImage(layer, 0, 0, lw, lh, 0, 0, lw, lh);
-						kg.globalCompositeOperation = "source-over";
-						layerCache.set(o, {sig: sig, canvas: keep});
-						src = keep;
+						var kept = remember(layerCache, o, cached, sig, layer, lw, lh);
+						if (kept != null)
+							src = kept;
 					}
 					layerIndex--;
 				}
@@ -279,7 +277,7 @@ class Renderer {
 				// composée à l'image précédente au lieu de tout recomposer 40 fois par seconde
 				var sig = maskSignature(c, masked, lm, __cx, w, h);
 				var cached:Dynamic = sig != null ? maskCache.get(c) : null;
-				if (cached != null && cached.sig == sig) {
+				if (cached != null && cached.canvas != null && cached.sig == sig) {
 					g.setTransform(1, 0, 0, 1, 0, 0);
 					g.globalAlpha = 1;
 					g.globalCompositeOperation = op != null ? op : "source-over";
@@ -315,19 +313,8 @@ class Renderer {
 				g.globalAlpha = 1;
 				g.globalCompositeOperation = op != null ? op : "source-over";
 				g.drawImage(layer, 0, 0, w, h, x0, y0, w, h);
-				if (sig != null) {
-					var keep:CanvasElement = cached != null ? cached.canvas : Browser.document.createCanvasElement();
-					if (keep.width != w || keep.height != h) {
-						keep.width = w;
-						keep.height = h;
-					}
-					var kg = keep.getContext2d();
-					kg.setTransform(1, 0, 0, 1, 0, 0);
-					kg.globalCompositeOperation = "copy";
-					kg.drawImage(layer, 0, 0, w, h, 0, 0, w, h);
-					kg.globalCompositeOperation = "source-over";
-					maskCache.set(c, {sig: sig, canvas: keep});
-				}
+				if (sig != null)
+					remember(maskCache, c, cached, sig, layer, w, h);
 				layerIndex--;
 				i = j;
 				continue;
@@ -335,6 +322,32 @@ class Renderer {
 			drawObject(g, c, m, __cx, op);
 			i++;
 		}
+	}
+
+	/**
+		Garde l'image composée d'un masque ou d'un calque pour la réutiliser, mais seulement quand elle
+		n'a pas changé depuis l'image précédente : les effets animés (explosions) changent à chaque
+		image, et leur créer un canevas à chacun coûtait cher à Firefox (allocation sur la carte
+		graphique). Le canevas gardé ne fait que grandir. Renvoie le canevas gardé, ou null.
+	**/
+	function remember(cache:js.lib.WeakMap<Dynamic>, key:Dynamic, cached:Dynamic, sig:String, layer:CanvasElement, w:Int, h:Int):Null<CanvasElement> {
+		if (cached == null || cached.sig != sig) {
+			// première fois qu'on voit cette image : on note son empreinte, sans rien allouer
+			cache.set(key, {sig: sig, canvas: null, spare: cached != null ? (cached.canvas != null ? cached.canvas : cached.spare) : null});
+			return null;
+		}
+		var keep:CanvasElement = cached.spare != null ? cached.spare : newCanvas();
+		if (keep.width < w || keep.height < h) {
+			keep.width = Std.int(Math.max(keep.width, w));
+			keep.height = Std.int(Math.max(keep.height, h));
+		}
+		var kg = keep.getContext2d();
+		kg.setTransform(1, 0, 0, 1, 0, 0);
+		kg.globalCompositeOperation = "copy";
+		kg.drawImage(layer, 0, 0, w, h, 0, 0, w, h);
+		kg.globalCompositeOperation = "source-over";
+		cache.set(key, {sig: sig, canvas: keep, spare: keep});
+		return keep;
 	}
 
 	/** Images composées des clips en mode « calque » immobiles. **/
@@ -376,6 +389,7 @@ class Renderer {
 
 	/** Graphiques dont l'image est un rectangle plein (vrai/faux), calculé une fois par graphique. **/
 	static var rectChars:Map<Int, Bool> = new Map();
+	static var rectScratch:CanvasElement;
 
 	/**
 		Si le masque `c` est un rectangle plein (un graphique, ou un clip qui n'en contient qu'un),
@@ -419,10 +433,15 @@ class Renderer {
 			if (reg != null) {
 				var w = Std.int(reg[3]), h = Std.int(reg[4]);
 				if (w > 0 && h > 0) {
-					var t:CanvasElement = Browser.document.createCanvasElement();
-					t.width = w;
-					t.height = h;
+					if (rectScratch == null)
+						rectScratch = newCanvas();
+					var t = rectScratch;
+					if (t.width < w || t.height < h) {
+						t.width = Std.int(Math.max(t.width, w));
+						t.height = Std.int(Math.max(t.height, h));
+					}
 					var tg:CanvasRenderingContext2D = untyped t.getContext("2d", {willReadFrequently: true});
+					tg.clearRect(0, 0, w, h);
 					tg.drawImage(Library.inst.atlasPage(Std.int(reg[0])), reg[1], reg[2], w, h, 0, 0, w, h);
 					var d = tg.getImageData(0, 0, w, h).data;
 					ok = true;
@@ -453,7 +472,7 @@ class Renderer {
 		statLayerPx += w * h;
 		var l = layers[layerIndex];
 		if (l == null) {
-			l = Browser.document.createCanvasElement();
+			l = newCanvas();
 			layers[layerIndex] = l;
 		}
 		if (l.width < w || l.height < h) {
@@ -547,7 +566,7 @@ class Renderer {
 			if (c != null)
 				return c;
 		}
-		var c = Browser.document.createCanvasElement();
+		var c = newCanvas();
 		c.width = sw > 0 ? sw : 1;
 		c.height = sh > 0 ? sh : 1;
 		// lu aussitôt (getImageData) : un canevas gardé en mémoire vive évite à Firefox et Chrome
