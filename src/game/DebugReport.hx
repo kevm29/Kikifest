@@ -63,6 +63,7 @@ class DebugReport {
 	static var overlay:js.html.Element = null;
 	static var lastOverlay = 0.0;
 	static var iceInfo:Dynamic = null;
+	static var lockSince = -1.0;
 
 	public static function init() {
 		t0 = now();
@@ -144,6 +145,17 @@ class DebugReport {
 		layersAt[i] = layersUsed;
 		count++;
 
+		try {
+			var g:Dynamic = manager != null ? manager.current : null;
+			var locked = g != null && g.fl_lock == true;
+			if (locked && lockSince < 0) {
+				lockSince = curT;
+			} else if (!locked && lockSince >= 0) {
+				if (curT - lockSince > 4000)
+					event("transition terminée après " + round((curT - lockSince) / 1000) + " s");
+				lockSince = -1;
+			}
+		} catch (e:Dynamic) {}
 		var lvl = levelName(manager);
 		if (lvl != lastLevel) {
 			if (lastLevel != null || lvl != null)
@@ -224,7 +236,54 @@ class DebugReport {
 				effets: n(Data.FX),
 				tremblement: g.shakeTimer != null && g.shakeTimer > 0,
 				transition: g.fl_lock == true,
+				transitionDepuisS: lockSince >= 0 ? round((lastT - lockSince) / 1000) : 0,
 			};
+		} catch (e:Dynamic) {
+			return null;
+		}
+	}
+
+	/** État du décor et des transitions (pour comprendre un écran noir). **/
+	static function viewState(manager:Dynamic):Dynamic {
+		try {
+			var g:Dynamic = manager != null ? manager.current : null;
+			var w:Dynamic = g != null ? g.world : null;
+			if (w == null)
+				return null;
+			var v:Dynamic = w.view;
+			inline function cv(b:Dynamic):String
+				return b == null ? null : (b.canvas != null ? b.canvas.width + "x" + b.canvas.height : "?");
+			var mc:Dynamic = g.mc;
+			return {
+				defilement: w.fl_scrolling,
+				defilementHorizontal: w.fl_hscrolling,
+				fondu: w.fl_fading,
+				restauration: w.fl_restoring,
+				scrollCpt: w.scrollCpt,
+				fauxDecor: w.fake != null && w.fake._name != null,
+				vueAttachee: v != null ? v.fl_attach : null,
+				vueXY: v != null && v._back != null ? [v._back._x, v._back._y] : null,
+				caches: v != null ? [cv(v.viewCache), cv(v.topCache), cv(v.tileCache)] : null,
+				jeuXY: mc != null ? [mc._x, mc._y, mc._visible, mc._alpha] : null,
+				dimension: g.currentDim,
+				obscurite: w.darknessFactor,
+				pause: g.fl_pause,
+				finDePartie: g.fl_gameOver,
+			};
+		} catch (e:Dynamic) {
+			return {erreur: Std.string(e)};
+		}
+	}
+
+	/** Miniature de l'écran au moment du rapport (JPEG en base64, à coller dans un navigateur). **/
+	static function thumbnail(renderer:swf.Renderer):String {
+		try {
+			var c = renderer.canvas;
+			var t:js.html.CanvasElement = cast Browser.document.createElement("canvas");
+			t.width = 240;
+			t.height = Std.int(240 * c.height / Math.max(1, c.width));
+			t.getContext2d().drawImage(c, 0, 0, t.width, t.height);
+			return t.toDataURL("image/jpeg", 0.7);
 		} catch (e:Dynamic) {
 			return null;
 		}
@@ -401,6 +460,8 @@ class DebugReport {
 			connexion: connection(session, netCfg),
 			systeme: system(renderer),
 			jeu: gameContext(manager),
+			vue: viewState(manager),
+			image: thumbnail(renderer),
 			extra: extra,
 			imagesLentes: slow.slice(-80),
 			evenements: events.slice(-150),
