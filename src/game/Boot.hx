@@ -104,6 +104,7 @@ class Boot {
 				Reflect.setField(root, kv[0], params.get(kv[0].substr(1)) != null ? params.get(kv[0].substr(1)) : kv[1]);
 		Rand.setSeed(netCfg != null ? Std.int(netCfg.seed) : params.get("seed") != null ? Std.parseInt(params.get("seed")) : 12345);
 		settings = meta.Settings.load();
+		quality = settings.quality;
 		SoundBank.musicVolume = settings.music / 100;
 		SoundBank.sfxVolume = settings.sfx / 100;
 		// musique tirée au hasard ; en réseau avec la graine commune, pour que les deux entendent la même
@@ -155,6 +156,18 @@ class Boot {
 						requestReport();
 					else
 						DebugReport.toggleOverlay(session);
+				}
+				return;
+			}
+			// F4 : qualité d'image suivante (légère, normale, haute), gardée dans les paramètres
+			if (e.code == "F4") {
+				e.preventDefault();
+				if (!e.repeat) {
+					quality = (quality + 1) % 3;
+					settings.quality = quality;
+					meta.Settings.store(settings);
+					dirty = true;
+					showToast("Qualité d'image : " + meta.Settings.QUALITIES[quality]);
 				}
 				return;
 			}
@@ -230,6 +243,23 @@ class Boot {
 
 	/** Redessiner à la prochaine image même sans pas de jeu (taille du canevas changée…). **/
 	static var dirty = true;
+
+	/** Petit message temporaire en haut de la page. **/
+	static function showToast(msg:String) {
+		var doc = Browser.document;
+		var t = doc.getElementById("kiki-toast");
+		if (t == null) {
+			t = doc.createDivElement();
+			t.id = "kiki-toast";
+			t.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;"
+				+ "padding:6px 14px;border-radius:6px;font:14px sans-serif;z-index:99;pointer-events:none";
+			doc.body.appendChild(t);
+		}
+		t.textContent = msg;
+		t.style.display = "block";
+		var me = t.textContent;
+		haxe.Timer.delay(() -> if (t.textContent == me) t.style.display = "none", 1800);
+	}
 
 	/** Rapport de débogage : téléchargé en fichier (F9 ou bouton). **/
 	static function requestReport() {
@@ -736,11 +766,19 @@ class Boot {
 		MovieClip.tick(root);
 	}
 
+	/** Qualité d'image (paramètres, ou F4 en partie) : 0 légère, 1 normale, 2 haute. **/
+	public static var quality = 0;
+
 	public static function draw() {
 		var canvas = renderer.canvas;
 		var dpr = Browser.window.devicePixelRatio;
-		var w = Std.int(canvas.clientWidth * dpr);
-		var h = Std.int(canvas.clientHeight * dpr);
+		var fw = canvas.clientWidth * dpr;
+		// qualité légère / normale : on dessine au plus à 1× / 1,5× la taille d'origine du jeu,
+		// le navigateur agrandit ensuite l'image (bien moins de pixels à composer)
+		var maxW = quality == 0 ? Data.DOC_WIDTH : quality == 1 ? Data.DOC_WIDTH * 1.5 : 1e9;
+		var k = fw > maxW ? maxW / fw : 1.0;
+		var w = Std.int(fw * k);
+		var h = Std.int(canvas.clientHeight * dpr * k);
 		if (canvas.width != w || canvas.height != h) {
 			// le canevas est vidé quand sa taille change
 			canvas.width = w;

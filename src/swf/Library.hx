@@ -158,8 +158,8 @@ class Library {
 	**/
 	public function rasterized(id:Int, scale:Float):Null<CanvasElement> {
 		var bucket = Math.pow(2, Math.ceil(Math.log(Math.max(scale, 0.125)) / Math.log(2)));
-		if (bucket > 8)
-			bucket = 8;
+		if (bucket > 4)
+			bucket = 4; // au-delà, l'image pixellisée devient énorme pour un gain de netteté invisible
 		var key = id + "@" + bucket;
 		var c = raster.get(key);
 		if (c != null)

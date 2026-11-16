@@ -244,6 +244,7 @@ class Boot {
 		}
 		mtlib_Rand.setSeed(Boot.netCfg != null ? Boot.netCfg.seed | 0 : params.get("seed") != null ? Std.parseInt(params.get("seed")) : 12345);
 		Boot.settings = meta_Settings.load();
+		Boot.quality = Boot.settings.quality;
 		mtlib_SoundBank.set_musicVolume(Boot.settings.music / 100);
 		mtlib_SoundBank.set_sfxVolume(Boot.settings.sfx / 100);
 		meta_Jukebox.pick(Boot.netCfg != null ? Boot.netCfg.seed | 0 : Std.random(1000000));
@@ -287,6 +288,17 @@ class Boot {
 					} else {
 						DebugReport.toggleOverlay(Boot.session);
 					}
+				}
+				return;
+			}
+			if(e.code == "F4") {
+				e.preventDefault();
+				if(!e.repeat) {
+					Boot.quality = (Boot.quality + 1) % 3;
+					Boot.settings.quality = Boot.quality;
+					meta_Settings.store(Boot.settings);
+					Boot.dirty = true;
+					Boot.showToast("Qualité d'image : " + meta_Settings.QUALITIES[Boot.quality]);
 				}
 				return;
 			}
@@ -373,6 +385,24 @@ class Boot {
 			DebugReport.frameEnd(Boot.session,Boot.manager);
 		};
 		window.requestAnimationFrame(loop);
+	}
+	static showToast(msg) {
+		let doc = window.document;
+		let t = doc.getElementById("kiki-toast");
+		if(t == null) {
+			t = doc.createElement("div");
+			t.id = "kiki-toast";
+			t.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;" + "padding:6px 14px;border-radius:6px;font:14px sans-serif;z-index:99;pointer-events:none";
+			doc.body.appendChild(t);
+		}
+		t.textContent = msg;
+		t.style.display = "block";
+		let me = t.textContent;
+		haxe_Timer.delay(function() {
+			if(t.textContent == me) {
+				t.style.display = "none";
+			}
+		},1800);
 	}
 	static requestReport() {
 		DebugReport.download(Boot.session,Boot.netCfg,Boot.manager,Boot.renderer,{ mode : Reflect.field(Boot.root,"$mode"), perfBoot : Boot.perf, lagSimule : Boot.lagTransport != null},function(name) {
@@ -884,8 +914,11 @@ class Boot {
 	static draw() {
 		let canvas = Boot.renderer.canvas;
 		let dpr = window.devicePixelRatio;
-		let w = canvas.clientWidth * dpr | 0;
-		let h = canvas.clientHeight * dpr | 0;
+		let fw = canvas.clientWidth * dpr;
+		let maxW = Boot.quality == 0 ? Data.DOC_WIDTH : Boot.quality == 1 ? Data.DOC_WIDTH * 1.5 : 1e9;
+		let k = fw > maxW ? maxW / fw : 1.0;
+		let w = fw * k | 0;
+		let h = canvas.clientHeight * dpr * k | 0;
 		if(canvas.width != w || canvas.height != h) {
 			canvas.width = w;
 			canvas.height = h;
@@ -2002,17 +2035,18 @@ class DebugReport {
 		let tmp1 = Std.string(window.innerWidth) + "x" + Std.string(window.innerHeight);
 		let tmp2 = window.devicePixelRatio;
 		let tmp3 = renderer != null ? renderer.canvas.width + "x" + renderer.canvas.height : null;
-		let tmp4;
+		let tmp4 = meta_Settings.QUALITIES[Boot.quality];
+		let tmp5;
 		if(renderer != null) {
 			try {
-				tmp4 = renderer.ctx.isContextLost();
+				tmp5 = renderer.ctx.isContextLost();
 			} catch( _g ) {
-				tmp4 = null;
+				tmp5 = null;
 			}
 		} else {
-			tmp4 = null;
+			tmp5 = null;
 		}
-		return { navigateur : nav1, coeurs : nav2, memoireGo : nav3, ecran : tmp, fenetre : tmp1, zoomPixels : tmp2, canevas : tmp3, canevasPerdu : tmp4, rafraichissementEcranHz : DebugReport.round(1000 / Math.max(1,DebugReport.percentile(dts,0.5))), ongletCache : DebugReport.hiddenCount, memoireJsMo : mem != null ? Math.round(mem.usedJSHeapSize / 1048576) : null};
+		return { navigateur : nav1, coeurs : nav2, memoireGo : nav3, ecran : tmp, fenetre : tmp1, zoomPixels : tmp2, canevas : tmp3, qualite : tmp4, canevasPerdu : tmp5, rafraichissementEcranHz : DebugReport.round(1000 / Math.max(1,DebugReport.percentile(dts,0.5))), ongletCache : DebugReport.hiddenCount, memoireJsMo : mem != null ? Math.round(mem.usedJSHeapSize / 1048576) : null};
 	}
 	static build(session,netCfg,manager,renderer,extra) {
 		return { rapport : "Kikifest - rapport de débogage", date : HxOverrides.dateStr(new Date()), dureePartieS : DebugReport.round((window.performance.now() - DebugReport.t0) / 1000), niveau : DebugReport.levelName(manager), dernieres10s : DebugReport.summary(10), dernieres60s : DebugReport.summary(60), connexion : DebugReport.connection(session,netCfg), systeme : DebugReport.system(renderer), jeu : DebugReport.gameContext(manager), vue : DebugReport.viewState(manager), image : DebugReport.thumbnail(renderer), extra : extra, imagesLentes : DebugReport.slow.slice(-80), evenements : DebugReport.events.slice(-150), erreurs : DebugReport.errors};
@@ -19674,6 +19708,36 @@ haxe__$Int64__$_$_$Int64.__name__ = "haxe._Int64.___Int64";
 Object.assign(haxe__$Int64__$_$_$Int64.prototype, {
 	__class__: haxe__$Int64__$_$_$Int64
 });
+class haxe_Timer {
+	constructor(time_ms) {
+		let me = this;
+		this.id = setInterval(function() {
+			me.run();
+		},time_ms);
+	}
+	stop() {
+		if(this.id == null) {
+			return;
+		}
+		clearInterval(this.id);
+		this.id = null;
+	}
+	run() {
+	}
+	static delay(f,time_ms) {
+		let t = new haxe_Timer(time_ms);
+		t.run = function() {
+			t.stop();
+			f();
+		};
+		return t;
+	}
+}
+$hxClasses["haxe.Timer"] = haxe_Timer;
+haxe_Timer.__name__ = "haxe.Timer";
+Object.assign(haxe_Timer.prototype, {
+	__class__: haxe_Timer
+});
 class haxe_ValueException extends haxe_Exception {
 	constructor(value,previous,native) {
 		super(String(value),previous,native);
@@ -24663,7 +24727,7 @@ class meta_Settings {
 		return { up : "KeyR", down : "KeyF", left : "KeyD", right : "KeyG", bomb : "KeyQ", pause : "KeyP", map : "KeyC"};
 	}
 	static defaults() {
-		return { music : 70, sfx : 100, keys : meta_Settings.defaultKeys(), keys2 : meta_Settings.defaultKeys2(), labels : { }};
+		return { music : 70, sfx : 100, keys : meta_Settings.defaultKeys(), keys2 : meta_Settings.defaultKeys2(), labels : { }, quality : 0};
 	}
 	static load() {
 		let d = meta_Settings.defaults();
@@ -24703,6 +24767,12 @@ class meta_Settings {
 				}
 				if(s.labels != null) {
 					d.labels = s.labels;
+				}
+				if(s.quality != null) {
+					let q = Std.parseInt(Std.string(s.quality));
+					if(q != null && q >= 0 && q <= 2) {
+						d.quality = q;
+					}
 				}
 			}
 		} catch( _g ) {
@@ -33074,8 +33144,8 @@ class swf_Library {
 	}
 	rasterized(id,scale) {
 		let bucket = Math.pow(2,Math.ceil(Math.log(Math.max(scale,0.125)) / Math.log(2)));
-		if(bucket > 8) {
-			bucket = 8;
+		if(bucket > 4) {
+			bucket = 4;
 		}
 		let key = id + "@" + bucket;
 		let c = this.raster.h[key];
@@ -34194,6 +34264,7 @@ Boot.endMessage = "";
 Boot.returnTimer = -1;
 Boot.errors = 0;
 Boot.gameEnded = false;
+Boot.quality = 0;
 Cookie.NAME = "$hammerfest_data";
 Cookie.VERSION = 4;
 Data.DOC_WIDTH = 420;
@@ -34799,6 +34870,7 @@ meta_Settings.PAUSE = 32;
 meta_Settings.MAP = 64;
 meta_Settings.QUIT = 128;
 meta_Settings.ACTIONS = [{ id : "up", name : "Sauter", bit : 1},{ id : "down", name : "Descendre", bit : 2},{ id : "left", name : "Gauche", bit : 4},{ id : "right", name : "Droite", bit : 8},{ id : "bomb", name : "Poser une bombe", bit : 16},{ id : "pause", name : "Pause", bit : 32},{ id : "map", name : "Carte", bit : 64}];
+meta_Settings.QUALITIES = ["Légère","Normale","Haute"];
 mode_GameMode.WATER_COLOR = 255;
 mode_Adventure.BUCKET_X = 11;
 mode_Adventure.BUCKET_Y = 19;
