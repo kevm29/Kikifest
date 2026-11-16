@@ -2438,7 +2438,8 @@ class menu_Online {
 			if(!local) {
 				links.appendChild(menu_Online.copyable("Lien à envoyer",$global.location.protocol + "//" + $global.location.host + "/?code=" + code));
 			} else if(info != null) {
-				let direct = info.publicIp != null ? "http://" + Std.string(info.publicIp) + port + "/?code=" + code : null;
+				let pport = info.publicPort != null ? ":" + Std.string(info.publicPort) : port;
+				let direct = info.publicIp != null ? "http://" + Std.string(info.publicIp) + pport + "/?code=" + code : null;
 				let tunnel = info.tunnelUrl != null ? Std.string(info.tunnelUrl) + "/?code=" + code : null;
 				if(direct != null && (info.preferDirect == true || tunnel == null)) {
 					links.appendChild(menu_Online.copyable("Lien à envoyer (par internet, en direct)",direct));
@@ -2448,7 +2449,7 @@ class menu_Online {
 				} else if(tunnel != null) {
 					links.appendChild(menu_Online.copyable("Lien à envoyer (par internet)",tunnel));
 					if(direct != null) {
-						links.appendChild(menu_Online.copyable("Lien direct (seulement si le port " + Std.string(info.port) + " est ouvert sur la box)",direct));
+						links.appendChild(menu_Online.copyable("Lien direct (seulement si le port " + (info.publicPort != null ? info.publicPort : info.port) + " est ouvert sur la box)",direct));
 					}
 				}
 				let _g = 0;
@@ -2461,15 +2462,15 @@ class menu_Online {
 			if(info != null && local) {
 				note.className = "note";
 				if(info.preferDirect == true && info.reachable == true) {
-					note.textContent = "Vérifié : votre ordinateur est bien joignable par internet (port " + Std.string(info.port) + "). Envoyez le lien direct.";
+					note.textContent = "Vérifié : votre ordinateur est bien joignable par internet (port " + (info.publicPort != null ? info.publicPort : info.port) + "). Envoyez le lien direct.";
 				} else if(info.preferDirect == true) {
-					note.textContent = "La box a ouvert le port " + Std.string(info.port) + " (vérification depuis internet impossible) : essayez d'abord le lien direct.";
+					note.textContent = "La box a ouvert le port " + (info.publicPort != null ? info.publicPort : info.port) + " (vérification depuis internet impossible) : essayez d'abord le lien direct.";
 				} else if(info.tunnelUrl != null) {
 					note.textContent = "Le lien par internet passe par un tunnel gratuit : rien à régler sur votre box. Il change à chaque lancement du serveur.";
 				} else if(info.reachable == true) {
-					note.textContent = "Vérifié : votre ordinateur est bien joignable par internet (port " + Std.string(info.port) + ").";
+					note.textContent = "Vérifié : votre ordinateur est bien joignable par internet (port " + (info.publicPort != null ? info.publicPort : info.port) + ").";
 				} else {
-					note.textContent = "Attention : le port " + Std.string(info.port) + " ne semble pas joignable depuis internet, le lien par internet risque de ne pas marcher. " + "Relancez le serveur avec « --tunnel », ou voir docs/HEBERGER.md. Sur le même Wi-Fi, ça marche sans rien faire.";
+					note.textContent = "Attention : le port " + (info.publicPort != null ? info.publicPort : info.port) + " ne semble pas joignable depuis internet, le lien par internet risque de ne pas marcher. " + "Relancez le serveur avec « --tunnel », ou voir docs/HEBERGER.md. Sur le même Wi-Fi, ça marche sans rien faire.";
 					note.className = "note warn";
 				}
 			}

@@ -75,6 +75,13 @@ Autre possibilité : activer l'UPnP dans la box (souvent dans la même page), pu
 Si le port 8080 est déjà pris, choisissez-en un autre : `node server/serve.mjs 8081`
 (et utilisez 8081 dans la redirection).
 
+### Livebox : « La règle est en conflit avec une règle existante »
+
+Certaines Livebox refusent de rediriger le port externe 8080. Créez alors la règle avec l'application
+**Personnalisée**, port interne **8080**, port externe **8081**, TCP, vers votre ordinateur.
+Le serveur s'en rend compte tout seul au démarrage (« le 8081 l'est ») et donne le lien `http://IP:8081/`.
+Pour un autre port externe : `"portBox": 8082` dans `server/config.json`, ou `--port-box 8082`.
+
 ## Comment ça marche, et la latence
 
 - Le serveur sert les fichiers du jeu et met les deux navigateurs en relation (« signalisation »).

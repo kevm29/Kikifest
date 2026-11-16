@@ -262,7 +262,9 @@ class Online {
 			if (!local)
 				links.appendChild(copyable("Lien à envoyer", Browser.location.protocol + "//" + Browser.location.host + "/?code=" + code));
 			else if (info != null) {
-				var direct = info.publicIp != null ? "http://" + info.publicIp + port + "/?code=" + code : null;
+				// port vu depuis internet : peut différer de celui de la page (box qui redirige le 8081 vers le 8080)
+				var pport = info.publicPort != null ? ":" + info.publicPort : port;
+				var direct = info.publicIp != null ? "http://" + info.publicIp + pport + "/?code=" + code : null;
 				var tunnel = info.tunnelUrl != null ? info.tunnelUrl + "/?code=" + code : null;
 				if (direct != null && (info.preferDirect == true || tunnel == null)) {
 					// port ouvert : lien direct en premier, le tunnel Cloudflare n'est qu'un secours
@@ -272,7 +274,7 @@ class Online {
 				} else if (tunnel != null) {
 					links.appendChild(copyable("Lien à envoyer (par internet)", tunnel));
 					if (direct != null)
-						links.appendChild(copyable("Lien direct (seulement si le port " + info.port + " est ouvert sur la box)", direct));
+						links.appendChild(copyable("Lien direct (seulement si le port " + (info.publicPort != null ? info.publicPort : info.port) + " est ouvert sur la box)", direct));
 				}
 				for (ip in lan)
 					links.appendChild(copyable("Lien si l'autre joueur est chez vous (même Wi-Fi)", "http://" + ip + port + "/?code=" + code));
@@ -280,15 +282,15 @@ class Online {
 			if (info != null && local) {
 				note.className = "note";
 				if (info.preferDirect == true && info.reachable == true)
-					note.textContent = 'Vérifié : votre ordinateur est bien joignable par internet (port ${info.port}). Envoyez le lien direct.';
+					note.textContent = 'Vérifié : votre ordinateur est bien joignable par internet (port ${info.publicPort != null ? info.publicPort : info.port}). Envoyez le lien direct.';
 				else if (info.preferDirect == true)
-					note.textContent = 'La box a ouvert le port ${info.port} (vérification depuis internet impossible) : essayez d\'abord le lien direct.';
+					note.textContent = 'La box a ouvert le port ${info.publicPort != null ? info.publicPort : info.port} (vérification depuis internet impossible) : essayez d\'abord le lien direct.';
 				else if (info.tunnelUrl != null)
 					note.textContent = "Le lien par internet passe par un tunnel gratuit : rien à régler sur votre box. Il change à chaque lancement du serveur.";
 				else if (info.reachable == true)
-					note.textContent = 'Vérifié : votre ordinateur est bien joignable par internet (port ${info.port}).';
+					note.textContent = 'Vérifié : votre ordinateur est bien joignable par internet (port ${info.publicPort != null ? info.publicPort : info.port}).';
 				else {
-					note.textContent = 'Attention : le port ${info.port} ne semble pas joignable depuis internet, le lien par internet risque de ne pas marcher. '
+					note.textContent = 'Attention : le port ${info.publicPort != null ? info.publicPort : info.port} ne semble pas joignable depuis internet, le lien par internet risque de ne pas marcher. '
 						+ 'Relancez le serveur avec « --tunnel », ou voir docs/HEBERGER.md. Sur le même Wi-Fi, ça marche sans rien faire.';
 					note.className = "note warn";
 				}
