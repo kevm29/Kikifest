@@ -97,6 +97,7 @@ Pour un autre port externe : `"portBox": 8082` dans `server/config.json`, ou `--
 | Problème | Que faire |
 |---|---|
 | L'invité voit « Délai d'attente dépassé » ou « Ce site est inaccessible » | Relancez avec `Heberger-Windows-sans-box.bat` (tunnel) et renvoyez le nouveau lien. Pour diagnostiquer : depuis un téléphone sur **votre** Wi-Fi, ouvrez le lien « même Wi-Fi ». S'il ne s'ouvre pas, c'est le pare-feu de l'ordinateur ; s'il s'ouvre, c'est la box. |
+| Le port n'est pas joignable alors que la box redirige bien le port | Double-cliquez sur `Reparer-pare-feu-Windows.bat` (répondez **Oui**), puis relancez le serveur. Il retire les règles qui bloquent Node.js et autorise les ports 8080 et 8081. |
 | La fenêtre dit « autorisation refusée » pour le pare-feu | Relancez et répondez **Oui** à la question de Windows, ou utilisez le tunnel. |
 | La fenêtre dit « Pare-feu : impossible de le régler automatiquement » | Le pare-feu est souvent géré par un antivirus (Avast, Norton, Kaspersky, Bitdefender...) : autorisez Node.js dans ses réglages, ou utilisez le tunnel. À la main, dans une invite de commandes **administrateur** : `netsh advfirewall firewall add rule name="Kikifest" dir=in action=allow protocol=TCP localport=8080` |
 | Vous testez le lien « par internet » depuis chez vous | Ça ne prouve rien : beaucoup de box ne savent pas se rejoindre elles-mêmes. Testez depuis un téléphone en 4G/5G (Wi-Fi coupé). |
